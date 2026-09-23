@@ -1,0 +1,2018 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMAP Stitch Editor</title>
+<style>
+  :root{
+    --bg:#f1f2ef;
+    --panel:#e6e8e3;
+    --panel-2:#dbdfd9;
+    --ink:#1a1f1c;
+    --ink-dim:#5f685f;
+    --line:#cdd2c9;
+    --accent:#5b52d6;
+    --accent-ink:#ffffff;
+    --danger:#c94a3a;
+    --danger-ink:#ffffff;
+    --canvas-bg:#14171a;
+    --canvas-grid:rgba(255,255,255,0.04);
+    --focus:0 0 0 2px var(--accent);
+    color-scheme: light;
+  }
+  [data-theme="dark"]{
+    --bg:#15181a;
+    --panel:#1c2022;
+    --panel-2:#262b2d;
+    --ink:#e9ece9;
+    --ink-dim:#98a29c;
+    --line:#33393b;
+    --accent:#8b85ff;
+    --accent-ink:#12102e;
+    --danger:#e0685a;
+    --danger-ink:#2a0a06;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box;}
+  [hidden]{display:none !important;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  .mono{font-family:ui-monospace,"SF Mono","Cascadia Code",Consolas,monospace; font-variant-numeric:tabular-nums;}
+  button{font-family:inherit;}
+  input{font-family:inherit;}
+
+  /* ---------- header ---------- */
+  header{
+    flex:0 0 auto;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:9px 14px;
+    background:var(--panel);
+    border-bottom:1px solid var(--line);
+    flex-wrap:wrap;
+    row-gap:6px;
+  }
+  header h1{
+    font-size:16px;
+    font-weight:700;
+    letter-spacing:-0.01em;
+    margin:0 12px 0 0;
+    white-space:nowrap;
+  }
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    font-size:13px;
+    font-weight:500;
+    padding:7px 11px;
+    border-radius:6px;
+    border:1px solid var(--line);
+    background:var(--bg);
+    color:var(--ink);
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .btn:hover{border-color:var(--accent);}
+  .btn:focus-visible{outline:none; box-shadow:var(--focus);}
+  .btn:active{background:var(--panel-2);}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
+  .btn.danger{border-color:var(--danger); color:var(--danger);}
+  .btn.danger:hover{background:var(--danger); color:var(--danger-ink);}
+  .btn.icon{padding:7px 9px;}
+  .btn[disabled]{opacity:0.4; cursor:not-allowed;}
+  .sep{width:1px; align-self:stretch; background:var(--line); margin:0 2px;}
+  .spacer{flex:1;}
+  .check-inline{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:12.5px; color:var(--ink-dim); white-space:nowrap;
+  }
+  .check-inline input{accent-color:var(--accent); width:14px; height:14px; cursor:pointer;}
+
+  /* ---------- layout ---------- */
+  .layout{flex:1 1 auto; display:flex; min-height:0;}
+  @media (max-width:860px){ .layout{flex-direction:column;} }
+
+  aside{
+    flex:0 0 288px;
+    background:var(--panel);
+    border-right:1px solid var(--line);
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+  }
+  @media (max-width:860px){
+    aside{flex:0 0 auto; width:100%; max-height:46vh; border-right:none; border-bottom:1px solid var(--line);}
+  }
+  .section{padding:12px 14px; border-bottom:1px solid var(--line);}
+  .section-title{
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em;
+    color:var(--ink-dim); margin:0 0 8px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+
+  /* ---------- layers list ---------- */
+  #layersList{display:flex; flex-direction:column; gap:3px; max-height:220px; overflow-y:auto;}
+  .layer-row{
+    display:flex; align-items:center; gap:7px;
+    padding:6px 7px; border-radius:6px; cursor:pointer;
+    border:1px solid transparent;
+  }
+  .layer-row:hover{background:var(--panel-2);}
+  .layer-row.active{background:var(--panel-2); border-color:var(--accent);}
+  .layer-row input[type="checkbox"]{accent-color:var(--accent); width:14px; height:14px; cursor:pointer; flex:0 0 auto;}
+  .layer-swatch{width:10px; height:10px; border-radius:50%; flex:0 0 auto; box-shadow:0 0 0 1px rgba(0,0,0,0.2);}
+  .layer-color-input{
+    -webkit-appearance:none; appearance:none;
+    width:15px; height:15px; flex:0 0 auto;
+    padding:0; border:none; border-radius:50%;
+    cursor:pointer; background:none;
+    box-shadow:0 0 0 1px rgba(0,0,0,0.25);
+  }
+  .layer-color-input::-webkit-color-swatch-wrapper{padding:0; border-radius:50%;}
+  .layer-color-input::-webkit-color-swatch{border:none; border-radius:50%;}
+  .layer-color-input::-moz-color-swatch{border:none; border-radius:50%;}
+  .layer-name{flex:1; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .layer-name input{width:100%; font-size:13px; border:1px solid var(--accent); border-radius:3px; padding:1px 4px; background:var(--bg); color:var(--ink);}
+  .layer-mini-btn{
+    border:none; background:none; color:var(--ink-dim); cursor:pointer; font-size:12px;
+    padding:2px 3px; border-radius:3px; line-height:1;
+  }
+  .layer-mini-btn:hover{background:var(--line); color:var(--ink);}
+  .empty-hint{font-size:12.5px; color:var(--ink-dim); padding:6px 2px; line-height:1.5;}
+
+  /* ---------- transform / detail panel ---------- */
+  .field-row{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+  .field-row label{font-size:12px; color:var(--ink-dim); width:64px; flex:0 0 auto;}
+  .field-row input[type="number"]{
+    flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line);
+    background:var(--bg); color:var(--ink); font-size:13px;
+  }
+  .field-row input[type="number"]:focus-visible{outline:none; box-shadow:var(--focus);}
+  .field-row input[type="number"]:disabled{opacity:0.4; cursor:not-allowed;}
+  .stat-line{font-size:12px; color:var(--ink-dim); display:flex; justify-content:space-between; margin-bottom:4px;}
+  .stat-line b{color:var(--ink); font-weight:500;}
+
+  /* ---------- tools ---------- */
+  .tool-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:10px;}
+  .tool-btn{
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:8px 4px; border-radius:6px; border:1px solid var(--line);
+    background:var(--bg); color:var(--ink); cursor:pointer; font-size:11px;
+  }
+  .tool-btn .glyph{font-size:15px;}
+  .tool-btn:hover{border-color:var(--accent);}
+  .tool-btn.active{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
+  .tool-options{font-size:12px; color:var(--ink-dim); display:flex; flex-direction:column; gap:8px;}
+  .tool-options .row{display:flex; align-items:center; gap:8px;}
+  .tool-options input[type="range"]{flex:1; accent-color:var(--accent);}
+  .tool-options input[type="number"]{width:64px; padding:4px 6px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink);}
+  .tool-hint{font-size:11.5px; color:var(--ink-dim); background:var(--panel-2); padding:7px 8px; border-radius:6px; line-height:1.5; margin-top:8px;}
+
+  .legend-row{display:flex; align-items:center; gap:7px; font-size:12px; color:var(--ink-dim); margin-bottom:5px;}
+  .legend-swatch{width:9px; height:9px; border-radius:50%; flex:0 0 auto;}
+  .legend-swatch.sq{border-radius:2px;}
+  .legend-row.check{cursor:pointer; user-select:none;}
+  .legend-row.check input{accent-color:var(--accent); width:13px; height:13px; cursor:pointer; margin:0;}
+  .label-sub{font-size:11px; font-weight:600; color:var(--ink-dim); text-transform:uppercase; letter-spacing:0.06em; margin:4px 0 2px;}
+  .shape-toggle{display:flex; gap:6px; flex:1;}
+  .shape-btn{
+    flex:1; font-size:11.5px; padding:5px 6px; border-radius:5px; border:1px solid var(--line);
+    background:var(--bg); color:var(--ink); cursor:pointer;
+  }
+  .shape-btn.active{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
+
+  kbd{
+    font-family:ui-monospace,monospace; font-size:10.5px; background:var(--panel-2);
+    border:1px solid var(--line); border-bottom-width:2px; border-radius:3px; padding:0 4px;
+  }
+
+  /* ---------- main / canvas ---------- */
+  main{flex:1 1 auto; position:relative; min-width:0; min-height:240px; background:var(--canvas-bg);}
+  canvas{display:block; width:100%; height:100%; touch-action:none; cursor:crosshair;}
+  canvas.tool-pan{cursor:grab;}
+  canvas.tool-pan.dragging{cursor:grabbing;}
+  canvas.tool-move{cursor:move;}
+  canvas.tool-rotate{cursor:alias;}
+
+  .hud{
+    position:absolute; left:12px; bottom:12px;
+    font-family:ui-monospace,monospace; font-size:12px; color:#dfe7e2;
+    background:rgba(10,14,12,0.55); padding:6px 10px; border-radius:6px;
+    pointer-events:none; backdrop-filter:blur(3px);
+  }
+  .scalebar{
+    position:absolute; right:12px; bottom:12px; display:flex; flex-direction:column;
+    align-items:center; pointer-events:none; color:#dfe7e2; font-family:ui-monospace,monospace; font-size:11px;
+  }
+  .scalebar .bar{height:4px; background:#dfe7e2; border-left:1px solid #dfe7e2; border-right:1px solid #dfe7e2;}
+  .tool-status{
+    position:absolute; top:10px; left:12px; font-size:12px; color:#dfe7e2;
+    background:rgba(10,14,12,0.55); padding:5px 10px; border-radius:6px; pointer-events:none;
+  }
+  .no-layer-banner{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    background:rgba(201,74,58,0.92); color:#fff; font-size:12.5px; padding:6px 12px;
+    border-radius:6px; pointer-events:none;
+  }
+  .restore-banner{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    background:var(--accent); color:var(--accent-ink); font-size:12.5px; padding:8px 12px;
+    border-radius:8px; display:flex; align-items:center; gap:10px; z-index:8; box-shadow:0 4px 14px rgba(0,0,0,0.3);
+  }
+  .restore-banner button{
+    font-size:11.5px; padding:4px 9px; border-radius:5px; border:1px solid rgba(255,255,255,0.5);
+    background:rgba(255,255,255,0.15); color:inherit; cursor:pointer;
+  }
+
+  /* ---------- print ---------- */
+  @media print{
+    header, aside, .hud, .scalebar, .tool-status, .no-layer-banner, .restore-banner{display:none !important;}
+    body, .layout, main{position:static; height:auto; overflow:visible;}
+    main{position:fixed; inset:0;}
+    canvas{width:100%; height:100%;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>SMAP Stitch Editor</h1>
+  <button class="btn primary" id="btnAddLayer">+ Add Layer(s)</button>
+  <div class="sep"></div>
+  <button class="btn" id="btnSaveProject">Save Project</button>
+  <button class="btn" id="btnLoadProject">Load Project</button>
+  <div class="sep"></div>
+  <button class="btn" id="btnExportSmap">Export .smap</button>
+  <button class="btn" id="btnExportLayers" title="Download each layer as its own .smap file">Export Layers</button>
+  <button class="btn" id="btnExportPng">Export PNG</button>
+  <div class="spacer"></div>
+  <button class="btn" id="btnPrint">Print</button>
+  <div class="sep"></div>
+  <button class="btn icon" id="btnTheme" title="Toggle dark / light mode">◐</button>
+  <input type="file" id="fileInputLayers" accept=".smap,.json,application/json" multiple hidden>
+  <input type="file" id="fileInputProject" accept=".json,application/json" hidden>
+</header>
+
+<div class="layout">
+  <aside>
+
+    <div class="section">
+      <div class="section-title">Layers <span id="layerCount" class="mono"></span></div>
+      <div id="layersList"></div>
+      <div class="empty-hint" id="emptyHint">No layers yet. Click <b>+ Add Layer(s)</b> to load one or more .smap files — each becomes its own layer you can move, rotate, and edit independently.</div>
+    </div>
+
+    <div class="section" id="detailSection" hidden>
+      <div class="section-title">Selected layer</div>
+      <div class="stat-line"><span>Source</span><b id="detFile" class="mono"></b></div>
+      <div class="stat-line"><span>Scan pts</span><b id="detPoints" class="mono"></b></div>
+      <div class="stat-line"><span>RSSI pts</span><b id="detRssi" class="mono"></b></div>
+      <div class="stat-line"><span>Reflectors</span><b id="detReflectors" class="mono"></b></div>
+      <div style="height:8px;"></div>
+      <div class="tool-hint" id="hiddenLayerHint" hidden style="margin-bottom:8px;">This layer is hidden — show it (checkbox above) to move, rotate, or edit it.</div>
+      <div class="field-row"><label for="fX">X (m)</label><input type="number" id="fX" step="0.01"></div>
+      <div class="field-row"><label for="fY">Y (m)</label><input type="number" id="fY" step="0.01"></div>
+      <div class="field-row"><label for="fRot">Rot (°)</label><input type="number" id="fRot" step="0.5"></div>
+      <button class="btn" id="btnResetTransform" style="width:100%;">Reset transform</button>
+      <button class="btn" id="btnExportThisLayer" style="width:100%; margin-top:6px;">Export this layer as .smap</button>
+    </div>
+
+    <div class="section" id="navPointSection" hidden>
+      <div class="section-title">Selected nav point</div>
+      <div class="stat-line"><span>Name</span><b id="navPtName" class="mono"></b></div>
+      <div class="field-row"><label for="navX">X (m)</label><input type="number" id="navX" step="0.01"></div>
+      <div class="field-row"><label for="navY">Y (m)</label><input type="number" id="navY" step="0.01"></div>
+      <div class="field-row"><label for="navRot">Rot (°)</label><input type="number" id="navRot" step="0.5"></div>
+      <button class="btn danger" id="btnDeleteNavPoint" style="width:100%;">Delete nav point</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Tools</div>
+      <div class="tool-grid">
+        <button class="tool-btn" data-tool="pan" title="Pan (H, or hold Space)"><span class="glyph">✋</span>Pan</button>
+        <button class="tool-btn" data-tool="move" title="Move layer (V)"><span class="glyph">✛</span>Move</button>
+        <button class="tool-btn" data-tool="rotate" title="Rotate layer (R)"><span class="glyph">⟳</span>Rotate</button>
+        <button class="tool-btn" data-tool="erase" title="Erase points (E)"><span class="glyph">⌫</span>Erase</button>
+        <button class="tool-btn" data-tool="draw" title="Draw wall line (L)"><span class="glyph">╱</span>Draw</button>
+        <button class="tool-btn" data-tool="reflector" title="Add reflector (K)"><span class="glyph">◎</span>Reflect.</button>
+        <button class="tool-btn" data-tool="select" title="Rectangle select and delete (S)"><span class="glyph">▭</span>Select</button>
+        <button class="tool-btn" data-tool="measure" title="Measure distance (M)"><span class="glyph">📏</span>Ruler</button>
+        <button class="tool-btn" data-tool="nav" title="Add / move nav points (N)"><span class="glyph">📍</span>Nav Pts</button>
+      </div>
+
+      <div class="tool-options" id="opts-erase" hidden>
+        <div class="row">
+          <span style="width:52px;">Shape</span>
+          <div class="shape-toggle">
+            <button type="button" class="shape-btn active" id="eraseShapeCircle" title="Round brush">● Circle</button>
+            <button type="button" class="shape-btn" id="eraseShapeSquare" title="Square brush">■ Square</button>
+          </div>
+        </div>
+        <div class="row"><span style="width:52px;">Size</span><input type="range" id="eraseRadius" min="0.02" max="10" step="0.02" value="0.5"><span class="mono" id="eraseRadiusVal" style="width:48px; text-align:right;">0.50 m</span></div>
+        <div class="label-sub">Erase affects</div>
+        <label class="check-inline"><input type="checkbox" id="eraseScan" checked> Scan points</label>
+        <label class="check-inline"><input type="checkbox" id="eraseRssi" checked> RSSI points</label>
+        <label class="check-inline"><input type="checkbox" id="eraseExtra" checked> Walls</label>
+      </div>
+      <div class="tool-options" id="opts-draw" hidden>
+        <div class="row">
+          <span style="width:70px;">Mode</span>
+          <div class="shape-toggle">
+            <button type="button" class="shape-btn active" id="lineModeEdit" title="Grab endpoints or delete existing lines">Edit</button>
+            <button type="button" class="shape-btn" id="lineModeDraw" title="Always start a new line, even over existing ones">Draw</button>
+          </div>
+        </div>
+        <div class="row"><span style="width:70px;">Spacing</span><input type="number" id="drawSpacing" min="0.01" max="1" step="0.01" value="0.05"><span>m</span></div>
+        <div class="row"><span style="width:70px;">Thickness</span><input type="number" id="drawThickness" min="0" max="2" step="0.01" value="0"><span>m</span></div>
+      </div>
+      <div class="tool-options" id="opts-reflector" hidden>
+        <div class="row"><span style="width:70px;">Diameter</span><input type="number" id="reflectorWidth" min="0.01" max="1" step="0.01" value="0.09"><span>m</span></div>
+      </div>
+      <div class="tool-options" id="opts-select" hidden>
+        <div class="label-sub">Delete affects</div>
+        <label class="check-inline"><input type="checkbox" id="selectScan" checked> Scan points</label>
+        <label class="check-inline"><input type="checkbox" id="selectRssi" checked> RSSI points</label>
+        <label class="check-inline"><input type="checkbox" id="selectExtra" checked> Walls</label>
+        <label class="check-inline"><input type="checkbox" id="selectReflector" checked> Reflectors</label>
+        <label class="check-inline"><input type="checkbox" id="selectManualLines" checked> Manual lines</label>
+        <label class="check-inline"><input type="checkbox" id="selectNavPoints" checked> Nav points</label>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Show</div>
+      <label class="legend-row check"><input type="checkbox" id="showScan" checked><span class="legend-swatch" style="background:#7fe9c9;"></span>Scan points</label>
+      <label class="legend-row check"><input type="checkbox" id="showRssi" checked><span class="legend-swatch sq" style="background:#f2c14e;"></span>RSSI samples</label>
+      <label class="legend-row check"><input type="checkbox" id="showReflector" checked><span class="legend-swatch" style="background:#ff6a4a;"></span>Reflectors</label>
+      <label class="legend-row check"><input type="checkbox" id="showExtra" checked><span class="legend-swatch sq" style="background:#9aa39d;"></span>Walls</label>
+      <label class="legend-row check"><input type="checkbox" id="showNav" checked><span class="legend-swatch" style="background:#7c6cff;"></span>Nav points / paths</label>
+      <label class="legend-row check" style="margin-top:6px;"><input type="checkbox" id="colorizeLayers"><span class="legend-swatch sq" style="background:linear-gradient(90deg,#7fe9c9,#f2c14e,#7ea6ff);"></span>Colorize layers</label>
+      <div class="label-sub">Reference</div>
+      <label class="legend-row check"><input type="checkbox" id="showOrigin"><span class="legend-swatch sq" style="background:none; border:1px solid var(--ink-dim);"></span>Origin (0, 0)</label>
+      <button class="btn" id="btnCenterOrigin" style="width:100%; margin-top:4px;">Center view on 0, 0</button>
+    </div>
+
+    <div class="section" style="border-bottom:none;">
+      <div class="section-title">Shortcuts</div>
+      <div style="font-size:11px; color:var(--ink-dim); line-height:1.7;">
+        <kbd>H</kbd> pan &nbsp; <kbd>V</kbd> move &nbsp; <kbd>R</kbd> rotate<br>
+        <kbd>E</kbd> erase &nbsp; <kbd>L</kbd> draw &nbsp; <kbd>K</kbd> reflector<br>
+        <kbd>S</kbd> select &nbsp; <kbd>M</kbd> ruler &nbsp; <kbd>N</kbd> nav pts<br>
+        <kbd>Esc</kbd> clear ruler<br>
+        <kbd>Space</kbd> hold to pan &nbsp; <kbd>Ctrl+Z</kbd> undo edit
+      </div>
+    </div>
+
+  </aside>
+
+  <main>
+    <canvas id="canvas"></canvas>
+    <div class="tool-status mono" id="toolStatus">Pan tool</div>
+    <div class="hud mono" id="hud">x: – &nbsp; y: –</div>
+    <div class="scalebar">
+      <div class="bar" id="scalebarBar" style="width:100px;"></div>
+      <span id="scalebarLabel">– m</span>
+    </div>
+    <div class="no-layer-banner" id="noLayerBanner" hidden>No layer selected — this tool needs an active layer</div>
+    <div class="restore-banner" id="restoreBanner" hidden>
+      <span id="restoreText"></span>
+      <button id="btnRestoreYes">Restore</button>
+      <button id="btnRestoreNo">Discard</button>
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+
+const PALETTE = ['#7fe9c9','#f2c14e','#7ea6ff','#ff9f6b','#c792ea','#6bd4ff','#a3e635','#ff8fb3'];
+const REFLECTOR_COLOR = '#ff6a4a';
+const RSSI_MUTE = '#f2c14e';
+const EXTRA_COLOR = '#9aa39d';
+const AUTOSAVE_KEY = 'smap_editor_autosave_v1';
+const THEME_KEY = 'smap_editor_theme';
+
+const state = {
+  layers: [],
+  activeLayerId: null,
+  nextId: 1,
+  colorIdx: 0,
+  tool: 'pan',
+  prevTool: 'pan',
+  view: { scale: 1, tx: 0, ty: 0 },
+  fitted: false,
+  eraseRadius: 0.5,
+  eraseShape: 'circle',
+  eraseTargets: { scan:true, rssi:true, extra:true },
+  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true },
+  showOrigin: false,
+  uniformLayerColor: true,
+  mouse: null,
+  drawSpacing: 0.05,
+  drawThickness: 0,
+  lineMode: 'edit',
+  selectionRect: null,
+  measure: null,
+  selectTargets: { scan:true, rssi:true, extra:true, reflector:true, manualLines:true, navPoints:true },
+  reflectorWidth: 0.09,
+  hoverReflector: null,
+  draggingLineHandle: null,
+  hoverLineHandle: null,
+  hoverLineBody: -1,
+  hoverNavPoint: null,
+  draggingNavPoint: null,
+  selectedNavPoint: null,
+  printFriendly: false,
+  undoStack: [],
+};
+
+// ---------------- geometry helpers ----------------
+
+function bboxOfPoints(flat){
+  if(!flat.length) return {minX:-1,minY:-1,maxX:1,maxY:1};
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(let i=0;i<flat.length;i+=2){
+    const x=flat[i], y=flat[i+1];
+    if(x<minX)minX=x; if(x>maxX)maxX=x;
+    if(y<minY)minY=y; if(y>maxY)maxY=y;
+  }
+  return {minX,minY,maxX,maxY};
+}
+
+function layerToWorld(layer, lx, ly){
+  const {tx,ty,rot} = layer.transform;
+  const p = layer.pivot;
+  const dx = lx-p.x, dy = ly-p.y;
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  return [ p.x + dx*cos - dy*sin + tx, p.y + dx*sin + dy*cos + ty ];
+}
+function worldToLayer(layer, wx, wy){
+  const {tx,ty,rot} = layer.transform;
+  const p = layer.pivot;
+  const a = wx-tx-p.x, b = wy-ty-p.y;
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  return [ p.x + a*cos + b*sin, p.y + (-a*sin + b*cos) ];
+}
+
+function layerWorldBBox(layer){
+  const b = layer.localBBox;
+  const corners = [[b.minX,b.minY],[b.maxX,b.minY],[b.maxX,b.maxY],[b.minX,b.maxY]];
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const [lx,ly] of corners){
+    const [wx,wy] = layerToWorld(layer, lx, ly);
+    if(wx<minX)minX=wx; if(wx>maxX)maxX=wx;
+    if(wy<minY)minY=wy; if(wy>maxY)maxY=wy;
+  }
+  return {minX,minY,maxX,maxY};
+}
+
+function transformDeepClone(obj, layer){
+  const clone = JSON.parse(JSON.stringify(obj||{}));
+  (function walk(node){
+    if(Array.isArray(node)){ node.forEach(walk); return; }
+    if(node && typeof node === 'object'){
+      if(typeof node.x === 'number' && typeof node.y === 'number'){
+        const [wx,wy] = layerToWorld(layer, node.x, node.y);
+        node.x = round3(wx); node.y = round3(wy);
+      }
+      for(const k of Object.keys(node)) walk(node[k]);
+    }
+  })(clone);
+  return clone;
+}
+
+function round3(n){ return Math.round(n*1000)/1000; }
+
+// ---------------- layer model ----------------
+
+function flattenPosList(list){
+  const out = [];
+  if(Array.isArray(list)) for(const p of list){ out.push(p.x, p.y); }
+  return out;
+}
+
+function buildLayer(json, fileName){
+  const header = json.header || {};
+  const points = flattenPosList(json.normalPosList);
+  const rssi = flattenPosList(json.rssiPosList);
+  const reflectors = Array.isArray(json.reflectorPosList) ? json.reflectorPosList.map(r=>({
+    type: r.type || 'cylinder',
+    width: typeof r.width === 'number' ? r.width : 0.09,
+    x: r.x, y: r.y,
+    creationMethod: typeof r.creationMethod === 'number' ? r.creationMethod : 1,
+  })) : [];
+  const extra = {};
+  for(const k of Object.keys(json)){
+    if(['header','normalPosList','rssiPosList','reflectorPosList'].includes(k)) continue;
+    extra[k] = json[k];
+  }
+  const localBBox = bboxOfPoints(points.length ? points : (reflectors.length ? reflectors.flatMap(r=>[r.x,r.y]) : [0,0]));
+  const pivot = { x:(localBBox.minX+localBBox.maxX)/2, y:(localBBox.minY+localBBox.maxY)/2 };
+
+  const id = state.nextId++;
+  const color = PALETTE[state.colorIdx % PALETTE.length];
+  state.colorIdx++;
+
+  return {
+    id, name: (header.mapName || fileName || ('layer-'+id)),
+    fileName: fileName || (header.mapName || '') ,
+    color,
+    visible: true,
+    header,
+    points, rssi, reflectors, extra,
+    manualLines: [],
+    localBBox, pivot,
+    transform: { tx:0, ty:0, rot:0 },
+  };
+}
+
+function addLayer(layer){
+  state.layers.push(layer);
+  state.activeLayerId = layer.id;
+  renderLayersList();
+  renderDetailPanel();
+  updateToolStatus();
+  renderNavPointPanel();
+  if(!state.fitted){ fitView(); state.fitted = true; }
+  scheduleAutosave();
+  requestDraw();
+}
+
+function getLayer(id){ return state.layers.find(l=>l.id===id); }
+function getActiveLayer(){ return state.activeLayerId==null ? null : getLayer(state.activeLayerId); }
+function getEditableActiveLayer(){
+  const layer = getActiveLayer();
+  return (layer && layer.visible) ? layer : null;
+}
+
+function deleteLayer(id){
+  const layer = getLayer(id);
+  if(!layer) return;
+  if(!confirm('Delete layer "'+layer.name+'"? This cannot be undone.')) return;
+  state.layers = state.layers.filter(l=>l.id!==id);
+  if(state.activeLayerId===id) state.activeLayerId = state.layers.length ? state.layers[state.layers.length-1].id : null;
+  renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); scheduleAutosave(); requestDraw();
+}
+
+function moveLayer(id, dir){
+  const i = state.layers.findIndex(l=>l.id===id);
+  if(i<0) return;
+  const j = i+dir;
+  if(j<0 || j>=state.layers.length) return;
+  const tmp = state.layers[i]; state.layers[i]=state.layers[j]; state.layers[j]=tmp;
+  renderLayersList(); scheduleAutosave(); requestDraw();
+}
+
+// ---------------- layers panel UI ----------------
+
+const layersListEl = document.getElementById('layersList');
+const emptyHint = document.getElementById('emptyHint');
+const layerCountEl = document.getElementById('layerCount');
+
+function renderLayersList(){
+  layersListEl.innerHTML = '';
+  layerCountEl.textContent = state.layers.length ? ('('+state.layers.length+')') : '';
+  emptyHint.hidden = state.layers.length>0;
+  for(let i=state.layers.length-1;i>=0;i--){
+    const layer = state.layers[i];
+    const row = document.createElement('div');
+    row.className = 'layer-row' + (layer.id===state.activeLayerId ? ' active' : '');
+    row.dataset.id = layer.id;
+
+    const vis = document.createElement('input');
+    vis.type = 'checkbox'; vis.checked = layer.visible;
+    vis.addEventListener('click', e=>e.stopPropagation());
+    vis.addEventListener('change', ()=>{ layer.visible = vis.checked; renderDetailPanel(); updateToolStatus(); scheduleAutosave(); requestDraw(); });
+
+    const swatch = document.createElement('input');
+    swatch.type = 'color'; swatch.className = 'layer-color-input'; swatch.value = layer.color;
+    swatch.title = 'Layer color';
+    swatch.addEventListener('click', e=>e.stopPropagation());
+    swatch.addEventListener('input', ()=>{ layer.color = swatch.value; scheduleAutosave(); requestDraw(); });
+
+    const name = document.createElement('div');
+    name.className = 'layer-name'; name.textContent = layer.name; name.title = layer.name;
+    name.addEventListener('dblclick', (e)=>{
+      e.stopPropagation();
+      const input = document.createElement('input');
+      input.value = layer.name;
+      name.textContent = ''; name.appendChild(input); input.focus(); input.select();
+      const commit = ()=>{ layer.name = input.value.trim() || layer.name; renderLayersList(); scheduleAutosave(); };
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', ev=>{ if(ev.key==='Enter') input.blur(); if(ev.key==='Escape'){ input.value=layer.name; input.blur(); } });
+    });
+
+    const upBtn = document.createElement('button');
+    upBtn.className='layer-mini-btn'; upBtn.textContent='▲'; upBtn.title='Bring forward';
+    upBtn.addEventListener('click', e=>{ e.stopPropagation(); moveLayer(layer.id, 1); });
+
+    const downBtn = document.createElement('button');
+    downBtn.className='layer-mini-btn'; downBtn.textContent='▼'; downBtn.title='Send backward';
+    downBtn.addEventListener('click', e=>{ e.stopPropagation(); moveLayer(layer.id, -1); });
+
+    const delBtn = document.createElement('button');
+    delBtn.className='layer-mini-btn'; delBtn.textContent='✕'; delBtn.title='Delete layer';
+    delBtn.addEventListener('click', e=>{ e.stopPropagation(); deleteLayer(layer.id); });
+
+    row.append(vis, swatch, name, upBtn, downBtn, delBtn);
+    row.addEventListener('click', ()=>{ state.activeLayerId = layer.id; renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); requestDraw(); });
+    layersListEl.appendChild(row);
+  }
+}
+
+const detailSection = document.getElementById('detailSection');
+const fX = document.getElementById('fX'), fY = document.getElementById('fY'), fRot = document.getElementById('fRot');
+
+const hiddenLayerHint = document.getElementById('hiddenLayerHint');
+const btnResetTransform = document.getElementById('btnResetTransform');
+
+function renderDetailPanel(){
+  const layer = getActiveLayer();
+  detailSection.hidden = !layer;
+  if(!layer) return;
+  document.getElementById('detFile').textContent = layer.fileName || '—';
+  document.getElementById('detPoints').textContent = (layer.points.length/2).toLocaleString();
+  document.getElementById('detRssi').textContent = (layer.rssi.length/2).toLocaleString();
+  document.getElementById('detReflectors').textContent = layer.reflectors.length.toLocaleString();
+  fX.value = round3(layer.transform.tx);
+  fY.value = round3(layer.transform.ty);
+  fRot.value = round3(layer.transform.rot * 180/Math.PI);
+  hiddenLayerHint.hidden = layer.visible;
+  fX.disabled = fY.disabled = fRot.disabled = btnResetTransform.disabled = !layer.visible;
+}
+
+function applyTransformFields(){
+  const layer = getEditableActiveLayer();
+  if(!layer) return;
+  const tx = parseFloat(fX.value)||0, ty = parseFloat(fY.value)||0, rotDeg = parseFloat(fRot.value)||0;
+  layer.transform.tx = tx; layer.transform.ty = ty; layer.transform.rot = rotDeg*Math.PI/180;
+  scheduleAutosave(); requestDraw();
+}
+[fX,fY,fRot].forEach(el=>el.addEventListener('input', applyTransformFields));
+
+btnResetTransform.addEventListener('click', ()=>{
+  const layer = getEditableActiveLayer(); if(!layer) return;
+  layer.transform = {tx:0, ty:0, rot:0};
+  renderDetailPanel(); scheduleAutosave(); requestDraw();
+});
+
+const navPointSection = document.getElementById('navPointSection');
+const navPtName = document.getElementById('navPtName');
+const navX = document.getElementById('navX'), navY = document.getElementById('navY'), navRot = document.getElementById('navRot');
+const btnDeleteNavPoint = document.getElementById('btnDeleteNavPoint');
+
+function getSelectedNavPoint(){
+  if(!state.selectedNavPoint) return null;
+  const layer = getLayer(state.selectedNavPoint.layerId);
+  if(!layer) return null;
+  const pt = findNavPointByName(layer, state.selectedNavPoint.instanceName);
+  return pt ? {layer, pt} : null;
+}
+
+function renderNavPointPanel(){
+  const sel = getSelectedNavPoint();
+  navPointSection.hidden = !sel;
+  if(!sel){ state.selectedNavPoint = null; return; }
+  const {layer, pt} = sel;
+  navPtName.textContent = pt.instanceName;
+  const [wx, wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
+  navX.value = round3(wx);
+  navY.value = round3(wy);
+  const localDir = (typeof pt.dir === 'number' && !pt.ignoreDir) ? pt.dir : 0;
+  navRot.value = round3((localDir + layer.transform.rot) * 180/Math.PI);
+  const disabled = !layer.visible;
+  navX.disabled = navY.disabled = navRot.disabled = btnDeleteNavPoint.disabled = disabled;
+}
+
+function applyNavPointFields(){
+  const sel = getSelectedNavPoint();
+  if(!sel || !sel.layer.visible) return;
+  const {layer, pt} = sel;
+  const wx = parseFloat(navX.value)||0, wy = parseFloat(navY.value)||0;
+  const worldDirDeg = parseFloat(navRot.value)||0;
+  const [lx, ly] = worldToLayer(layer, wx, wy);
+  pt.pos.x = round3(lx); pt.pos.y = round3(ly);
+  pt.dir = (worldDirDeg*Math.PI/180) - layer.transform.rot;
+  pt.ignoreDir = false;
+  syncCurvesForPoint(layer, pt.instanceName);
+  scheduleAutosave(); requestDraw();
+}
+[navX,navY,navRot].forEach(el=>el.addEventListener('input', applyNavPointFields));
+
+btnDeleteNavPoint.addEventListener('click', ()=>{
+  const sel = getSelectedNavPoint();
+  if(!sel || !sel.layer.visible) return;
+  const {layer, pt} = sel;
+  pushUndo(layer);
+  deleteNavPoint(layer, pt.instanceName);
+  state.selectedNavPoint = null;
+  renderNavPointPanel();
+  scheduleAutosave(); requestDraw();
+});
+
+// ---------------- tools ----------------
+
+const toolButtons = [...document.querySelectorAll('.tool-btn')];
+const optsErase = document.getElementById('opts-erase');
+const optsDraw = document.getElementById('opts-draw');
+const optsReflector = document.getElementById('opts-reflector');
+const optsSelect = document.getElementById('opts-select');
+const toolStatus = document.getElementById('toolStatus');
+const noLayerBanner = document.getElementById('noLayerBanner');
+const canvasEl = document.getElementById('canvas');
+
+const TOOL_LABELS = { pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', select:'Rectangle select', measure:'Ruler', nav:'Nav points' };
+const TOOL_NEEDS_LAYER = { move:true, rotate:true, erase:true, draw:true, reflector:true, select:true, pan:false, measure:false, nav:true };
+
+function updateToolStatus(){
+  const tool = state.tool;
+  const layer = getActiveLayer();
+  let suffix = '', banner = '';
+  if(TOOL_NEEDS_LAYER[tool]){
+    if(!layer){ suffix = ' — select a layer'; banner = 'No layer selected — this tool needs an active layer'; }
+    else if(!layer.visible){ suffix = ' — layer is hidden'; banner = 'Active layer is hidden — show it (checkbox in Layers) to edit'; }
+  }
+  toolStatus.textContent = TOOL_LABELS[tool] + suffix;
+  noLayerBanner.textContent = banner;
+  noLayerBanner.hidden = !banner;
+}
+
+function setTool(tool){
+  state.tool = tool;
+  toolButtons.forEach(b=>b.classList.toggle('active', b.dataset.tool===tool));
+  optsErase.hidden = tool!=='erase';
+  optsDraw.hidden = tool!=='draw';
+  optsReflector.hidden = tool!=='reflector';
+  optsSelect.hidden = tool!=='select';
+  canvasEl.className = 'tool-'+tool;
+  updateToolStatus();
+  requestDraw();
+}
+toolButtons.forEach(b=>b.addEventListener('click', ()=>setTool(b.dataset.tool)));
+
+const eraseRadiusEl = document.getElementById('eraseRadius');
+const eraseRadiusVal = document.getElementById('eraseRadiusVal');
+state.eraseRadius = parseFloat(eraseRadiusEl.value);
+eraseRadiusVal.textContent = state.eraseRadius.toFixed(2)+' m';
+eraseRadiusEl.addEventListener('input', ()=>{
+  state.eraseRadius = parseFloat(eraseRadiusEl.value);
+  eraseRadiusVal.textContent = state.eraseRadius.toFixed(2)+' m';
+  requestDraw();
+});
+document.getElementById('eraseScan').addEventListener('change', e=>state.eraseTargets.scan = e.target.checked);
+document.getElementById('eraseRssi').addEventListener('change', e=>state.eraseTargets.rssi = e.target.checked);
+document.getElementById('eraseExtra').addEventListener('change', e=>state.eraseTargets.extra = e.target.checked);
+document.getElementById('drawSpacing').addEventListener('input', e=>{ state.drawSpacing = Math.max(0.01, parseFloat(e.target.value)||0.05); });
+document.getElementById('drawThickness').addEventListener('input', e=>{ state.drawThickness = Math.max(0, parseFloat(e.target.value)||0); });
+document.getElementById('reflectorWidth').addEventListener('input', e=>{ state.reflectorWidth = Math.max(0.01, parseFloat(e.target.value)||0.09); });
+
+const eraseShapeCircle = document.getElementById('eraseShapeCircle');
+const eraseShapeSquare = document.getElementById('eraseShapeSquare');
+function setEraseShape(shape){
+  state.eraseShape = shape;
+  eraseShapeCircle.classList.toggle('active', shape==='circle');
+  eraseShapeSquare.classList.toggle('active', shape==='square');
+  requestDraw();
+}
+eraseShapeCircle.addEventListener('click', ()=>setEraseShape('circle'));
+eraseShapeSquare.addEventListener('click', ()=>setEraseShape('square'));
+
+const lineModeEditBtn = document.getElementById('lineModeEdit');
+const lineModeDrawBtn = document.getElementById('lineModeDraw');
+function setLineMode(mode){
+  state.lineMode = mode;
+  lineModeEditBtn.classList.toggle('active', mode==='edit');
+  lineModeDrawBtn.classList.toggle('active', mode==='draw');
+  if(mode==='draw'){ state.hoverLineHandle = null; state.hoverLineBody = -1; }
+  requestDraw();
+}
+lineModeEditBtn.addEventListener('click', ()=>setLineMode('edit'));
+lineModeDrawBtn.addEventListener('click', ()=>setLineMode('draw'));
+
+document.getElementById('selectScan').addEventListener('change', e=>state.selectTargets.scan = e.target.checked);
+document.getElementById('selectRssi').addEventListener('change', e=>state.selectTargets.rssi = e.target.checked);
+document.getElementById('selectExtra').addEventListener('change', e=>state.selectTargets.extra = e.target.checked);
+document.getElementById('selectReflector').addEventListener('change', e=>state.selectTargets.reflector = e.target.checked);
+document.getElementById('selectManualLines').addEventListener('change', e=>state.selectTargets.manualLines = e.target.checked);
+document.getElementById('selectNavPoints').addEventListener('change', e=>state.selectTargets.navPoints = e.target.checked);
+
+document.getElementById('showScan').addEventListener('change', e=>{ state.typeVisibility.scan = e.target.checked; requestDraw(); });
+document.getElementById('showRssi').addEventListener('change', e=>{ state.typeVisibility.rssi = e.target.checked; requestDraw(); });
+document.getElementById('showReflector').addEventListener('change', e=>{ state.typeVisibility.reflector = e.target.checked; requestDraw(); });
+document.getElementById('showExtra').addEventListener('change', e=>{ state.typeVisibility.extra = e.target.checked; requestDraw(); });
+document.getElementById('showNav').addEventListener('change', e=>{ state.typeVisibility.nav = e.target.checked; requestDraw(); });
+const showOriginEl = document.getElementById('showOrigin');
+showOriginEl.addEventListener('change', e=>{ state.showOrigin = e.target.checked; requestDraw(); });
+document.getElementById('colorizeLayers').addEventListener('change', e=>{ state.uniformLayerColor = !e.target.checked; requestDraw(); });
+document.getElementById('btnCenterOrigin').addEventListener('click', ()=>{
+  state.view.tx = cssW/2; state.view.ty = cssH/2;
+  state.showOrigin = true; showOriginEl.checked = true;
+  requestDraw();
+});
+
+// ---------------- undo ----------------
+
+function pushUndo(layer){
+  state.undoStack.push({
+    layerId: layer.id,
+    points: layer.points.slice(),
+    rssi: layer.rssi.slice(),
+    reflectors: layer.reflectors.map(r=>({...r})),
+    manualLines: layer.manualLines.map(l=>({...l})),
+    extra: JSON.parse(JSON.stringify(layer.extra||{})),
+  });
+  if(state.undoStack.length>20) state.undoStack.shift();
+}
+function undo(){
+  const entry = state.undoStack.pop();
+  if(!entry) return;
+  const layer = getLayer(entry.layerId);
+  if(!layer) return;
+  layer.points = entry.points; layer.rssi = entry.rssi; layer.reflectors = entry.reflectors; layer.extra = entry.extra;
+  layer.manualLines = entry.manualLines;
+  layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
+  renderDetailPanel(); renderNavPointPanel(); scheduleAutosave(); requestDraw();
+}
+
+// ---------------- canvas / view ----------------
+
+const ctx = canvasEl.getContext('2d');
+const mainEl = canvasEl.parentElement;
+let dpr = Math.max(1, window.devicePixelRatio||1);
+let cssW=0, cssH=0;
+const MIN_SCALE=0.02, MAX_SCALE=6000;
+
+function resizeCanvas(){
+  const rect = mainEl.getBoundingClientRect();
+  cssW = rect.width; cssH = rect.height;
+  dpr = Math.max(1, window.devicePixelRatio||1);
+  canvasEl.width = Math.round(cssW*dpr);
+  canvasEl.height = Math.round(cssH*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+function fitView(){
+  const visible = state.layers.filter(l=>l.visible);
+  const layersToFit = visible.length ? visible : state.layers;
+  if(!layersToFit.length){ state.view = {scale:20, tx:cssW/2, ty:cssH/2}; return; }
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const layer of layersToFit){
+    const b = layerWorldBBox(layer);
+    minX=Math.min(minX,b.minX); maxX=Math.max(maxX,b.maxX);
+    minY=Math.min(minY,b.minY); maxY=Math.max(maxY,b.maxY);
+  }
+  const w = Math.max(0.5, maxX-minX), h = Math.max(0.5, maxY-minY);
+  const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+  const scale = Math.min(cssW/w, cssH/h) * 0.9;
+  state.view.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
+  state.view.tx = cssW/2 - cx*state.view.scale;
+  state.view.ty = cssH/2 + cy*state.view.scale;
+}
+
+function worldToScreen(wx,wy){ return [wx*state.view.scale+state.view.tx, -wy*state.view.scale+state.view.ty]; }
+function screenToWorld(sx,sy){ return [(sx-state.view.tx)/state.view.scale, -(sy-state.view.ty)/state.view.scale]; }
+
+let drawScheduled=false;
+function requestDraw(){
+  if(drawScheduled) return;
+  drawScheduled = true;
+  requestAnimationFrame(()=>{ drawScheduled=false; draw(); });
+}
+
+function niceScaleMeters(pxTarget){
+  const mPerPx = 1/state.view.scale;
+  const raw = pxTarget*mPerPx;
+  const pow10 = Math.pow(10, Math.floor(Math.log10(raw)));
+  const cands = [1,2,5,10].map(m=>m*pow10);
+  let best = cands[0];
+  for(const c of cands) if(Math.abs(c-raw)<Math.abs(best-raw)) best=c;
+  return best;
+}
+
+function currentPalette(){
+  return state.printFriendly
+    ? { bg:'#ffffff', extra:'#555555', reflector:'#b6371e', rssi:'#8a6d1a', dotAlpha:1, ink:'#111111' }
+    : { bg:'#0e1113', extra:EXTRA_COLOR, reflector:REFLECTOR_COLOR, rssi:RSSI_MUTE, dotAlpha:0.9, ink:'#dfe7e2' };
+}
+
+function drawExtra(layer, pal){
+  const extra = layer.extra;
+  if(!extra) return;
+  const wallColor = state.uniformLayerColor ? pal.extra : (layer.color||PALETTE[0]);
+  ctx.strokeStyle = wallColor; ctx.globalAlpha = state.printFriendly?0.8:0.55; ctx.lineWidth = 1;
+  if(Array.isArray(extra.advancedLineList)){
+    for(const item of extra.advancedLineList){
+      const line = item && item.line; if(!line || !line.startPos || !line.endPos) continue;
+      const [wx1,wy1] = layerToWorld(layer, line.startPos.x, line.startPos.y);
+      const [wx2,wy2] = layerToWorld(layer, line.endPos.x, line.endPos.y);
+      const [sx1,sy1] = worldToScreen(wx1,wy1), [sx2,sy2] = worldToScreen(wx2,wy2);
+      ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+const NAV_COLOR = '#7c6cff';
+const NAV_COLOR_PRINT = '#5b3fd6';
+
+function drawNavPoints(layer, pal){
+  const extra = layer.extra;
+  if(!extra) return;
+  const navColor = state.printFriendly ? NAV_COLOR_PRINT : NAV_COLOR;
+  const fillColor = state.uniformLayerColor ? pal.ink : (layer.color||PALETTE[0]);
+  const isActiveLayer = layer.id===state.activeLayerId;
+
+  if(Array.isArray(extra.advancedCurveList)){
+    ctx.strokeStyle = navColor; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.8;
+    for(const item of extra.advancedCurveList){
+      const sp = item && item.startPos && item.startPos.pos, ep = item && item.endPos && item.endPos.pos;
+      const c1 = item && item.controlPos1, c2 = item && item.controlPos2;
+      if(!sp || !ep) continue;
+      const [wx1,wy1] = layerToWorld(layer, sp.x, sp.y);
+      const [wx2,wy2] = layerToWorld(layer, ep.x, ep.y);
+      const [sx1,sy1] = worldToScreen(wx1,wy1), [sx2,sy2] = worldToScreen(wx2,wy2);
+      ctx.beginPath(); ctx.moveTo(sx1,sy1);
+      if(c1 && c2){
+        const [wc1x,wc1y] = layerToWorld(layer, c1.x, c1.y);
+        const [wc2x,wc2y] = layerToWorld(layer, c2.x, c2.y);
+        const [scx1,scy1] = worldToScreen(wc1x,wc1y), [scx2,scy2] = worldToScreen(wc2x,wc2y);
+        ctx.bezierCurveTo(scx1,scy1,scx2,scy2,sx2,sy2);
+      } else {
+        ctx.lineTo(sx2,sy2);
+      }
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  if(Array.isArray(extra.advancedPointList)){
+    for(const item of extra.advancedPointList){
+      if(!item || !item.pos) continue;
+      const [wx,wy] = layerToWorld(layer, item.pos.x, item.pos.y);
+      const [sx,sy] = worldToScreen(wx,wy);
+      const isHover = state.tool==='nav' && isActiveLayer && state.hoverNavPoint===item.instanceName;
+      const isSelected = isActiveLayer && state.selectedNavPoint && state.selectedNavPoint.instanceName===item.instanceName;
+      const rad = (isHover||isSelected) ? 10 : 8;
+
+      if(typeof item.dir === 'number' && !item.ignoreDir){
+        const worldDir = item.dir + layer.transform.rot;
+        const armLenWorld = 18/state.view.scale;
+        const [ax,ay] = worldToScreen(wx+Math.cos(worldDir)*armLenWorld, wy+Math.sin(worldDir)*armLenWorld);
+        ctx.strokeStyle = navColor; ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ax,ay); ctx.stroke();
+        const segAngle = Math.atan2(ay-sy, ax-sx);
+        ctx.beginPath();
+        ctx.moveTo(ax,ay);
+        ctx.lineTo(ax-Math.cos(segAngle-0.4)*6, ay-Math.sin(segAngle-0.4)*6);
+        ctx.lineTo(ax-Math.cos(segAngle+0.4)*6, ay-Math.sin(segAngle+0.4)*6);
+        ctx.closePath(); ctx.fillStyle = navColor; ctx.fill();
+      }
+
+      ctx.beginPath(); ctx.arc(sx,sy,rad,0,Math.PI*2);
+      ctx.fillStyle = fillColor; ctx.globalAlpha = (isHover||isSelected) ? 0.95 : 0.8; ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = isSelected ? '#ffffff' : navColor;
+      ctx.lineWidth = isSelected ? 3 : 2.2;
+      ctx.stroke();
+
+      ctx.font = 'bold 11px ui-monospace, monospace';
+      ctx.fillStyle = state.printFriendly ? '#111111' : '#ffffff';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      ctx.fillText(item.instanceName||'', sx+rad+4, sy-rad+3);
+      ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+    }
+  }
+}
+
+function drawManualLines(layer, pal){
+  if(!layer.manualLines || !layer.manualLines.length) return;
+  const isActiveLayer = layer.id===state.activeLayerId;
+  const showHandles = state.tool==='draw' && state.lineMode==='edit' && isActiveLayer;
+  for(let li=0; li<layer.manualLines.length; li++){
+    const ln = layer.manualLines[li];
+    const [wx1,wy1] = layerToWorld(layer, ln.x1, ln.y1);
+    const [wx2,wy2] = layerToWorld(layer, ln.x2, ln.y2);
+    const [sx1,sy1] = worldToScreen(wx1,wy1);
+    const [sx2,sy2] = worldToScreen(wx2,wy2);
+    const isBodyHover = showHandles && state.hoverLineBody===li;
+    const widthPx = Math.max(2, (ln.thickness||0)*state.view.scale);
+    ctx.strokeStyle = isBodyHover ? '#ff5a45' : (state.uniformLayerColor ? pal.ink : (layer.color||PALETTE[0]));
+    ctx.lineWidth = isBodyHover ? Math.max(widthPx, 3) : widthPx;
+    ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke();
+
+    if(showHandles){
+      for(const [hx,hy,which] of [[sx1,sy1,'start'],[sx2,sy2,'end']]){
+        const isHoverHandle = state.hoverLineHandle && state.hoverLineHandle.lineIndex===li && state.hoverLineHandle.which===which;
+        ctx.beginPath(); ctx.arc(hx,hy, isHoverHandle?6:4, 0, Math.PI*2);
+        ctx.fillStyle = isHoverHandle ? '#ffffff' : layer.color;
+        ctx.fill(); ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; ctx.stroke();
+      }
+    }
+  }
+}
+
+function draw(){
+  const pal = currentPalette();
+  ctx.fillStyle = pal.bg;
+  ctx.fillRect(0,0,cssW,cssH);
+
+  const [wxTL,wyTL] = screenToWorld(-20,-20);
+  const [wxBR,wyBR] = screenToWorld(cssW+20, cssH+20);
+  const visMinX = Math.min(wxTL,wxBR), visMaxX = Math.max(wxTL,wxBR);
+  const visMinY = Math.min(wyTL,wyBR), visMaxY = Math.max(wyTL,wyBR);
+
+  for(const layer of state.layers){
+    if(!layer.visible) continue;
+    if(state.typeVisibility.extra) drawExtra(layer, pal);
+    if(state.typeVisibility.extra) drawManualLines(layer, pal);
+    if(state.typeVisibility.nav) drawNavPoints(layer, pal);
+
+    if(state.typeVisibility.scan){
+      const dotColor = state.uniformLayerColor ? pal.ink : (layer.color||PALETTE[0]);
+      const dot = Math.max(1, Math.min(2.6, state.view.scale*0.02));
+      ctx.fillStyle = dotColor;
+      ctx.globalAlpha = pal.dotAlpha;
+      const pts = layer.points;
+      for(let i=0;i<pts.length;i+=2){
+        const [wx,wy] = layerToWorld(layer, pts[i], pts[i+1]);
+        if(wx<visMinX||wx>visMaxX||wy<visMinY||wy>visMaxY) continue;
+        const sx = wx*state.view.scale+state.view.tx;
+        const sy = -wy*state.view.scale+state.view.ty;
+        ctx.fillRect(sx-dot/2, sy-dot/2, dot, dot);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    if(state.typeVisibility.rssi && layer.rssi.length){
+      ctx.fillStyle = pal.rssi;
+      const rdot = Math.max(2, Math.min(4, state.view.scale*0.05));
+      const rs = layer.rssi;
+      for(let i=0;i<rs.length;i+=2){
+        const [wx,wy] = layerToWorld(layer, rs[i], rs[i+1]);
+        if(wx<visMinX||wx>visMaxX||wy<visMinY||wy>visMaxY) continue;
+        const sx = wx*state.view.scale+state.view.tx;
+        const sy = -wy*state.view.scale+state.view.ty;
+        ctx.fillRect(sx-rdot/2, sy-rdot/2, rdot, rdot);
+      }
+    }
+
+    if(state.typeVisibility.reflector && layer.reflectors.length){
+      const reflectorFill = state.uniformLayerColor ? pal.reflector : (layer.color||PALETTE[0]);
+      for(let ri=0;ri<layer.reflectors.length;ri++){
+        const r = layer.reflectors[ri];
+        const [wx,wy] = layerToWorld(layer, r.x, r.y);
+        if(wx<visMinX||wx>visMaxX||wy<visMinY||wy>visMaxY) continue;
+        const [sx,sy] = worldToScreen(wx,wy);
+        const rad = Math.max(4, r.width*state.view.scale/2);
+        const isHover = state.tool==='reflector' && layer.id===state.activeLayerId && ri===state.hoverReflector;
+        ctx.beginPath(); ctx.arc(sx,sy,rad,0,Math.PI*2);
+        ctx.fillStyle = isHover ? pal.reflector : reflectorFill; ctx.globalAlpha = isHover ? 0.9 : 0.65; ctx.fill();
+        ctx.globalAlpha = 1; ctx.strokeStyle = isHover ? '#ffffff' : pal.reflector;
+        ctx.lineWidth = isHover ? 2.5 : 1.6; ctx.stroke();
+        if(isHover){
+          ctx.setLineDash([3,3]); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(sx,sy,rad+5,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+        }
+      }
+    }
+
+    if(layer.id===state.activeLayerId && (state.tool==='move'||state.tool==='rotate')){
+      const b = layerWorldBBox(layer);
+      const corners = [[b.minX,b.minY],[b.maxX,b.minY],[b.maxX,b.maxY],[b.minX,b.maxY]];
+      ctx.strokeStyle = state.printFriendly ? '#111111' : '#ffffff';
+      ctx.setLineDash([5,4]); ctx.lineWidth=1;
+      ctx.beginPath();
+      corners.forEach(([wx,wy],idx)=>{ const [sx,sy]=worldToScreen(wx,wy); idx===0?ctx.moveTo(sx,sy):ctx.lineTo(sx,sy); });
+      ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+
+      const pivotWorld = [layer.pivot.x+layer.transform.tx, layer.pivot.y+layer.transform.ty];
+      const [pwx,pwy] = worldToScreen(pivotWorld[0], pivotWorld[1]);
+      ctx.fillStyle = state.printFriendly ? '#111111' : '#ffffff';
+      ctx.beginPath(); ctx.arc(pwx,pwy,3,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  if(state.showOrigin){
+    const [ox,oy] = worldToScreen(0,0);
+    const ink = state.printFriendly ? '#111111' : '#ffffff';
+    const xColor = state.printFriendly ? '#c0392b' : '#ff5252';
+    const yColor = state.printFriendly ? '#1e8449' : '#2ee66b';
+    const len = 46, headLen = 11, headWidth = 9;
+
+    function drawAxisArrow(dx, dy, color, label){
+      const tipX = ox+dx*len, tipY = oy+dy*len;
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(tipX,tipY); ctx.stroke();
+      const backX = tipX-dx*headLen, backY = tipY-dy*headLen;
+      const perpX = -dy, perpY = dx;
+      ctx.beginPath();
+      ctx.moveTo(tipX,tipY);
+      ctx.lineTo(backX+perpX*headWidth/2, backY+perpY*headWidth/2);
+      ctx.lineTo(backX-perpX*headWidth/2, backY-perpY*headWidth/2);
+      ctx.closePath(); ctx.fill();
+      ctx.font = 'bold 16px ui-monospace, monospace';
+      ctx.textAlign = dx>0 ? 'left' : dx<0 ? 'right' : 'center';
+      ctx.textBaseline = dy>0 ? 'top' : dy<0 ? 'bottom' : 'middle';
+      ctx.fillText(label, tipX+dx*8, tipY+dy*8);
+    }
+
+    drawAxisArrow(1, 0, xColor, 'X');
+    drawAxisArrow(0, -1, yColor, 'Y');
+
+    ctx.beginPath(); ctx.arc(ox,oy,6,0,Math.PI*2);
+    ctx.fillStyle = ink; ctx.fill();
+    ctx.strokeStyle = state.printFriendly ? '#ffffff' : '#000000'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    ctx.font = 'bold 13px ui-monospace, monospace';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillStyle = ink;
+    ctx.fillText('(0, 0)', ox+9, oy+9);
+    ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+  }
+
+  if(state.tempLine){
+    const {x1,y1,x2,y2} = state.tempLine;
+    const previewColor = getActiveLayer() ? getActiveLayer().color : '#ffffff';
+    if(state.drawThickness>0){
+      const bandW = state.drawThickness*state.view.scale;
+      const [bsx1,bsy1] = worldToScreen(x1,y1);
+      const [bsx2,bsy2] = worldToScreen(x2,y2);
+      ctx.strokeStyle = previewColor; ctx.globalAlpha = 0.35; ctx.lineWidth = Math.max(1,bandW);
+      ctx.beginPath(); ctx.moveTo(bsx1,bsy1); ctx.lineTo(bsx2,bsy2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    const [sx1,sy1] = worldToScreen(x1,y1);
+    const [sx2,sy2] = worldToScreen(x2,y2);
+    ctx.strokeStyle = previewColor;
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke();
+  }
+
+  if(state.selectionRect){
+    const [sx1,sy1] = worldToScreen(state.selectionRect.x1, state.selectionRect.y1);
+    const [sx2,sy2] = worldToScreen(state.selectionRect.x2, state.selectionRect.y2);
+    const rx = Math.min(sx1,sx2), ry = Math.min(sy1,sy2);
+    const rw = Math.abs(sx2-sx1), rh = Math.abs(sy2-sy1);
+    ctx.fillStyle = state.printFriendly ? 'rgba(217,96,15,0.12)' : 'rgba(255,90,69,0.18)';
+    ctx.strokeStyle = state.printFriendly ? '#c0392b' : '#ff5a45';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6,4]);
+    ctx.fillRect(rx,ry,rw,rh);
+    ctx.strokeRect(rx,ry,rw,rh);
+    ctx.setLineDash([]);
+  }
+
+  if(state.measure){
+    const {x1,y1,x2,y2} = state.measure;
+    const [sx1,sy1] = worldToScreen(x1,y1);
+    const [sx2,sy2] = worldToScreen(x2,y2);
+    const dx = x2-x1, dy = y2-y1, dist = Math.hypot(dx,dy);
+    const rulerColor = state.printFriendly ? '#1565c0' : '#3fd0ff';
+    const segLen = Math.hypot(sx2-sx1, sy2-sy1) || 1;
+    const perpX = -(sy2-sy1)/segLen, perpY = (sx2-sx1)/segLen;
+    const tick = 7;
+
+    ctx.strokeStyle = rulerColor; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(sx1-perpX*tick, sy1-perpY*tick); ctx.lineTo(sx1+perpX*tick, sy1+perpY*tick);
+    ctx.moveTo(sx2-perpX*tick, sy2-perpY*tick); ctx.lineTo(sx2+perpX*tick, sy2+perpY*tick);
+    ctx.stroke();
+    ctx.fillStyle = rulerColor;
+    ctx.beginPath(); ctx.arc(sx1,sy1,3,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx2,sy2,3,0,Math.PI*2); ctx.fill();
+
+    const label = 'dx '+dx.toFixed(2)+' m   dy '+dy.toFixed(2)+' m   dist '+dist.toFixed(2)+' m';
+    ctx.font = '12px ui-monospace, monospace';
+    const textW = ctx.measureText(label).width;
+    const padX = 8, boxW = textW+padX*2, boxH = 22;
+    let boxX = (sx1+sx2)/2 - boxW/2, boxY = (sy1+sy2)/2 - boxH - 10;
+    boxX = Math.max(4, Math.min(cssW-boxW-4, boxX));
+    boxY = Math.max(4, Math.min(cssH-boxH-4, boxY));
+    ctx.fillStyle = state.printFriendly ? 'rgba(255,255,255,0.94)' : 'rgba(10,14,12,0.82)';
+    ctx.strokeStyle = rulerColor; ctx.lineWidth = 1;
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(boxX,boxY,boxW,boxH,5); else ctx.rect(boxX,boxY,boxW,boxH);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = state.printFriendly ? '#111111' : '#eaf6ff';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, boxX+padX, boxY+boxH/2);
+    ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+  }
+
+  if(state.tool==='erase' && state.mouse){
+    const r = Math.max(3, state.eraseRadius*state.view.scale);
+    ctx.strokeStyle = state.printFriendly ? '#111111' : '#ffffff';
+    ctx.fillStyle = state.printFriendly ? 'rgba(17,17,17,0.08)' : 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4,3]);
+    ctx.beginPath();
+    if(state.eraseShape==='square'){
+      ctx.rect(state.mouse.x-r, state.mouse.y-r, r*2, r*2);
+    } else {
+      ctx.arc(state.mouse.x, state.mouse.y, r, 0, Math.PI*2);
+    }
+    ctx.fill(); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  const barMeters = niceScaleMeters(120);
+  document.getElementById('scalebarBar').style.width = (barMeters*state.view.scale)+'px';
+  document.getElementById('scalebarLabel').textContent = barMeters>=1000 ? (barMeters/1000)+' km' : barMeters+' m';
+}
+
+// ---------------- pointer interaction ----------------
+
+let dragging=false, lastX=0, lastY=0;
+let middlePanActive=false;
+const activePointers = new Map();
+let pinchStartDist=0, pinchStartScale=1, pinchMid=null;
+let rotateStart = null;
+let eraseQueue = [];
+let eraseApplyScheduled = false;
+let eraseUndoPushed = false;
+
+function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+
+function findReflectorAt(layer, sx, sy, pxThreshold){
+  let best=-1, bestD=pxThreshold;
+  for(let i=0;i<layer.reflectors.length;i++){
+    const r = layer.reflectors[i];
+    const [wx,wy] = layerToWorld(layer, r.x, r.y);
+    const [rsx,rsy] = worldToScreen(wx,wy);
+    const d = Math.hypot(rsx-sx, rsy-sy);
+    if(d<bestD){ bestD=d; best=i; }
+  }
+  return best;
+}
+
+function findLineHandleAt(layer, sx, sy, pxThreshold){
+  let best=null, bestD=pxThreshold;
+  for(let i=0;i<layer.manualLines.length;i++){
+    const ln = layer.manualLines[i];
+    for(const which of ['start','end']){
+      const lx = which==='start' ? ln.x1 : ln.x2, ly = which==='start' ? ln.y1 : ln.y2;
+      const [wx,wy] = layerToWorld(layer, lx, ly);
+      const [ssx,ssy] = worldToScreen(wx,wy);
+      const d = Math.hypot(ssx-sx, ssy-sy);
+      if(d<bestD){ bestD=d; best={lineIndex:i, which}; }
+    }
+  }
+  return best;
+}
+
+function distToSegmentScreen(px,py, x1,y1,x2,y2){
+  const dx=x2-x1, dy=y2-y1;
+  const lenSq = dx*dx+dy*dy;
+  if(lenSq<1e-9) return Math.hypot(px-x1, py-y1);
+  let t = ((px-x1)*dx + (py-y1)*dy)/lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px-(x1+t*dx), py-(y1+t*dy));
+}
+
+function findLineBodyAt(layer, sx, sy, pxThreshold){
+  let best=-1, bestD=pxThreshold;
+  for(let i=0;i<layer.manualLines.length;i++){
+    const ln = layer.manualLines[i];
+    const [wx1,wy1] = layerToWorld(layer, ln.x1, ln.y1);
+    const [wx2,wy2] = layerToWorld(layer, ln.x2, ln.y2);
+    const [sx1,sy1] = worldToScreen(wx1,wy1);
+    const [sx2,sy2] = worldToScreen(wx2,wy2);
+    const d = distToSegmentScreen(sx,sy, sx1,sy1,sx2,sy2);
+    if(d<bestD){ bestD=d; best=i; }
+  }
+  return best;
+}
+
+function findNavPointAt(layer, sx, sy, pxThreshold){
+  const list = layer.extra && layer.extra.advancedPointList;
+  if(!Array.isArray(list)) return null;
+  let best=null, bestD=pxThreshold;
+  for(const item of list){
+    if(!item || !item.pos) continue;
+    const [wx,wy] = layerToWorld(layer, item.pos.x, item.pos.y);
+    const [ssx,ssy] = worldToScreen(wx,wy);
+    const d = Math.hypot(ssx-sx, ssy-sy);
+    if(d<bestD){ bestD=d; best=item; }
+  }
+  return best;
+}
+function findNavPointByName(layer, name){
+  const list = layer.extra && layer.extra.advancedPointList;
+  return Array.isArray(list) ? list.find(p=>p.instanceName===name) : null;
+}
+function syncCurvesForPoint(layer, name){
+  const curves = layer.extra && layer.extra.advancedCurveList;
+  const pt = findNavPointByName(layer, name);
+  if(!Array.isArray(curves) || !pt) return;
+  for(const c of curves){
+    if(c.startPos && c.startPos.instanceName===name) c.startPos.pos = {x:pt.pos.x, y:pt.pos.y};
+    if(c.endPos && c.endPos.instanceName===name) c.endPos.pos = {x:pt.pos.x, y:pt.pos.y};
+  }
+}
+function generateNavPointName(layer){
+  const list = (layer.extra && layer.extra.advancedPointList) || [];
+  let max = 0;
+  for(const p of list){
+    const m = /^LM(\d+)$/.exec(p.instanceName||'');
+    if(m) max = Math.max(max, parseInt(m[1],10));
+  }
+  return 'LM'+(max+1);
+}
+function deleteNavPoint(layer, name){
+  if(!layer.extra) return;
+  if(Array.isArray(layer.extra.advancedPointList)){
+    layer.extra.advancedPointList = layer.extra.advancedPointList.filter(p=>p.instanceName!==name);
+  }
+  if(Array.isArray(layer.extra.advancedCurveList)){
+    layer.extra.advancedCurveList = layer.extra.advancedCurveList.filter(c=>
+      !(c.startPos && c.startPos.instanceName===name) && !(c.endPos && c.endPos.instanceName===name)
+    );
+  }
+}
+
+function hitAny(wx, wy, stamps, radius, shape){
+  if(shape==='square'){
+    for(const [sx,sy] of stamps){ if(Math.abs(wx-sx)<=radius && Math.abs(wy-sy)<=radius) return true; }
+  } else {
+    const r2 = radius*radius;
+    for(const [sx,sy] of stamps){ const dx=wx-sx, dy=wy-sy; if(dx*dx+dy*dy<=r2) return true; }
+  }
+  return false;
+}
+
+function applyEraseQueue(){
+  eraseApplyScheduled = false;
+  const layer = getEditableActiveLayer();
+  if(!layer || !eraseQueue.length){ eraseQueue=[]; return; }
+  if(!eraseUndoPushed){ pushUndo(layer); eraseUndoPushed = true; }
+  const radius = state.eraseRadius;
+  const shape = state.eraseShape;
+  const stamps = eraseQueue.slice(); // already in world coords
+  eraseQueue = [];
+
+  if(state.eraseTargets.scan && layer.points.length){
+    const kept = [];
+    for(let i=0;i<layer.points.length;i+=2){
+      const [wx,wy] = layerToWorld(layer, layer.points[i], layer.points[i+1]);
+      if(!hitAny(wx,wy,stamps,radius,shape)) kept.push(layer.points[i], layer.points[i+1]);
+    }
+    layer.points = kept;
+  }
+  if(state.eraseTargets.rssi && layer.rssi.length){
+    const kept = [];
+    for(let i=0;i<layer.rssi.length;i+=2){
+      const [wx,wy] = layerToWorld(layer, layer.rssi[i], layer.rssi[i+1]);
+      if(!hitAny(wx,wy,stamps,radius,shape)) kept.push(layer.rssi[i], layer.rssi[i+1]);
+    }
+    layer.rssi = kept;
+  }
+  if(state.eraseTargets.extra && layer.extra && Array.isArray(layer.extra.advancedLineList)){
+    layer.extra.advancedLineList = layer.extra.advancedLineList.filter(item=>{
+      const line = item && item.line; if(!line || !line.startPos || !line.endPos) return true;
+      const [wx1,wy1] = layerToWorld(layer, line.startPos.x, line.startPos.y);
+      const [wx2,wy2] = layerToWorld(layer, line.endPos.x, line.endPos.y);
+      const mx=(wx1+wx2)/2, my=(wy1+wy2)/2;
+      return !(hitAny(wx1,wy1,stamps,radius,shape) || hitAny(wx2,wy2,stamps,radius,shape) || hitAny(mx,my,stamps,radius,shape));
+    });
+  }
+  layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
+  renderDetailPanel(); scheduleAutosave(); requestDraw();
+}
+function queueErase(wx,wy){
+  eraseQueue.push([wx,wy]);
+  if(!eraseApplyScheduled){ eraseApplyScheduled=true; requestAnimationFrame(applyEraseQueue); }
+}
+
+function applyRectSelectDelete(layer, rect){
+  const minX = Math.min(rect.x1, rect.x2), maxX = Math.max(rect.x1, rect.x2);
+  const minY = Math.min(rect.y1, rect.y2), maxY = Math.max(rect.y1, rect.y2);
+  if(maxX-minX < 0.02 || maxY-minY < 0.02) return; // ignore an accidental click/near-zero drag
+  const inRect = (wx,wy) => wx>=minX && wx<=maxX && wy>=minY && wy<=maxY;
+
+  pushUndo(layer);
+  let removed = 0;
+
+  if(state.selectTargets.scan && layer.points.length){
+    const kept = [];
+    for(let i=0;i<layer.points.length;i+=2){
+      const [wx,wy] = layerToWorld(layer, layer.points[i], layer.points[i+1]);
+      if(inRect(wx,wy)) removed++; else kept.push(layer.points[i], layer.points[i+1]);
+    }
+    layer.points = kept;
+  }
+  if(state.selectTargets.rssi && layer.rssi.length){
+    const kept = [];
+    for(let i=0;i<layer.rssi.length;i+=2){
+      const [wx,wy] = layerToWorld(layer, layer.rssi[i], layer.rssi[i+1]);
+      if(inRect(wx,wy)) removed++; else kept.push(layer.rssi[i], layer.rssi[i+1]);
+    }
+    layer.rssi = kept;
+  }
+  if(state.selectTargets.reflector && layer.reflectors.length){
+    const before = layer.reflectors.length;
+    layer.reflectors = layer.reflectors.filter(r=>{
+      const [wx,wy] = layerToWorld(layer, r.x, r.y);
+      return !inRect(wx,wy);
+    });
+    removed += before - layer.reflectors.length;
+  }
+  if(state.selectTargets.manualLines && layer.manualLines.length){
+    const before = layer.manualLines.length;
+    layer.manualLines = layer.manualLines.filter(ln=>{
+      const [wx1,wy1] = layerToWorld(layer, ln.x1, ln.y1);
+      const [wx2,wy2] = layerToWorld(layer, ln.x2, ln.y2);
+      return !(inRect(wx1,wy1) || inRect(wx2,wy2));
+    });
+    removed += before - layer.manualLines.length;
+  }
+  if(state.selectTargets.extra && layer.extra && Array.isArray(layer.extra.advancedLineList)){
+    const before = layer.extra.advancedLineList.length;
+    layer.extra.advancedLineList = layer.extra.advancedLineList.filter(item=>{
+      const line = item && item.line; if(!line || !line.startPos || !line.endPos) return true;
+      const [wx1,wy1] = layerToWorld(layer, line.startPos.x, line.startPos.y);
+      const [wx2,wy2] = layerToWorld(layer, line.endPos.x, line.endPos.y);
+      return !(inRect(wx1,wy1) || inRect(wx2,wy2));
+    });
+    removed += before - layer.extra.advancedLineList.length;
+  }
+  if(state.selectTargets.navPoints && layer.extra){
+    const deletedNames = new Set();
+    if(Array.isArray(layer.extra.advancedPointList)){
+      const kept = [];
+      for(const item of layer.extra.advancedPointList){
+        const pos = item && item.pos;
+        if(pos){
+          const [wx,wy] = layerToWorld(layer, pos.x, pos.y);
+          if(inRect(wx,wy)){ deletedNames.add(item.instanceName); removed++; continue; }
+        }
+        kept.push(item);
+      }
+      layer.extra.advancedPointList = kept;
+    }
+    if(Array.isArray(layer.extra.advancedCurveList)){
+      const before = layer.extra.advancedCurveList.length;
+      layer.extra.advancedCurveList = layer.extra.advancedCurveList.filter(item=>{
+        const sName = item.startPos && item.startPos.instanceName, eName = item.endPos && item.endPos.instanceName;
+        if(deletedNames.has(sName) || deletedNames.has(eName)) return false;
+        const sp = item.startPos && item.startPos.pos, ep = item.endPos && item.endPos.pos;
+        if(!sp || !ep) return true;
+        const [wx1,wy1] = layerToWorld(layer, sp.x, sp.y);
+        const [wx2,wy2] = layerToWorld(layer, ep.x, ep.y);
+        return !(inRect(wx1,wy1) || inRect(wx2,wy2));
+      });
+      removed += before - layer.extra.advancedCurveList.length;
+    }
+  }
+
+  if(removed===0) state.undoStack.pop(); // nothing actually changed, drop the no-op undo entry
+  layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
+  renderDetailPanel(); renderNavPointPanel(); scheduleAutosave(); requestDraw();
+}
+
+canvasEl.addEventListener('pointerdown', (e)=>{
+  if(e.button===1){
+    e.preventDefault();
+    if(state.tool!=='pan'){ state.prevTool=state.tool; middlePanActive=true; setTool('pan'); }
+  }
+  canvasEl.setPointerCapture(e.pointerId);
+  activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  const rect = canvasEl.getBoundingClientRect();
+  const sx = e.clientX-rect.left, sy = e.clientY-rect.top;
+
+  if(activePointers.size===2){
+    dragging=false;
+    const pts=[...activePointers.values()];
+    pinchStartDist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y)||1;
+    pinchStartScale = state.view.scale;
+    pinchMid = {x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2};
+    return;
+  }
+
+  const layer = getEditableActiveLayer();
+  if(state.tool==='pan'){
+    dragging=true; canvasEl.classList.add('dragging'); lastX=e.clientX; lastY=e.clientY;
+  } else if(state.tool==='move' && layer){
+    dragging=true; lastX=e.clientX; lastY=e.clientY;
+  } else if(state.tool==='rotate' && layer){
+    const pivotWorld=[layer.pivot.x+layer.transform.tx, layer.pivot.y+layer.transform.ty];
+    const [mwx,mwy] = screenToWorld(sx,sy);
+    rotateStart = {
+      startRot: layer.transform.rot,
+      startAngle: Math.atan2(mwy-pivotWorld[1], mwx-pivotWorld[0]),
+    };
+    dragging=true;
+  } else if(state.tool==='erase' && layer){
+    dragging=true;
+    eraseUndoPushed = false;
+    const [wx,wy]=screenToWorld(sx,sy); queueErase(wx,wy);
+  } else if(state.tool==='draw' && layer){
+    const handle = state.lineMode==='edit' ? findLineHandleAt(layer, sx, sy, 12) : null;
+    if(handle){
+      pushUndo(layer);
+      state.draggingLineHandle = handle;
+      dragging = true;
+    } else {
+      const bodyIdx = state.lineMode==='edit' ? findLineBodyAt(layer, sx, sy, 8) : -1;
+      if(bodyIdx>=0){
+        pushUndo(layer);
+        layer.manualLines.splice(bodyIdx, 1);
+        state.hoverLineBody = -1;
+        renderDetailPanel(); scheduleAutosave(); requestDraw();
+      } else {
+        const [wx,wy]=screenToWorld(sx,sy);
+        state.tempLine = {x1:wx,y1:wy,x2:wx,y2:wy};
+        dragging=true;
+      }
+    }
+  } else if(state.tool==='reflector' && layer){
+    const hitIdx = findReflectorAt(layer, sx, sy, 14);
+    pushUndo(layer);
+    if(hitIdx>=0){
+      layer.reflectors.splice(hitIdx, 1);
+      state.hoverReflector = null;
+    } else {
+      const [wx,wy]=screenToWorld(sx,sy);
+      const [lx,ly]=worldToLayer(layer, wx, wy);
+      layer.reflectors.push({type:'cylinder', width:state.reflectorWidth, x:round3(lx), y:round3(ly), creationMethod:2});
+    }
+    renderDetailPanel(); scheduleAutosave(); requestDraw();
+  } else if(state.tool==='select' && layer){
+    const [wx,wy]=screenToWorld(sx,sy);
+    state.selectionRect = {x1:wx, y1:wy, x2:wx, y2:wy};
+    dragging=true;
+  } else if(state.tool==='measure'){
+    const [wx,wy]=screenToWorld(sx,sy);
+    state.measure = {x1:wx, y1:wy, x2:wx, y2:wy};
+    dragging=true;
+  } else if(state.tool==='nav' && layer){
+    const hit = findNavPointAt(layer, sx, sy, 14);
+    if(hit){
+      pushUndo(layer);
+      state.draggingNavPoint = {layerId:layer.id, instanceName:hit.instanceName};
+      state.selectedNavPoint = {layerId:layer.id, instanceName:hit.instanceName};
+      dragging = true;
+    } else {
+      const [wx,wy]=screenToWorld(sx,sy);
+      const [lx,ly]=worldToLayer(layer, wx, wy);
+      pushUndo(layer);
+      if(!layer.extra) layer.extra = {};
+      if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
+      const name = generateNavPointName(layer);
+      layer.extra.advancedPointList.push({className:'LocationMark', instanceName:name, pos:{x:round3(lx), y:round3(ly)}, dir:0, ignoreDir:true, property:[]});
+      state.selectedNavPoint = {layerId:layer.id, instanceName:name};
+    }
+    renderNavPointPanel();
+    scheduleAutosave(); requestDraw();
+  }
+});
+
+canvasEl.addEventListener('pointermove', (e)=>{
+  if(activePointers.has(e.pointerId)) activePointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  const rect = canvasEl.getBoundingClientRect();
+  const sx = e.clientX-rect.left, sy = e.clientY-rect.top;
+  const [wx,wy] = screenToWorld(sx,sy);
+  document.getElementById('hud').innerHTML = 'x: <b>'+wx.toFixed(2)+'</b> m &nbsp; y: <b>'+wy.toFixed(2)+'</b> m';
+  state.mouse = {x:sx, y:sy};
+  if(state.tool==='erase') requestDraw();
+
+  if(state.tool==='reflector'){
+    const hoverLayer = getEditableActiveLayer();
+    const idx = hoverLayer ? findReflectorAt(hoverLayer, sx, sy, 14) : -1;
+    if(idx !== state.hoverReflector){ state.hoverReflector = idx; requestDraw(); }
+  } else if(state.hoverReflector !== null){
+    state.hoverReflector = null;
+  }
+
+  if(state.tool==='draw' && state.lineMode==='edit' && !dragging){
+    const hoverLayer = getEditableActiveLayer();
+    const handle = hoverLayer ? findLineHandleAt(hoverLayer, sx, sy, 12) : null;
+    const bodyIdx = (hoverLayer && !handle) ? findLineBodyAt(hoverLayer, sx, sy, 8) : -1;
+    const handleChanged = JSON.stringify(handle) !== JSON.stringify(state.hoverLineHandle);
+    if(handleChanged || bodyIdx !== state.hoverLineBody){
+      state.hoverLineHandle = handle; state.hoverLineBody = bodyIdx; requestDraw();
+    }
+  } else if(!(state.tool==='draw' && state.lineMode==='edit') && (state.hoverLineHandle || state.hoverLineBody>=0)){
+    state.hoverLineHandle = null; state.hoverLineBody = -1;
+  }
+
+  if(state.tool==='nav' && !dragging){
+    const hoverLayer = getEditableActiveLayer();
+    const hit = hoverLayer ? findNavPointAt(hoverLayer, sx, sy, 14) : null;
+    const name = hit ? hit.instanceName : null;
+    if(name !== state.hoverNavPoint){ state.hoverNavPoint = name; requestDraw(); }
+  } else if(state.tool!=='nav' && state.hoverNavPoint){
+    state.hoverNavPoint = null;
+  }
+
+  if(activePointers.size===2 && pinchMid){
+    const pts=[...activePointers.values()];
+    const dist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y)||1;
+    const mx = pinchMid.x-rect.left, my = pinchMid.y-rect.top;
+    const [pwx,pwy] = screenToWorld(mx,my);
+    state.view.scale = clamp(pinchStartScale*(dist/pinchStartDist), MIN_SCALE, MAX_SCALE);
+    state.view.tx = mx-pwx*state.view.scale; state.view.ty = my+pwy*state.view.scale;
+    requestDraw(); return;
+  }
+
+  if(!dragging) return;
+  const layer = getEditableActiveLayer();
+
+  if(state.tool==='pan'){
+    const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
+    state.view.tx+=dx; state.view.ty+=dy; requestDraw();
+  } else if(state.tool==='move' && layer){
+    const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
+    layer.transform.tx += dx/state.view.scale;
+    layer.transform.ty -= dy/state.view.scale;
+    renderDetailPanel(); requestDraw();
+  } else if(state.tool==='rotate' && layer && rotateStart){
+    const pivotWorld=[layer.pivot.x+layer.transform.tx, layer.pivot.y+layer.transform.ty];
+    const angle = Math.atan2(wy-pivotWorld[1], wx-pivotWorld[0]);
+    layer.transform.rot = rotateStart.startRot + (angle-rotateStart.startAngle);
+    renderDetailPanel(); requestDraw();
+  } else if(state.tool==='erase' && layer){
+    queueErase(wx,wy);
+  } else if(state.tool==='draw' && state.draggingLineHandle && layer){
+    const {lineIndex, which} = state.draggingLineHandle;
+    const ln = layer.manualLines[lineIndex];
+    if(ln){
+      const [lx,ly] = worldToLayer(layer, wx, wy);
+      if(which==='start'){ ln.x1 = lx; ln.y1 = ly; } else { ln.x2 = lx; ln.y2 = ly; }
+      requestDraw();
+    }
+  } else if(state.tool==='draw' && state.tempLine){
+    state.tempLine.x2=wx; state.tempLine.y2=wy; requestDraw();
+  } else if(state.tool==='select' && state.selectionRect){
+    state.selectionRect.x2=wx; state.selectionRect.y2=wy; requestDraw();
+  } else if(state.tool==='measure' && state.measure){
+    state.measure.x2=wx; state.measure.y2=wy; requestDraw();
+  } else if(state.tool==='nav' && state.draggingNavPoint && layer){
+    const pt = findNavPointByName(layer, state.draggingNavPoint.instanceName);
+    if(pt){
+      const [lx,ly] = worldToLayer(layer, wx, wy);
+      pt.pos.x = round3(lx); pt.pos.y = round3(ly);
+      syncCurvesForPoint(layer, pt.instanceName);
+      renderNavPointPanel();
+      requestDraw();
+    }
+  }
+});
+
+function endPointer(e){
+  activePointers.delete(e.pointerId);
+  if(activePointers.size<2) pinchMid=null;
+
+  if(e.button===1 && middlePanActive){
+    middlePanActive = false;
+    setTool(state.prevTool);
+  }
+
+  if(state.tool==='draw'){
+    if(state.draggingLineHandle){
+      state.draggingLineHandle = null;
+      scheduleAutosave();
+    } else if(dragging && state.tempLine){
+      const layer = getEditableActiveLayer();
+      if(layer){
+        const {x1,y1,x2,y2} = state.tempLine;
+        const dist = Math.hypot(x2-x1, y2-y1);
+        if(dist > 0.02){
+          pushUndo(layer);
+          const [lx1,ly1] = worldToLayer(layer, x1, y1);
+          const [lx2,ly2] = worldToLayer(layer, x2, y2);
+          layer.manualLines.push({
+            x1: round3(lx1), y1: round3(ly1), x2: round3(lx2), y2: round3(ly2),
+            thickness: state.drawThickness||0, spacing: state.drawSpacing,
+          });
+          renderDetailPanel(); scheduleAutosave();
+        }
+      }
+      state.tempLine = null;
+    }
+  }
+
+  if(state.tool==='select' && dragging && state.selectionRect){
+    const layer = getEditableActiveLayer();
+    if(layer) applyRectSelectDelete(layer, state.selectionRect);
+    state.selectionRect = null;
+  }
+
+  if(state.tool==='nav' && state.draggingNavPoint){
+    state.draggingNavPoint = null;
+    scheduleAutosave();
+  }
+
+  if(activePointers.size===0){ dragging=false; canvasEl.classList.remove('dragging'); rotateStart=null; }
+  else if(activePointers.size===1){ const [p]=activePointers.values(); lastX=p.x; lastY=p.y; }
+  requestDraw();
+}
+canvasEl.addEventListener('mousedown', (e)=>{ if(e.button===1) e.preventDefault(); });
+canvasEl.addEventListener('auxclick', (e)=>{ if(e.button===1) e.preventDefault(); });
+canvasEl.addEventListener('pointerup', endPointer);
+canvasEl.addEventListener('pointercancel', endPointer);
+canvasEl.addEventListener('pointerleave', ()=>{ state.mouse = null; if(state.tool==='erase') requestDraw(); });
+
+canvasEl.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  const rect = canvasEl.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  const [wx,wy] = screenToWorld(mx,my);
+  const factor = Math.pow(1.0016, -e.deltaY);
+  state.view.scale = clamp(state.view.scale*factor, MIN_SCALE, MAX_SCALE);
+  state.view.tx = mx-wx*state.view.scale; state.view.ty = my+wy*state.view.scale;
+  requestDraw();
+}, {passive:false});
+
+canvasEl.addEventListener('dblclick', ()=>{ fitView(); requestDraw(); });
+
+document.addEventListener('keydown', (e)=>{
+  const tag = (e.target.tagName||'').toLowerCase();
+  const isTextField = tag==='textarea' || (tag==='input' && (!e.target.type || e.target.type==='text'));
+
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z' && !isTextField){ undo(); e.preventDefault(); return; }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s' && !isTextField){ saveProject(); e.preventDefault(); return; }
+  if(tag==='input' || tag==='textarea') return;
+  if(e.code==='Space' && state.tool!=='pan'){ state.prevTool=state.tool; setTool('pan'); e.preventDefault(); return; }
+  if(e.key==='Escape' && state.measure){ state.measure = null; requestDraw(); return; }
+  const map = {h:'pan', v:'move', r:'rotate', e:'erase', l:'draw', k:'reflector', s:'select', m:'measure', n:'nav'};
+  if(map[e.key.toLowerCase()]) setTool(map[e.key.toLowerCase()]);
+});
+document.addEventListener('keyup', (e)=>{
+  if(e.code==='Space' && state.tool==='pan' && state.prevTool!=='pan'){ setTool(state.prevTool); }
+});
+
+const ro = new ResizeObserver(()=>{ resizeCanvas(); requestDraw(); });
+ro.observe(mainEl);
+
+// ---------------- file IO ----------------
+
+document.getElementById('btnAddLayer').addEventListener('click', ()=>document.getElementById('fileInputLayers').click());
+document.getElementById('fileInputLayers').addEventListener('change', (e)=>{
+  const files = [...e.target.files];
+  files.forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const json = JSON.parse(reader.result);
+        addLayer(buildLayer(json, file.name));
+      }catch(err){ alert('Could not parse '+file.name+': '+err.message); }
+    };
+    reader.readAsText(file);
+  });
+  e.target.value = '';
+});
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+function downloadJSON(obj, filename){
+  downloadBlob(new Blob([JSON.stringify(obj)], {type:'application/json'}), filename);
+}
+
+function buildSmapFromLayers(layers, mapName){
+  const normalPosList = [], rssiPosList = [], reflectorPosList = [];
+  const mergedExtra = {};
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  let finestRes = Infinity;
+
+  for(const layer of layers){
+    finestRes = Math.min(finestRes, (layer.header && layer.header.resolution) || 0.02);
+    for(let i=0;i<layer.points.length;i+=2){
+      const [wx,wy] = layerToWorld(layer, layer.points[i], layer.points[i+1]);
+      normalPosList.push({x:round3(wx), y:round3(wy)});
+      if(wx<minX)minX=wx; if(wx>maxX)maxX=wx; if(wy<minY)minY=wy; if(wy>maxY)maxY=wy;
+    }
+    for(let i=0;i<layer.rssi.length;i+=2){
+      const [wx,wy] = layerToWorld(layer, layer.rssi[i], layer.rssi[i+1]);
+      rssiPosList.push({x:round3(wx), y:round3(wy)});
+    }
+    for(const r of layer.reflectors){
+      const [wx,wy] = layerToWorld(layer, r.x, r.y);
+      reflectorPosList.push({type:r.type, width:r.width, x:round3(wx), y:round3(wy), creationMethod:r.creationMethod});
+    }
+    for(const ln of (layer.manualLines||[])){
+      const spacing = ln.spacing || 0.05;
+      const thickness = ln.thickness || 0;
+      const [wx1,wy1] = layerToWorld(layer, ln.x1, ln.y1);
+      const [wx2,wy2] = layerToWorld(layer, ln.x2, ln.y2);
+      const dist = Math.hypot(wx2-wx1, wy2-wy1);
+      const steps = Math.max(1, Math.round(dist/spacing));
+      const dirX=(wx2-wx1)/(dist||1), dirY=(wy2-wy1)/(dist||1);
+      const perpX=-dirY, perpY=dirX;
+      const crossSteps = thickness>0 ? Math.max(1, Math.round(thickness/spacing)) : 0;
+      for(let s=0;s<=steps;s++){
+        const t=s/steps;
+        const cx=wx1+(wx2-wx1)*t, cy=wy1+(wy2-wy1)*t;
+        const offsets = crossSteps===0 ? [0] : Array.from({length:crossSteps+1}, (_,c)=>-thickness/2+(c/crossSteps)*thickness);
+        for(const off of offsets){
+          const px=cx+perpX*off, py=cy+perpY*off;
+          normalPosList.push({x:round3(px), y:round3(py)});
+          if(px<minX)minX=px; if(px>maxX)maxX=px; if(py<minY)minY=py; if(py>maxY)maxY=py;
+        }
+      }
+    }
+    const transformedExtra = transformDeepClone(layer.extra, layer);
+    for(const key of Object.keys(transformedExtra)){
+      if(Array.isArray(transformedExtra[key])){
+        if(!Array.isArray(mergedExtra[key])) mergedExtra[key] = [];
+        mergedExtra[key].push(...transformedExtra[key]);
+      } else if(mergedExtra[key]===undefined){
+        mergedExtra[key] = transformedExtra[key];
+      }
+    }
+  }
+  if(!isFinite(minX)){ minX=-1; maxX=1; minY=-1; maxY=1; }
+
+  return {
+    header: {
+      mapType: '2D-Map',
+      mapName,
+      minPos: {x:round3(minX), y:round3(minY)},
+      maxPos: {x:round3(maxX), y:round3(maxY)},
+      resolution: isFinite(finestRes) ? finestRes : 0.02,
+      version: '1.0.6',
+    },
+    normalPosList,
+    ...(rssiPosList.length ? {rssiPosList} : {}),
+    ...(reflectorPosList.length ? {reflectorPosList} : {}),
+    ...mergedExtra,
+  };
+}
+
+function safeFileName(name){
+  return (name||'layer').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'layer';
+}
+
+function exportMergedSmap(){
+  const visible = state.layers.filter(l=>l.visible);
+  if(!visible.length){ alert('No visible layers to export.'); return; }
+  const mapName = 'stitched_'+new Date().toISOString().replace(/[:.]/g,'-');
+  const out = buildSmapFromLayers(visible, mapName);
+  downloadJSON(out, mapName+'.smap');
+}
+document.getElementById('btnExportSmap').addEventListener('click', exportMergedSmap);
+
+function exportLayerSmap(layer){
+  const out = buildSmapFromLayers([layer], safeFileName(layer.name));
+  downloadJSON(out, safeFileName(layer.name)+'.smap');
+}
+
+function exportAllLayersSeparately(){
+  if(!state.layers.length){ alert('No layers to export.'); return; }
+  state.layers.forEach((layer,i)=>{
+    setTimeout(()=>exportLayerSmap(layer), i*150);
+  });
+}
+document.getElementById('btnExportLayers').addEventListener('click', exportAllLayersSeparately);
+document.getElementById('btnExportThisLayer').addEventListener('click', ()=>{
+  const layer = getActiveLayer();
+  if(layer) exportLayerSmap(layer);
+});
+
+document.getElementById('btnExportPng').addEventListener('click', ()=>{
+  canvasEl.toBlob(blob=>{ if(blob) downloadBlob(blob, 'smap_stitch_'+Date.now()+'.png'); }, 'image/png');
+});
+
+function serializeProject(){
+  return {
+    kind: 'smap-editor-project', version: 1,
+    savedAt: new Date().toISOString(),
+    layers: state.layers.map(l=>({
+      id:l.id, name:l.name, fileName:l.fileName, color:l.color, visible:l.visible,
+      header:l.header, points:l.points, rssi:l.rssi, reflectors:l.reflectors, extra:l.extra,
+      manualLines:l.manualLines, localBBox:l.localBBox, pivot:l.pivot, transform:l.transform,
+    })),
+    nextId: state.nextId, colorIdx: state.colorIdx,
+    view: state.view, fitted: state.fitted,
+  };
+}
+function loadProjectData(data){
+  state.layers = (data.layers||[]).map((l,i)=>{
+    const layer = {manualLines:[], ...l};
+    if(!/^#[0-9a-f]{6}$/i.test(layer.color||'')) layer.color = PALETTE[i % PALETTE.length];
+    return layer;
+  });
+  state.nextId = data.nextId || (state.layers.reduce((m,l)=>Math.max(m,l.id),0)+1);
+  state.colorIdx = data.colorIdx || state.layers.length;
+  state.activeLayerId = state.layers.length ? state.layers[state.layers.length-1].id : null;
+  if(data.view) state.view = data.view;
+  state.fitted = !!data.fitted;
+  state.selectedNavPoint = null;
+  renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel();
+  if(!state.fitted){ fitView(); state.fitted=true; }
+  requestDraw();
+}
+function saveProject(){
+  downloadJSON(serializeProject(), 'smap_project_'+Date.now()+'.json');
+}
+document.getElementById('btnSaveProject').addEventListener('click', saveProject);
+document.getElementById('btnLoadProject').addEventListener('click', ()=>document.getElementById('fileInputProject').click());
+document.getElementById('fileInputProject').addEventListener('change', (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{ loadProjectData(JSON.parse(reader.result)); scheduleAutosave(); }
+    catch(err){ alert('Could not load project: '+err.message); }
+  };
+  reader.readAsText(file);
+  e.target.value='';
+});
+
+// ---------------- autosave ----------------
+
+let autosaveTimer = null;
+function scheduleAutosave(){
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(()=>{
+    try{ localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(serializeProject())); }catch(e){}
+  }, 800);
+}
+
+function checkAutosaveRestore(){
+  let raw;
+  try{ raw = localStorage.getItem(AUTOSAVE_KEY); }catch(e){ return; }
+  if(!raw) return;
+  try{
+    const data = JSON.parse(raw);
+    if(!data.layers || !data.layers.length) return;
+    document.getElementById('restoreText').textContent = 'Restore previous session ('+data.layers.length+' layer'+(data.layers.length>1?'s':'')+', saved '+new Date(data.savedAt).toLocaleString()+')?';
+    const banner = document.getElementById('restoreBanner');
+    banner.hidden = false;
+    document.getElementById('btnRestoreYes').onclick = ()=>{ loadProjectData(data); banner.hidden=true; };
+    document.getElementById('btnRestoreNo').onclick = ()=>{ try{localStorage.removeItem(AUTOSAVE_KEY);}catch(e){} banner.hidden=true; };
+  }catch(e){}
+}
+
+// ---------------- theme / print ----------------
+
+function isLightThemeActive(){
+  const explicit = document.documentElement.getAttribute('data-theme');
+  if(explicit==='light') return true;
+  if(explicit==='dark') return false;
+  try{ return !window.matchMedia('(prefers-color-scheme: dark)').matches; }catch(e){ return false; }
+}
+function syncPrintFriendlyFromTheme(){
+  state.printFriendly = isLightThemeActive();
+  requestDraw();
+}
+
+function applyTheme(theme){
+  if(theme) document.documentElement.setAttribute('data-theme', theme);
+  else document.documentElement.removeAttribute('data-theme');
+  try{ localStorage.setItem(THEME_KEY, theme||''); }catch(e){}
+  syncPrintFriendlyFromTheme();
+}
+document.getElementById('btnTheme').addEventListener('click', ()=>{
+  const current = document.documentElement.getAttribute('data-theme');
+  applyTheme(current==='dark' ? 'light' : 'dark');
+});
+(function initTheme(){
+  let saved = '';
+  try{ saved = localStorage.getItem(THEME_KEY)||''; }catch(e){}
+  if(saved) applyTheme(saved);
+  else syncPrintFriendlyFromTheme();
+})();
+try{
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ()=>{
+    if(!document.documentElement.getAttribute('data-theme')) syncPrintFriendlyFromTheme();
+  });
+}catch(e){}
+
+document.getElementById('btnPrint').addEventListener('click', ()=>{
+  const wasPrintFriendly = state.printFriendly;
+  if(!wasPrintFriendly){ state.printFriendly = true; requestDraw(); }
+  setTimeout(()=>{
+    window.print();
+    if(!wasPrintFriendly){ state.printFriendly = false; requestDraw(); }
+  }, 60);
+});
+
+// ---------------- init ----------------
+
+resizeCanvas();
+setTool('pan');
+renderLayersList();
+renderDetailPanel();
+renderNavPointPanel();
+checkAutosaveRestore();
+requestDraw();
+
+})();
+</script>
+</body>
+</html>
