@@ -288,15 +288,6 @@
       <button class="btn" id="btnExportThisLayer" style="width:100%; margin-top:6px;">Export this layer as .smap</button>
     </div>
 
-    <div class="section" id="navPointSection" hidden>
-      <div class="section-title">Selected nav point</div>
-      <div class="stat-line"><span>Name</span><b id="navPtName" class="mono"></b></div>
-      <div class="field-row"><label for="navX">X (m)</label><input type="number" id="navX" step="0.01"></div>
-      <div class="field-row"><label for="navY">Y (m)</label><input type="number" id="navY" step="0.01"></div>
-      <div class="field-row"><label for="navRot">Rot (°)</label><input type="number" id="navRot" step="0.5"></div>
-      <button class="btn danger" id="btnDeleteNavPoint" style="width:100%;">Delete nav point</button>
-    </div>
-
     <div class="section">
       <div class="section-title">Tools</div>
       <div class="tool-grid">
@@ -308,7 +299,9 @@
         <button class="tool-btn" data-tool="reflector" title="Add reflector (K)"><span class="glyph">◎</span>Reflect.</button>
         <button class="tool-btn" data-tool="select" title="Rectangle select and delete (S)"><span class="glyph">▭</span>Select</button>
         <button class="tool-btn" data-tool="measure" title="Measure distance (M)"><span class="glyph">📏</span>Ruler</button>
-        <button class="tool-btn" data-tool="nav" title="Add / move nav points (N)"><span class="glyph">📍</span>Nav Pts</button>
+        <button class="tool-btn" data-tool="nav" title="Add / move nav points, drag curve handles, edit paths (N)"><span class="glyph">📍</span>Nav Pts</button>
+        <button class="tool-btn" data-tool="area" title="Draw / reshape / rotate reflector areas (A)"><span class="glyph">⬠</span>Area</button>
+        <button class="tool-btn" data-tool="align" title="Draw a line, then align the layer's axis to it (G)"><span class="glyph">↔</span>Align</button>
       </div>
 
       <div class="tool-options" id="opts-erase" hidden>
@@ -348,6 +341,65 @@
         <label class="check-inline"><input type="checkbox" id="selectManualLines" checked> Manual lines</label>
         <label class="check-inline"><input type="checkbox" id="selectNavPoints" checked> Nav points</label>
       </div>
+      <div class="tool-options" id="opts-align" hidden>
+        <div class="stat-line"><span>Line angle</span><b id="alignAngle" class="mono">–</b></div>
+        <div class="row">
+          <span style="width:52px;">Axis</span>
+          <div class="shape-toggle">
+            <button type="button" class="shape-btn active" id="alignAxisX" title="Make the line horizontal">Align X</button>
+            <button type="button" class="shape-btn" id="alignAxisY" title="Make the line vertical">Align Y</button>
+          </div>
+        </div>
+        <button class="btn primary" id="btnAlignConfirm" style="width:100%; margin-top:8px;" disabled>Confirm</button>
+        <button class="btn" id="btnAlignClear" style="width:100%; margin-top:6px;">Clear line</button>
+      </div>
+    </div>
+
+    <div class="section" id="navPointSection" hidden>
+      <div class="section-title">Selected nav point</div>
+      <div class="field-row"><label for="navPtName">Name</label><input type="text" id="navPtName" class="mono"></div>
+      <div class="field-row"><label for="navX">X (m)</label><input type="number" id="navX" step="0.01"></div>
+      <div class="field-row"><label for="navY">Y (m)</label><input type="number" id="navY" step="0.01"></div>
+      <label class="check-inline" style="margin-bottom:6px;"><input type="checkbox" id="navHasDir"> Has orientation</label>
+      <div class="field-row"><label for="navRot">Rot (°)</label><input type="number" id="navRot" step="0.5"></div>
+      <button class="btn danger" id="btnDeleteNavPoint" style="width:100%;">Delete nav point</button>
+    </div>
+
+    <div class="section" id="pathSection" hidden>
+      <div class="section-title">Selected path</div>
+      <div class="stat-line"><span>Name</span><b id="pathName" class="mono"></b></div>
+      <div class="label-sub">Forward <span id="pathFwdLabel" class="mono"></span></div>
+      <div class="field-row"><label for="pathFwdDirection">Direction</label>
+        <select id="pathFwdDirection" style="flex:1; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
+          <option value="0">0 — Bidirectional</option>
+          <option value="1">1 — Forward only</option>
+          <option value="2">2 — Backward only</option>
+        </select>
+      </div>
+      <div class="field-row"><label for="pathFwdMovestyle">Movestyle</label><input type="number" id="pathFwdMovestyle" step="1"></div>
+      <div class="label-sub" id="pathBwdSection">Backward <span id="pathBwdLabel" class="mono"></span></div>
+      <div class="field-row"><label for="pathBwdDirection">Direction</label>
+        <select id="pathBwdDirection" style="flex:1; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
+          <option value="0">0 — Bidirectional</option>
+          <option value="1">1 — Forward only</option>
+          <option value="2">2 — Backward only</option>
+        </select>
+      </div>
+      <div class="field-row"><label for="pathBwdMovestyle">Movestyle</label><input type="number" id="pathBwdMovestyle" step="1"></div>
+      <button class="btn" id="btnSplitPath" style="width:100%; margin-top:6px;">Split into two one-way paths</button>
+      <button class="btn danger" id="btnDeletePath" style="width:100%; margin-top:6px;">Delete path</button>
+    </div>
+
+    <div class="section" id="areaSection" hidden>
+      <div class="section-title">Selected area</div>
+      <div class="stat-line"><span>Group</span><b id="areaGroupLabel" class="mono"></b></div>
+      <div class="stat-line"><span>Rectangles</span><b id="areaCount" class="mono"></b></div>
+      <div class="field-row"><label for="areaMergeSelect">Merge into</label>
+        <select id="areaMergeSelect" style="flex:1; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;"></select>
+      </div>
+      <button class="btn" id="btnAreaMerge" style="width:100%; margin-bottom:8px;">Merge</button>
+      <button class="btn danger" id="btnDeleteArea" style="width:100%;">Delete area</button>
+      <div class="tool-hint" style="margin-top:8px;">Drag inside a rectangle to move the whole area. Drag a corner to resize (stays a rectangle). Drag the small handle off a corner to rotate. Drag on empty space to draw a new rectangle.</div>
     </div>
 
     <div class="section">
@@ -355,6 +407,7 @@
       <label class="legend-row check"><input type="checkbox" id="showScan" checked><span class="legend-swatch" style="background:#7fe9c9;"></span>Scan points</label>
       <label class="legend-row check"><input type="checkbox" id="showRssi" checked><span class="legend-swatch sq" style="background:#f2c14e;"></span>RSSI samples</label>
       <label class="legend-row check"><input type="checkbox" id="showReflector" checked><span class="legend-swatch" style="background:#ff6a4a;"></span>Reflectors</label>
+      <label class="legend-row check"><input type="checkbox" id="showAreas" checked><span class="legend-swatch sq" style="background:#ff5500;"></span>Reflector areas</label>
       <label class="legend-row check"><input type="checkbox" id="showExtra" checked><span class="legend-swatch sq" style="background:#9aa39d;"></span>Walls</label>
       <label class="legend-row check"><input type="checkbox" id="showNav" checked><span class="legend-swatch" style="background:#7c6cff;"></span>Nav points / paths</label>
       <label class="legend-row check" style="margin-top:6px;"><input type="checkbox" id="colorizeLayers"><span class="legend-swatch sq" style="background:linear-gradient(90deg,#7fe9c9,#f2c14e,#7ea6ff);"></span>Colorize layers</label>
@@ -368,7 +421,7 @@
       <div style="font-size:11px; color:var(--ink-dim); line-height:1.7;">
         <kbd>H</kbd> pan &nbsp; <kbd>V</kbd> move &nbsp; <kbd>R</kbd> rotate<br>
         <kbd>E</kbd> erase &nbsp; <kbd>L</kbd> draw &nbsp; <kbd>K</kbd> reflector<br>
-        <kbd>S</kbd> select &nbsp; <kbd>M</kbd> ruler &nbsp; <kbd>N</kbd> nav pts<br>
+        <kbd>S</kbd> select &nbsp; <kbd>M</kbd> ruler &nbsp; <kbd>N</kbd> nav pts &nbsp; <kbd>A</kbd> area<br>
         <kbd>Esc</kbd> clear ruler<br>
         <kbd>Space</kbd> hold to pan &nbsp; <kbd>Ctrl+Z</kbd> undo edit
       </div>
@@ -415,7 +468,7 @@ const state = {
   eraseRadius: 0.5,
   eraseShape: 'circle',
   eraseTargets: { scan:true, rssi:true, extra:true },
-  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true },
+  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true },
   showOrigin: false,
   uniformLayerColor: true,
   mouse: null,
@@ -433,6 +486,17 @@ const state = {
   hoverNavPoint: null,
   draggingNavPoint: null,
   selectedNavPoint: null,
+  selectedPath: null,
+  hoverPathBody: null,
+  draggingControlPoint: null,
+  selectedArea: null,
+  areaAction: null,
+  hoverAreaVertex: null,
+  hoverAreaRotate: -1,
+  newAreaRect: null,
+  alignLine: null,
+  alignAxis: 'x',
+  draggingAlignHandle: null,
   printFriendly: false,
   undoStack: [],
 };
@@ -482,6 +546,9 @@ function transformDeepClone(obj, layer){
   (function walk(node){
     if(Array.isArray(node)){ node.forEach(walk); return; }
     if(node && typeof node === 'object'){
+      for(const k of Object.keys(node)){
+        if(k.startsWith('__')) delete node[k];
+      }
       if(typeof node.x === 'number' && typeof node.y === 'number'){
         const [wx,wy] = layerToWorld(layer, node.x, node.y);
         node.x = round3(wx); node.y = round3(wy);
@@ -524,7 +591,7 @@ function buildLayer(json, fileName){
   const color = PALETTE[state.colorIdx % PALETTE.length];
   state.colorIdx++;
 
-  return {
+  const layer = {
     id, name: (header.mapName || fileName || ('layer-'+id)),
     fileName: fileName || (header.mapName || '') ,
     color,
@@ -535,6 +602,9 @@ function buildLayer(json, fileName){
     localBBox, pivot,
     transform: { tx:0, ty:0, rot:0 },
   };
+  normalizeCurvePairs(layer);
+  normalizeAreaRects(layer);
+  return layer;
 }
 
 function addLayer(layer){
@@ -544,6 +614,8 @@ function addLayer(layer){
   renderDetailPanel();
   updateToolStatus();
   renderNavPointPanel();
+  renderPathPanel();
+  renderAreaPanel();
   if(!state.fitted){ fitView(); state.fitted = true; }
   scheduleAutosave();
   requestDraw();
@@ -562,7 +634,7 @@ function deleteLayer(id){
   if(!confirm('Delete layer "'+layer.name+'"? This cannot be undone.')) return;
   state.layers = state.layers.filter(l=>l.id!==id);
   if(state.activeLayerId===id) state.activeLayerId = state.layers.length ? state.layers[state.layers.length-1].id : null;
-  renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); scheduleAutosave(); requestDraw();
+  renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); scheduleAutosave(); requestDraw();
 }
 
 function moveLayer(id, dir){
@@ -603,15 +675,19 @@ function renderLayersList(){
 
     const name = document.createElement('div');
     name.className = 'layer-name'; name.textContent = layer.name; name.title = layer.name;
-    name.addEventListener('dblclick', (e)=>{
-      e.stopPropagation();
+
+    function startRename(){
       const input = document.createElement('input');
       input.value = layer.name;
       name.textContent = ''; name.appendChild(input); input.focus(); input.select();
       const commit = ()=>{ layer.name = input.value.trim() || layer.name; renderLayersList(); scheduleAutosave(); };
       input.addEventListener('blur', commit);
       input.addEventListener('keydown', ev=>{ if(ev.key==='Enter') input.blur(); if(ev.key==='Escape'){ input.value=layer.name; input.blur(); } });
-    });
+    }
+
+    const renameBtn = document.createElement('button');
+    renameBtn.className='layer-mini-btn'; renameBtn.textContent='✎'; renameBtn.title='Rename layer';
+    renameBtn.addEventListener('click', e=>{ e.stopPropagation(); startRename(); });
 
     const upBtn = document.createElement('button');
     upBtn.className='layer-mini-btn'; upBtn.textContent='▲'; upBtn.title='Bring forward';
@@ -625,8 +701,8 @@ function renderLayersList(){
     delBtn.className='layer-mini-btn'; delBtn.textContent='✕'; delBtn.title='Delete layer';
     delBtn.addEventListener('click', e=>{ e.stopPropagation(); deleteLayer(layer.id); });
 
-    row.append(vis, swatch, name, upBtn, downBtn, delBtn);
-    row.addEventListener('click', ()=>{ state.activeLayerId = layer.id; renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); requestDraw(); });
+    row.append(vis, swatch, name, renameBtn, upBtn, downBtn, delBtn);
+    row.addEventListener('click', ()=>{ state.activeLayerId = layer.id; renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); requestDraw(); });
     layersListEl.appendChild(row);
   }
 }
@@ -670,6 +746,7 @@ btnResetTransform.addEventListener('click', ()=>{
 const navPointSection = document.getElementById('navPointSection');
 const navPtName = document.getElementById('navPtName');
 const navX = document.getElementById('navX'), navY = document.getElementById('navY'), navRot = document.getElementById('navRot');
+const navHasDir = document.getElementById('navHasDir');
 const btnDeleteNavPoint = document.getElementById('btnDeleteNavPoint');
 
 function getSelectedNavPoint(){
@@ -680,31 +757,89 @@ function getSelectedNavPoint(){
   return pt ? {layer, pt} : null;
 }
 
+function renameNavPoint(layer, oldName, newName){
+  if(!newName || oldName===newName) return false;
+  if(findNavPointByName(layer, newName)) return false;
+  const pt = findNavPointByName(layer, oldName);
+  if(!pt) return false;
+  pt.instanceName = newName;
+  const curves = layer.extra && layer.extra.advancedCurveList;
+  if(Array.isArray(curves)){
+    for(const c of curves){
+      if(c.startPos && c.startPos.instanceName===oldName) c.startPos.instanceName = newName;
+      if(c.endPos && c.endPos.instanceName===oldName) c.endPos.instanceName = newName;
+      if(typeof c.instanceName === 'string' && c.instanceName.split('-').includes(oldName)){
+        c.instanceName = c.instanceName.split('-').map(part=>part===oldName?newName:part).join('-');
+      }
+    }
+  }
+  return true;
+}
+
 function renderNavPointPanel(){
   const sel = getSelectedNavPoint();
-  navPointSection.hidden = !sel;
+  const visible = sel && state.tool==='nav';
+  navPointSection.hidden = !visible;
   if(!sel){ state.selectedNavPoint = null; return; }
+  if(!visible) return;
   const {layer, pt} = sel;
-  navPtName.textContent = pt.instanceName;
+  if(document.activeElement !== navPtName) navPtName.value = pt.instanceName;
   const [wx, wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
   navX.value = round3(wx);
   navY.value = round3(wy);
-  const localDir = (typeof pt.dir === 'number' && !pt.ignoreDir) ? pt.dir : 0;
+  const hasDir = typeof pt.dir === 'number' && !pt.ignoreDir;
+  navHasDir.checked = hasDir;
+  const localDir = typeof pt.dir === 'number' ? pt.dir : 0;
   navRot.value = round3((localDir + layer.transform.rot) * 180/Math.PI);
   const disabled = !layer.visible;
-  navX.disabled = navY.disabled = navRot.disabled = btnDeleteNavPoint.disabled = disabled;
+  navPtName.disabled = navX.disabled = navY.disabled = navHasDir.disabled = btnDeleteNavPoint.disabled = disabled;
+  navRot.disabled = disabled || !hasDir;
 }
+
+navHasDir.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(!sel || !sel.layer.visible) return;
+  const {pt} = sel;
+  pt.ignoreDir = !navHasDir.checked;
+  if(typeof pt.dir !== 'number') pt.dir = 0;
+  scheduleAutosave(); renderNavPointPanel(); requestDraw();
+});
+
+navPtName.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(!sel || !sel.layer.visible) return;
+  const {layer, pt} = sel;
+  const oldName = pt.instanceName;
+  const newName = navPtName.value.trim();
+  if(!newName || newName===oldName){ renderNavPointPanel(); return; }
+  pushUndo(layer);
+  if(renameNavPoint(layer, oldName, newName)){
+    state.selectedNavPoint.instanceName = newName;
+    if(state.selectedPath && state.selectedPath.layerId===layer.id){
+      if(state.selectedPath.nameA===oldName) state.selectedPath.nameA = newName;
+      if(state.selectedPath.nameB===oldName) state.selectedPath.nameB = newName;
+    }
+    scheduleAutosave(); requestDraw();
+    renderPathPanel();
+  } else {
+    state.undoStack.pop();
+    alert('A nav point named "'+newName+'" already exists on this layer.');
+  }
+  renderNavPointPanel();
+});
+navPtName.addEventListener('keydown', e=>{ if(e.key==='Enter') navPtName.blur(); });
 
 function applyNavPointFields(){
   const sel = getSelectedNavPoint();
   if(!sel || !sel.layer.visible) return;
   const {layer, pt} = sel;
   const wx = parseFloat(navX.value)||0, wy = parseFloat(navY.value)||0;
-  const worldDirDeg = parseFloat(navRot.value)||0;
   const [lx, ly] = worldToLayer(layer, wx, wy);
   pt.pos.x = round3(lx); pt.pos.y = round3(ly);
-  pt.dir = (worldDirDeg*Math.PI/180) - layer.transform.rot;
-  pt.ignoreDir = false;
+  if(navHasDir.checked){
+    const worldDirDeg = parseFloat(navRot.value)||0;
+    pt.dir = (worldDirDeg*Math.PI/180) - layer.transform.rot;
+  }
   syncCurvesForPoint(layer, pt.instanceName);
   scheduleAutosave(); requestDraw();
 }
@@ -718,6 +853,200 @@ btnDeleteNavPoint.addEventListener('click', ()=>{
   deleteNavPoint(layer, pt.instanceName);
   state.selectedNavPoint = null;
   renderNavPointPanel();
+  renderPathPanel();
+  scheduleAutosave(); requestDraw();
+});
+
+function getIntProperty(item, key, fallback){
+  const prop = (item.property||[]).find(p=>p.key===key);
+  return prop && typeof prop.int32Value === 'number' ? prop.int32Value : fallback;
+}
+function setIntProperty(item, key, val){
+  if(!Array.isArray(item.property)) item.property = [];
+  let prop = item.property.find(p=>p.key===key);
+  if(!prop){ prop = {key, type:'int'}; item.property.push(prop); }
+  prop.int32Value = val;
+  try{ prop.value = btoa(String(val)); }catch(e){}
+}
+
+const pathSection = document.getElementById('pathSection');
+const pathNameEl = document.getElementById('pathName');
+const pathFwdLabel = document.getElementById('pathFwdLabel');
+const pathFwdDirection = document.getElementById('pathFwdDirection');
+const pathFwdMovestyle = document.getElementById('pathFwdMovestyle');
+const pathBwdSection = document.getElementById('pathBwdSection');
+const pathBwdLabel = document.getElementById('pathBwdLabel');
+const pathBwdDirection = document.getElementById('pathBwdDirection');
+const pathBwdMovestyle = document.getElementById('pathBwdMovestyle');
+const btnSplitPath = document.getElementById('btnSplitPath');
+const btnDeletePath = document.getElementById('btnDeletePath');
+
+function normalizeCurvePairs(layer){
+  const list = layer.extra && layer.extra.advancedCurveList;
+  if(!Array.isArray(list)) return;
+  for(const c of list){
+    if(c.__unsplit !== undefined) continue; // already has an explicit state (loaded, or split by the user) -- don't override
+    if(!c.startPos || !c.endPos) continue;
+    const rev = list.find(o=>o!==c && o.startPos && o.endPos &&
+      o.startPos.instanceName===c.endPos.instanceName && o.endPos.instanceName===c.startPos.instanceName);
+    if(rev){ c.__unsplit = true; if(rev.__unsplit===undefined) rev.__unsplit = true; }
+  }
+}
+
+function getSelectedPath(){
+  if(!state.selectedPath) return null;
+  const layer = getLayer(state.selectedPath.layerId);
+  if(!layer) return null;
+  const {nameA, nameB} = state.selectedPath;
+  const forward = findCurveByEndpoints(layer, nameA, nameB);
+  const backward = findCurveByEndpoints(layer, nameB, nameA);
+  if(!forward && !backward) return null;
+  const linked = !!((forward && forward.__unsplit) || (backward && backward.__unsplit));
+  return {layer, forward, backward, linked};
+}
+
+function populateDirectionSelect(selectEl, val){
+  if(![...selectEl.options].some(o=>Number(o.value)===val)){
+    const opt = document.createElement('option');
+    opt.value = String(val); opt.textContent = val+' — (existing value)';
+    selectEl.appendChild(opt);
+  }
+  selectEl.value = String(val);
+}
+
+function renderPathPanel(){
+  const sel = getSelectedPath();
+  const visible = sel && state.tool==='nav';
+  pathSection.hidden = !visible;
+  if(!sel){ state.selectedPath = null; return; }
+  if(!visible) return;
+  const {layer, forward, backward, linked} = sel;
+  const disabled = !layer.visible;
+  if(forward && backward){
+    pathNameEl.textContent = forward.startPos.instanceName+' ⇄ '+forward.endPos.instanceName+(linked?'':' (split)');
+  } else if(forward){
+    pathNameEl.textContent = forward.startPos.instanceName+' → '+forward.endPos.instanceName;
+  } else {
+    pathNameEl.textContent = backward.startPos.instanceName+' → '+backward.endPos.instanceName;
+  }
+  if(forward){
+    pathFwdLabel.textContent = forward.startPos.instanceName+' → '+forward.endPos.instanceName;
+    populateDirectionSelect(pathFwdDirection, getIntProperty(forward, 'direction', 0));
+    pathFwdMovestyle.value = getIntProperty(forward, 'movestyle', 0);
+    pathFwdDirection.disabled = pathFwdMovestyle.disabled = disabled;
+  }
+  pathBwdSection.hidden = !backward;
+  pathBwdDirection.closest('.field-row').hidden = !backward;
+  pathBwdMovestyle.closest('.field-row').hidden = !backward;
+  if(backward){
+    pathBwdLabel.textContent = backward.startPos.instanceName+' → '+backward.endPos.instanceName;
+    populateDirectionSelect(pathBwdDirection, getIntProperty(backward, 'direction', 0));
+    pathBwdMovestyle.value = getIntProperty(backward, 'movestyle', 0);
+    pathBwdDirection.disabled = pathBwdMovestyle.disabled = disabled;
+  }
+  btnSplitPath.hidden = !(forward && backward && linked);
+  btnSplitPath.disabled = disabled;
+  btnDeletePath.disabled = disabled;
+}
+
+pathFwdDirection.addEventListener('change', ()=>{
+  const sel = getSelectedPath();
+  if(!sel || !sel.layer.visible || !sel.forward) return;
+  setIntProperty(sel.forward, 'direction', parseInt(pathFwdDirection.value,10));
+  scheduleAutosave(); requestDraw();
+});
+pathFwdMovestyle.addEventListener('input', ()=>{
+  const sel = getSelectedPath();
+  if(!sel || !sel.layer.visible || !sel.forward) return;
+  setIntProperty(sel.forward, 'movestyle', parseInt(pathFwdMovestyle.value,10)||0);
+  scheduleAutosave(); requestDraw();
+});
+pathBwdDirection.addEventListener('change', ()=>{
+  const sel = getSelectedPath();
+  if(!sel || !sel.layer.visible || !sel.backward) return;
+  setIntProperty(sel.backward, 'direction', parseInt(pathBwdDirection.value,10));
+  scheduleAutosave(); requestDraw();
+});
+pathBwdMovestyle.addEventListener('input', ()=>{
+  const sel = getSelectedPath();
+  if(!sel || !sel.layer.visible || !sel.backward) return;
+  setIntProperty(sel.backward, 'movestyle', parseInt(pathBwdMovestyle.value,10)||0);
+  scheduleAutosave(); requestDraw();
+});
+btnSplitPath.addEventListener('click', ()=>{
+  const sel = getSelectedPath();
+  if(!sel || !sel.layer.visible || !sel.forward || !sel.backward) return;
+  pushUndo(sel.layer);
+  sel.forward.__unsplit = false;
+  sel.backward.__unsplit = false;
+  renderPathPanel();
+  scheduleAutosave(); requestDraw();
+});
+btnDeletePath.addEventListener('click', ()=>{
+  const sel = getSelectedPath();
+  if(!sel || !sel.layer.visible) return;
+  pushUndo(sel.layer);
+  sel.layer.extra.advancedCurveList = sel.layer.extra.advancedCurveList.filter(c=>c!==sel.forward && c!==sel.backward);
+  state.selectedPath = null;
+  renderPathPanel();
+  scheduleAutosave(); requestDraw();
+});
+
+const areaSection = document.getElementById('areaSection');
+const areaGroupLabel = document.getElementById('areaGroupLabel');
+const areaCountEl = document.getElementById('areaCount');
+const areaMergeSelect = document.getElementById('areaMergeSelect');
+const btnAreaMerge = document.getElementById('btnAreaMerge');
+const btnDeleteArea = document.getElementById('btnDeleteArea');
+
+function getSelectedAreaGroup(){
+  if(!state.selectedArea) return null;
+  const layer = getLayer(state.selectedArea.layerId);
+  if(!layer) return null;
+  const members = getGroupAreas(layer, state.selectedArea.groupId);
+  return members.length ? {layer, members} : null;
+}
+
+function renderAreaPanel(){
+  const sel = getSelectedAreaGroup();
+  const visible = sel && state.tool==='area';
+  areaSection.hidden = !visible;
+  if(!sel){ state.selectedArea = null; return; }
+  if(!visible) return;
+  const {layer, members} = sel;
+  areaGroupLabel.textContent = members.map(a=>a.instanceName).join(', ');
+  areaCountEl.textContent = String(members.length);
+  const allGroups = [...new Set((layer.extra.advancedAreaList||[]).map(a=>a.__group))].filter(g=>g!==state.selectedArea.groupId);
+  areaMergeSelect.innerHTML = '';
+  for(const g of allGroups){
+    const opt = document.createElement('option');
+    opt.value = g;
+    opt.textContent = getGroupAreas(layer,g).map(a=>a.instanceName).join(', ');
+    areaMergeSelect.appendChild(opt);
+  }
+  const disabled = !layer.visible;
+  areaMergeSelect.disabled = btnAreaMerge.disabled = allGroups.length===0 || disabled;
+  btnDeleteArea.disabled = disabled;
+}
+
+btnAreaMerge.addEventListener('click', ()=>{
+  const sel = getSelectedAreaGroup();
+  if(!sel || !sel.layer.visible) return;
+  const targetGroup = areaMergeSelect.value;
+  if(!targetGroup) return;
+  pushUndo(sel.layer);
+  for(const area of sel.members) area.__group = targetGroup;
+  state.selectedArea = {layerId:sel.layer.id, groupId:targetGroup, areaIndex:sel.layer.extra.advancedAreaList.indexOf(sel.members[0])};
+  renderAreaPanel();
+  scheduleAutosave(); requestDraw();
+});
+btnDeleteArea.addEventListener('click', ()=>{
+  const sel = getSelectedAreaGroup();
+  if(!sel || !sel.layer.visible) return;
+  pushUndo(sel.layer);
+  sel.layer.extra.advancedAreaList = sel.layer.extra.advancedAreaList.filter(a=>a.__group!==state.selectedArea.groupId);
+  state.selectedArea = null;
+  renderAreaPanel();
   scheduleAutosave(); requestDraw();
 });
 
@@ -728,12 +1057,13 @@ const optsErase = document.getElementById('opts-erase');
 const optsDraw = document.getElementById('opts-draw');
 const optsReflector = document.getElementById('opts-reflector');
 const optsSelect = document.getElementById('opts-select');
+const optsAlign = document.getElementById('opts-align');
 const toolStatus = document.getElementById('toolStatus');
 const noLayerBanner = document.getElementById('noLayerBanner');
 const canvasEl = document.getElementById('canvas');
 
-const TOOL_LABELS = { pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', select:'Rectangle select', measure:'Ruler', nav:'Nav points' };
-const TOOL_NEEDS_LAYER = { move:true, rotate:true, erase:true, draw:true, reflector:true, select:true, pan:false, measure:false, nav:true };
+const TOOL_LABELS = { pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', select:'Rectangle select', measure:'Ruler', nav:'Nav points', area:'Reflector area', align:'Align to line' };
+const TOOL_NEEDS_LAYER = { move:true, rotate:true, erase:true, draw:true, reflector:true, select:true, pan:false, measure:false, nav:true, area:true, align:true };
 
 function updateToolStatus(){
   const tool = state.tool;
@@ -755,8 +1085,13 @@ function setTool(tool){
   optsDraw.hidden = tool!=='draw';
   optsReflector.hidden = tool!=='reflector';
   optsSelect.hidden = tool!=='select';
+  optsAlign.hidden = tool!=='align';
   canvasEl.className = 'tool-'+tool;
   updateToolStatus();
+  renderNavPointPanel();
+  renderPathPanel();
+  renderAreaPanel();
+  renderAlignPanel();
   requestDraw();
 }
 toolButtons.forEach(b=>b.addEventListener('click', ()=>setTool(b.dataset.tool)));
@@ -807,9 +1142,51 @@ document.getElementById('selectReflector').addEventListener('change', e=>state.s
 document.getElementById('selectManualLines').addEventListener('change', e=>state.selectTargets.manualLines = e.target.checked);
 document.getElementById('selectNavPoints').addEventListener('change', e=>state.selectTargets.navPoints = e.target.checked);
 
+const alignAngleEl = document.getElementById('alignAngle');
+const alignAxisXBtn = document.getElementById('alignAxisX');
+const alignAxisYBtn = document.getElementById('alignAxisY');
+const btnAlignConfirm = document.getElementById('btnAlignConfirm');
+const btnAlignClear = document.getElementById('btnAlignClear');
+
+function angleDeltaToAxis(angle, axis){
+  function normalize(a){ while(a>Math.PI/2) a-=Math.PI; while(a<=-Math.PI/2) a+=Math.PI; return a; }
+  return axis==='x' ? -normalize(angle) : -normalize(angle-Math.PI/2);
+}
+function renderAlignPanel(){
+  const hasLine = !!state.alignLine;
+  if(hasLine){
+    const {x1,y1,x2,y2} = state.alignLine;
+    const angle = Math.atan2(y2-y1, x2-x1);
+    alignAngleEl.textContent = (angle*180/Math.PI).toFixed(2)+'°';
+  } else {
+    alignAngleEl.textContent = '–';
+  }
+  const layer = getEditableActiveLayer();
+  btnAlignConfirm.disabled = !hasLine || !layer;
+}
+function setAlignAxis(axis){
+  state.alignAxis = axis;
+  alignAxisXBtn.classList.toggle('active', axis==='x');
+  alignAxisYBtn.classList.toggle('active', axis==='y');
+}
+alignAxisXBtn.addEventListener('click', ()=>setAlignAxis('x'));
+alignAxisYBtn.addEventListener('click', ()=>setAlignAxis('y'));
+btnAlignClear.addEventListener('click', ()=>{ state.alignLine = null; renderAlignPanel(); requestDraw(); });
+btnAlignConfirm.addEventListener('click', ()=>{
+  const layer = getEditableActiveLayer();
+  if(!layer || !state.alignLine) return;
+  const {x1,y1,x2,y2} = state.alignLine;
+  const angle = Math.atan2(y2-y1, x2-x1);
+  const delta = angleDeltaToAxis(angle, state.alignAxis);
+  layer.transform.rot += delta;
+  renderDetailPanel();
+  scheduleAutosave(); requestDraw();
+});
+
 document.getElementById('showScan').addEventListener('change', e=>{ state.typeVisibility.scan = e.target.checked; requestDraw(); });
 document.getElementById('showRssi').addEventListener('change', e=>{ state.typeVisibility.rssi = e.target.checked; requestDraw(); });
 document.getElementById('showReflector').addEventListener('change', e=>{ state.typeVisibility.reflector = e.target.checked; requestDraw(); });
+document.getElementById('showAreas').addEventListener('change', e=>{ state.typeVisibility.areas = e.target.checked; requestDraw(); });
 document.getElementById('showExtra').addEventListener('change', e=>{ state.typeVisibility.extra = e.target.checked; requestDraw(); });
 document.getElementById('showNav').addEventListener('change', e=>{ state.typeVisibility.nav = e.target.checked; requestDraw(); });
 const showOriginEl = document.getElementById('showOrigin');
@@ -842,7 +1219,7 @@ function undo(){
   layer.points = entry.points; layer.rssi = entry.rssi; layer.reflectors = entry.reflectors; layer.extra = entry.extra;
   layer.manualLines = entry.manualLines;
   layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
-  renderDetailPanel(); renderNavPointPanel(); scheduleAutosave(); requestDraw();
+  renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); scheduleAutosave(); requestDraw();
 }
 
 // ---------------- canvas / view ----------------
@@ -923,6 +1300,67 @@ function drawExtra(layer, pal){
   ctx.globalAlpha = 1;
 }
 
+function decodeQColor(intVal, alpha){
+  if(typeof intVal !== 'number') return null;
+  const r = (intVal>>>16)&0xff, g = (intVal>>>8)&0xff, b = intVal&0xff;
+  const a = alpha!=null ? alpha : ((intVal>>>24)&0xff)/255;
+  return 'rgba('+r+','+g+','+b+','+a.toFixed(3)+')';
+}
+
+function drawReflectorAreas(layer, pal){
+  const extra = layer.extra;
+  if(!extra || !Array.isArray(extra.advancedAreaList)) return;
+  const isActiveLayer = layer.id===state.activeLayerId;
+  const editing = state.tool==='area' && isActiveLayer;
+  extra.advancedAreaList.forEach((area, ai)=>{
+    const posGroup = area && area.posGroup;
+    if(!Array.isArray(posGroup) || posGroup.length<2) return;
+    const isSelected = editing && state.selectedArea && state.selectedArea.layerId===layer.id && state.selectedArea.groupId===area.__group;
+    const attr = area.attribute || {};
+    const fill = decodeQColor(attr.colorBrush, 0.22) || 'rgba(255,106,74,0.18)';
+    const stroke = decodeQColor(attr.colorPen, 0.9) || pal.reflector;
+    const screenPts = posGroup.map(p=>{
+      const [wx,wy] = layerToWorld(layer, p.x, p.y);
+      return worldToScreen(wx,wy);
+    });
+    ctx.beginPath();
+    screenPts.forEach(([sx,sy],i)=> i===0 ? ctx.moveTo(sx,sy) : ctx.lineTo(sx,sy));
+    ctx.closePath();
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.strokeStyle = isSelected ? '#ffffff' : stroke;
+    ctx.lineWidth = isSelected ? 2.5 : 1.5;
+    ctx.setLineDash([8,5]); ctx.stroke(); ctx.setLineDash([]);
+    if(area.instanceName){
+      ctx.font = 'bold 11px ui-monospace, monospace';
+      ctx.fillStyle = stroke;
+      ctx.fillText('Area '+area.instanceName, screenPts[0][0]+6, screenPts[0][1]-6);
+    }
+    const isPrimarySelected = isSelected && state.selectedArea.areaIndex===ai;
+    if(editing && isPrimarySelected){
+      for(let vi=0; vi<screenPts.length; vi++){
+        const [sx,sy] = screenPts[vi];
+        const isHover = state.hoverAreaVertex && state.hoverAreaVertex.areaIndex===ai && state.hoverAreaVertex.vertexIndex===vi;
+        ctx.beginPath(); ctx.rect(sx-4.5,sy-4.5,9,9);
+        ctx.fillStyle = isHover ? '#ffffff' : stroke; ctx.fill();
+        ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; ctx.stroke();
+      }
+      const rect = rectFromPosGroup(posGroup);
+      const corners = posGroupFromRect(rect.cx,rect.cy,rect.w,rect.h,rect.rot);
+      const c1 = corners[1];
+      const hx = rect.cx + (c1.x-rect.cx)*1.3, hy = rect.cy + (c1.y-rect.cy)*1.3;
+      const [hwx,hwy] = layerToWorld(layer, hx, hy);
+      const [hsx,hsy] = worldToScreen(hwx,hwy);
+      const isRotHover = state.hoverAreaRotate===ai;
+      ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.moveTo(screenPts[1][0],screenPts[1][1]); ctx.lineTo(hsx,hsy); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(hsx,hsy,6,0,Math.PI*2);
+      ctx.fillStyle = isRotHover ? '#ffffff' : stroke; ctx.fill();
+      ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; ctx.stroke();
+    }
+  });
+}
+
 const NAV_COLOR = '#7c6cff';
 const NAV_COLOR_PRINT = '#5b3fd6';
 
@@ -933,8 +1371,8 @@ function drawNavPoints(layer, pal){
   const fillColor = state.uniformLayerColor ? pal.ink : (layer.color||PALETTE[0]);
   const isActiveLayer = layer.id===state.activeLayerId;
 
+  const showHandles = state.tool==='nav' && isActiveLayer;
   if(Array.isArray(extra.advancedCurveList)){
-    ctx.strokeStyle = navColor; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.8;
     for(const item of extra.advancedCurveList){
       const sp = item && item.startPos && item.startPos.pos, ep = item && item.endPos && item.endPos.pos;
       const c1 = item && item.controlPos1, c2 = item && item.controlPos2;
@@ -942,18 +1380,54 @@ function drawNavPoints(layer, pal){
       const [wx1,wy1] = layerToWorld(layer, sp.x, sp.y);
       const [wx2,wy2] = layerToWorld(layer, ep.x, ep.y);
       const [sx1,sy1] = worldToScreen(wx1,wy1), [sx2,sy2] = worldToScreen(wx2,wy2);
+      let wc1=null, wc2=null;
+      ctx.strokeStyle = navColor; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.8;
       ctx.beginPath(); ctx.moveTo(sx1,sy1);
       if(c1 && c2){
-        const [wc1x,wc1y] = layerToWorld(layer, c1.x, c1.y);
-        const [wc2x,wc2y] = layerToWorld(layer, c2.x, c2.y);
-        const [scx1,scy1] = worldToScreen(wc1x,wc1y), [scx2,scy2] = worldToScreen(wc2x,wc2y);
+        wc1 = layerToWorld(layer, c1.x, c1.y);
+        wc2 = layerToWorld(layer, c2.x, c2.y);
+        const [scx1,scy1] = worldToScreen(wc1[0],wc1[1]), [scx2,scy2] = worldToScreen(wc2[0],wc2[1]);
         ctx.bezierCurveTo(scx1,scy1,scx2,scy2,sx2,sy2);
       } else {
         ctx.lineTo(sx2,sy2);
       }
       ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      // direction arrow: travel from startPos toward endPos, drawn at the curve's midpoint
+      const p0=[wx1,wy1], p3=[wx2,wy2];
+      const p1 = wc1 || p0, p2 = wc2 || p3;
+      const t = 0.5;
+      const mt = 1-t;
+      const midX = mt*mt*mt*p0[0] + 3*mt*mt*t*p1[0] + 3*mt*t*t*p2[0] + t*t*t*p3[0];
+      const midY = mt*mt*mt*p0[1] + 3*mt*mt*t*p1[1] + 3*mt*t*t*p2[1] + t*t*t*p3[1];
+      const dX = 3*mt*mt*(p1[0]-p0[0]) + 6*mt*t*(p2[0]-p1[0]) + 3*t*t*(p3[0]-p2[0]);
+      const dY = 3*mt*mt*(p1[1]-p0[1]) + 6*mt*t*(p2[1]-p1[1]) + 3*t*t*(p3[1]-p2[1]);
+      const dLen = Math.hypot(dX,dY)||1;
+      const armWorld = 10/state.view.scale;
+      const [amx,amy] = worldToScreen(midX,midY);
+      const [atx,aty] = worldToScreen(midX+(dX/dLen)*armWorld, midY+(dY/dLen)*armWorld);
+      const segAngle = Math.atan2(aty-amy, atx-amx);
+      ctx.fillStyle = navColor;
+      ctx.beginPath();
+      ctx.moveTo(atx,aty);
+      ctx.lineTo(atx-Math.cos(segAngle-0.45)*7, aty-Math.sin(segAngle-0.45)*7);
+      ctx.lineTo(atx-Math.cos(segAngle+0.45)*7, aty-Math.sin(segAngle+0.45)*7);
+      ctx.closePath(); ctx.fill();
+
+      // control points + tangent handles, only while actively editing nav points on this layer
+      if(showHandles && c1 && c2){
+        const [scx1,scy1] = worldToScreen(wc1[0],wc1[1]), [scx2,scy2] = worldToScreen(wc2[0],wc2[1]);
+        ctx.strokeStyle = 'rgba(124,108,255,0.55)'; ctx.setLineDash([3,3]); ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(scx1,scy1); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(sx2,sy2); ctx.lineTo(scx2,scy2); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#ffffff'; ctx.strokeStyle = navColor; ctx.lineWidth = 1.5;
+        for(const [hx,hy] of [[scx1,scy1],[scx2,scy2]]){
+          ctx.beginPath(); ctx.rect(hx-3.5,hy-3.5,7,7); ctx.fill(); ctx.stroke();
+        }
+      }
     }
-    ctx.globalAlpha = 1;
   }
 
   if(Array.isArray(extra.advancedPointList)){
@@ -963,33 +1437,40 @@ function drawNavPoints(layer, pal){
       const [sx,sy] = worldToScreen(wx,wy);
       const isHover = state.tool==='nav' && isActiveLayer && state.hoverNavPoint===item.instanceName;
       const isSelected = isActiveLayer && state.selectedNavPoint && state.selectedNavPoint.instanceName===item.instanceName;
-      const rad = (isHover||isSelected) ? 10 : 8;
+      const boxW = (isHover||isSelected) ? 27 : 23;
+      const boxH = (isHover||isSelected) ? 20 : 17;
+
+      ctx.save();
+      ctx.translate(sx,sy);
+      ctx.beginPath(); ctx.rect(-boxW/2,-boxH/2,boxW,boxH);
+      ctx.fillStyle = fillColor; ctx.globalAlpha = (isHover||isSelected) ? 0.95 : 0.88; ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = isSelected ? '#ffffff' : navColor;
+      ctx.lineWidth = isSelected ? 3.4 : 2.8;
+      ctx.stroke();
 
       if(typeof item.dir === 'number' && !item.ignoreDir){
         const worldDir = item.dir + layer.transform.rot;
-        const armLenWorld = 18/state.view.scale;
-        const [ax,ay] = worldToScreen(wx+Math.cos(worldDir)*armLenWorld, wy+Math.sin(worldDir)*armLenWorld);
-        ctx.strokeStyle = navColor; ctx.lineWidth = 2.2;
-        ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ax,ay); ctx.stroke();
-        const segAngle = Math.atan2(ay-sy, ax-sx);
+        const adx = Math.cos(worldDir), ady = -Math.sin(worldDir);
+        const armLen = Math.min(boxW,boxH)/2 - 2;
+        const tipX = adx*armLen, tipY = ady*armLen;
+        const backX = -adx*armLen*0.6, backY = -ady*armLen*0.6;
+        const arrowColor = state.printFriendly ? '#111111' : '#ffffff';
+        ctx.strokeStyle = arrowColor; ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.moveTo(backX,backY); ctx.lineTo(tipX,tipY); ctx.stroke();
+        const headAngle = Math.atan2(tipY-backY, tipX-backX);
         ctx.beginPath();
-        ctx.moveTo(ax,ay);
-        ctx.lineTo(ax-Math.cos(segAngle-0.4)*6, ay-Math.sin(segAngle-0.4)*6);
-        ctx.lineTo(ax-Math.cos(segAngle+0.4)*6, ay-Math.sin(segAngle+0.4)*6);
-        ctx.closePath(); ctx.fillStyle = navColor; ctx.fill();
+        ctx.moveTo(tipX,tipY);
+        ctx.lineTo(tipX-Math.cos(headAngle-0.5)*5, tipY-Math.sin(headAngle-0.5)*5);
+        ctx.lineTo(tipX-Math.cos(headAngle+0.5)*5, tipY-Math.sin(headAngle+0.5)*5);
+        ctx.closePath(); ctx.fillStyle = arrowColor; ctx.fill();
       }
-
-      ctx.beginPath(); ctx.arc(sx,sy,rad,0,Math.PI*2);
-      ctx.fillStyle = fillColor; ctx.globalAlpha = (isHover||isSelected) ? 0.95 : 0.8; ctx.fill();
-      ctx.globalAlpha = 1;
-      ctx.strokeStyle = isSelected ? '#ffffff' : navColor;
-      ctx.lineWidth = isSelected ? 3 : 2.2;
-      ctx.stroke();
+      ctx.restore();
 
       ctx.font = 'bold 11px ui-monospace, monospace';
       ctx.fillStyle = state.printFriendly ? '#111111' : '#ffffff';
       ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
-      ctx.fillText(item.instanceName||'', sx+rad+4, sy-rad+3);
+      ctx.fillText(item.instanceName||'', sx+boxW/2+4, sy-boxH/2+3);
       ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
     }
   }
@@ -1066,6 +1547,8 @@ function draw(){
         ctx.fillRect(sx-rdot/2, sy-rdot/2, rdot, rdot);
       }
     }
+
+    if(state.typeVisibility.areas) drawReflectorAreas(layer, pal);
 
     if(state.typeVisibility.reflector && layer.reflectors.length){
       const reflectorFill = state.uniformLayerColor ? pal.reflector : (layer.color||PALETTE[0]);
@@ -1172,6 +1655,21 @@ function draw(){
     ctx.setLineDash([]);
   }
 
+  if(state.areaAction && state.areaAction.type==='draw'){
+    const {x1,y1,x2,y2} = state.areaAction;
+    const [sx1,sy1] = worldToScreen(x1,y1);
+    const [sx2,sy2] = worldToScreen(x2,y2);
+    const rx = Math.min(sx1,sx2), ry = Math.min(sy1,sy2);
+    const rw = Math.abs(sx2-sx1), rh = Math.abs(sy2-sy1);
+    ctx.fillStyle = 'rgba(255,85,0,0.18)';
+    ctx.strokeStyle = '#ff5500';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6,4]);
+    ctx.fillRect(rx,ry,rw,rh);
+    ctx.strokeRect(rx,ry,rw,rh);
+    ctx.setLineDash([]);
+  }
+
   if(state.measure){
     const {x1,y1,x2,y2} = state.measure;
     const [sx1,sy1] = worldToScreen(x1,y1);
@@ -1210,6 +1708,21 @@ function draw(){
     ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
   }
 
+  if(state.alignLine){
+    const {x1,y1,x2,y2} = state.alignLine;
+    const [sx1,sy1] = worldToScreen(x1,y1);
+    const [sx2,sy2] = worldToScreen(x2,y2);
+    const alignColor = '#ffd23f';
+    ctx.strokeStyle = alignColor; ctx.lineWidth = 2.5; ctx.setLineDash([2,0]);
+    ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke();
+    ctx.fillStyle = alignColor;
+    ctx.beginPath(); ctx.arc(sx1,sy1,6,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = alignColor;
+    ctx.beginPath(); ctx.arc(sx2,sy2,6,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#000000'; ctx.stroke();
+  }
+
   if(state.tool==='erase' && state.mouse){
     const r = Math.max(3, state.eraseRadius*state.view.scale);
     ctx.strokeStyle = state.printFriendly ? '#111111' : '#ffffff';
@@ -1243,6 +1756,14 @@ let eraseApplyScheduled = false;
 let eraseUndoPushed = false;
 
 function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+
+function findLineEndpointHit(line, sx, sy, pxThreshold){
+  const [s1x,s1y] = worldToScreen(line.x1, line.y1);
+  const [s2x,s2y] = worldToScreen(line.x2, line.y2);
+  if(Math.hypot(s1x-sx, s1y-sy) <= pxThreshold) return 'start';
+  if(Math.hypot(s2x-sx, s2y-sy) <= pxThreshold) return 'end';
+  return null;
+}
 
 function findReflectorAt(layer, sx, sy, pxThreshold){
   let best=-1, bestD=pxThreshold;
@@ -1329,6 +1850,34 @@ function generateNavPointName(layer){
   }
   return 'LM'+(max+1);
 }
+function intProp(val){ let value=''; try{ value=btoa(String(val)); }catch(e){} return {type:'int', int32Value:val, value}; }
+function createBidirPath(layer, nameA, nameB){
+  const ptA = findNavPointByName(layer, nameA), ptB = findNavPointByName(layer, nameB);
+  if(!ptA || !ptB) return null;
+  const dx = (ptB.pos.x-ptA.pos.x)/3, dy = (ptB.pos.y-ptA.pos.y)/3;
+  const c1 = {x:round3(ptA.pos.x+dx), y:round3(ptA.pos.y+dy)};
+  const c2 = {x:round3(ptA.pos.x+2*dx), y:round3(ptA.pos.y+2*dy)};
+  const forward = {
+    className:'DegenerateBezier', instanceName:nameA+'-'+nameB,
+    startPos:{instanceName:nameA, pos:{x:ptA.pos.x,y:ptA.pos.y}},
+    endPos:{instanceName:nameB, pos:{x:ptB.pos.x,y:ptB.pos.y}},
+    controlPos1:c1, controlPos2:c2,
+    property:[{key:'direction', ...intProp(0)}, {key:'movestyle', ...intProp(0)}],
+    __unsplit:true,
+  };
+  const backward = {
+    className:'DegenerateBezier', instanceName:nameB+'-'+nameA,
+    startPos:{instanceName:nameB, pos:{x:ptB.pos.x,y:ptB.pos.y}},
+    endPos:{instanceName:nameA, pos:{x:ptA.pos.x,y:ptA.pos.y}},
+    controlPos1:c2, controlPos2:c1,
+    property:[{key:'direction', ...intProp(0)}, {key:'movestyle', ...intProp(0)}],
+    __unsplit:true,
+  };
+  if(!layer.extra) layer.extra = {};
+  if(!Array.isArray(layer.extra.advancedCurveList)) layer.extra.advancedCurveList = [];
+  layer.extra.advancedCurveList.push(forward, backward);
+  return forward;
+}
 function deleteNavPoint(layer, name){
   if(!layer.extra) return;
   if(Array.isArray(layer.extra.advancedPointList)){
@@ -1339,6 +1888,189 @@ function deleteNavPoint(layer, name){
       !(c.startPos && c.startPos.instanceName===name) && !(c.endPos && c.endPos.instanceName===name)
     );
   }
+}
+
+function worldDeltaToLocal(layer, dx, dy){
+  const rot = layer.transform.rot;
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  return [dx*cos + dy*sin, -dx*sin + dy*cos];
+}
+
+function findCurveByEndpoints(layer, startName, endName){
+  const list = layer.extra && layer.extra.advancedCurveList;
+  if(!Array.isArray(list)) return null;
+  return list.find(c => c.startPos && c.endPos && c.startPos.instanceName===startName && c.endPos.instanceName===endName) || null;
+}
+
+function curveScreenSamples(layer, curve, n){
+  const sp = curve.startPos && curve.startPos.pos, ep = curve.endPos && curve.endPos.pos;
+  if(!sp || !ep) return [];
+  const c1 = curve.controlPos1, c2 = curve.controlPos2;
+  const [wx1,wy1] = layerToWorld(layer, sp.x, sp.y);
+  const [wx2,wy2] = layerToWorld(layer, ep.x, ep.y);
+  const p0=[wx1,wy1], p3=[wx2,wy2];
+  let p1=p0, p2=p3;
+  if(c1 && c2){ p1 = layerToWorld(layer, c1.x, c1.y); p2 = layerToWorld(layer, c2.x, c2.y); }
+  const pts = [];
+  for(let i=0;i<=n;i++){
+    const t=i/n, mt=1-t;
+    const x = mt*mt*mt*p0[0] + 3*mt*mt*t*p1[0] + 3*mt*t*t*p2[0] + t*t*t*p3[0];
+    const y = mt*mt*mt*p0[1] + 3*mt*mt*t*p1[1] + 3*mt*t*t*p2[1] + t*t*t*p3[1];
+    pts.push(worldToScreen(x,y));
+  }
+  return pts;
+}
+
+function findCurveAt(layer, sx, sy, pxThreshold){
+  const list = layer.extra && layer.extra.advancedCurveList;
+  if(!Array.isArray(list)) return null;
+  let best=null, bestD=pxThreshold;
+  for(const curve of list){
+    const pts = curveScreenSamples(layer, curve, 16);
+    for(let i=1;i<pts.length;i++){
+      const d = distToSegmentScreen(sx,sy, pts[i-1][0],pts[i-1][1], pts[i][0],pts[i][1]);
+      if(d<bestD){ bestD=d; best=curve; }
+    }
+  }
+  return best;
+}
+
+function findControlHandleAt(layer, curve, sx, sy, pxThreshold){
+  if(!curve || !curve.controlPos1 || !curve.controlPos2) return null;
+  for(const which of ['controlPos1','controlPos2']){
+    const cp = curve[which];
+    const [wx,wy] = layerToWorld(layer, cp.x, cp.y);
+    const [ssx,ssy] = worldToScreen(wx,wy);
+    if(Math.hypot(ssx-sx, ssy-sy) <= pxThreshold) return which;
+  }
+  return null;
+}
+
+function findPairControlHandleAt(selPath, sx, sy, pxThreshold){
+  const {layer, forward, backward, linked} = selPath;
+  if(forward){
+    const which = findControlHandleAt(layer, forward, sx, sy, pxThreshold);
+    if(which) return {curveDir:'forward', which};
+  }
+  if(backward && !linked){
+    const which = findControlHandleAt(layer, backward, sx, sy, pxThreshold);
+    if(which) return {curveDir:'backward', which};
+  }
+  return null;
+}
+
+function isPointInPolygonLocal(poly, lx, ly){
+  let inside = false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+    const intersect = ((yi>ly)!==(yj>ly)) && (lx < (xj-xi)*(ly-yi)/(yj-yi)+xi);
+    if(intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function findAreaVertexAt(layer, sx, sy, pxThreshold){
+  const list = layer.extra && layer.extra.advancedAreaList;
+  if(!Array.isArray(list)) return null;
+  let best=null, bestD=pxThreshold;
+  for(let ai=0; ai<list.length; ai++){
+    const poly = list[ai].posGroup;
+    if(!Array.isArray(poly)) continue;
+    for(let vi=0; vi<poly.length; vi++){
+      const [wx,wy] = layerToWorld(layer, poly[vi].x, poly[vi].y);
+      const [ssx,ssy] = worldToScreen(wx,wy);
+      const d = Math.hypot(ssx-sx, ssy-sy);
+      if(d<bestD){ bestD=d; best={areaIndex:ai, vertexIndex:vi}; }
+    }
+  }
+  return best;
+}
+
+function findAreaBodyAt(layer, sx, sy){
+  const list = layer.extra && layer.extra.advancedAreaList;
+  if(!Array.isArray(list)) return -1;
+  const [wx,wy] = screenToWorld(sx,sy);
+  const [lx,ly] = worldToLayer(layer, wx, wy);
+  for(let ai=0; ai<list.length; ai++){
+    const poly = list[ai].posGroup;
+    if(Array.isArray(poly) && poly.length>=3 && isPointInPolygonLocal(poly, lx, ly)) return ai;
+  }
+  return -1;
+}
+
+function rectFromPosGroup(posGroup){
+  const cx = posGroup.reduce((s,p)=>s+p.x,0)/posGroup.length;
+  const cy = posGroup.reduce((s,p)=>s+p.y,0)/posGroup.length;
+  const dx1 = posGroup[1].x-posGroup[0].x, dy1 = posGroup[1].y-posGroup[0].y;
+  const w = Math.hypot(dx1,dy1) || 0.01;
+  const rot = Math.atan2(dy1,dx1);
+  const dx2 = posGroup[2].x-posGroup[1].x, dy2 = posGroup[2].y-posGroup[1].y;
+  const h = Math.hypot(dx2,dy2) || 0.01;
+  return {cx,cy,w,h,rot};
+}
+function posGroupFromRect(cx,cy,w,h,rot){
+  const cos=Math.cos(rot), sin=Math.sin(rot);
+  const hw=w/2, hh=h/2;
+  return [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]].map(([lx,ly])=>({
+    x:round3(cx+lx*cos-ly*sin), y:round3(cy+lx*sin+ly*cos)
+  }));
+}
+function resizeRectFromCorner(rect, cornerIndex, newLocalX, newLocalY){
+  const {rot} = rect;
+  const cos=Math.cos(rot), sin=Math.sin(rot);
+  const oppIndex = (cornerIndex+2)%4;
+  const opp = posGroupFromRect(rect.cx,rect.cy,rect.w,rect.h,rect.rot)[oppIndex];
+  const dx = newLocalX-opp.x, dy = newLocalY-opp.y;
+  const rw = dx*cos + dy*sin, rh = -dx*sin + dy*cos;
+  const newW = Math.max(0.02, Math.abs(rw)), newH = Math.max(0.02, Math.abs(rh));
+  const signW = rw<0 ? -1 : 1, signH = rh<0 ? -1 : 1;
+  const halfW = signW*newW/2, halfH = signH*newH/2;
+  const cx = opp.x + halfW*cos - halfH*sin;
+  const cy = opp.y + halfW*sin + halfH*cos;
+  return {cx, cy, w:newW, h:newH, rot};
+}
+function normalizeAreaRects(layer){
+  const list = layer.extra && layer.extra.advancedAreaList;
+  if(!Array.isArray(list)) return;
+  const usedGroups = new Set(list.map(a=>a.__group).filter(Boolean));
+  let n = 1;
+  for(const area of list){
+    if(Array.isArray(area.posGroup) && area.posGroup.length===4){
+      const rect = rectFromPosGroup(area.posGroup);
+      area.posGroup = posGroupFromRect(rect.cx, rect.cy, rect.w, rect.h, rect.rot);
+    }
+    if(!area.__group){
+      while(usedGroups.has('g'+n)) n++;
+      area.__group = 'g'+n; usedGroups.add(area.__group);
+    }
+  }
+}
+function nextGroupId(layer){
+  const groups = new Set((layer.extra.advancedAreaList||[]).map(a=>a.__group).filter(Boolean));
+  let n=1; while(groups.has('g'+n)) n++; return 'g'+n;
+}
+function generateAreaName(layer){
+  const list = (layer.extra && layer.extra.advancedAreaList) || [];
+  let max = 0;
+  for(const a of list){ const n = parseInt(a.instanceName,10); if(!isNaN(n)) max = Math.max(max,n); }
+  return String(max+1).padStart(2,'0');
+}
+function getGroupAreas(layer, groupId){
+  return (layer.extra && layer.extra.advancedAreaList || []).filter(a=>a.__group===groupId);
+}
+function findAreaRotateHandleAt(layer, sx, sy, pxThreshold){
+  const list = layer.extra && layer.extra.advancedAreaList;
+  if(!Array.isArray(list)) return -1;
+  for(let ai=0; ai<list.length; ai++){
+    const rect = rectFromPosGroup(list[ai].posGroup);
+    const corners = posGroupFromRect(rect.cx,rect.cy,rect.w,rect.h,rect.rot);
+    const c1 = corners[1];
+    const hx = rect.cx + (c1.x-rect.cx)*1.3, hy = rect.cy + (c1.y-rect.cy)*1.3;
+    const [wx,wy] = layerToWorld(layer, hx, hy);
+    const [ssx,ssy] = worldToScreen(wx,wy);
+    if(Math.hypot(ssx-sx, ssy-sy) <= pxThreshold) return ai;
+  }
+  return -1;
 }
 
 function hitAny(wx, wy, stamps, radius, shape){
@@ -1477,7 +2209,7 @@ function applyRectSelectDelete(layer, rect){
 
   if(removed===0) state.undoStack.pop(); // nothing actually changed, drop the no-op undo entry
   layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
-  renderDetailPanel(); renderNavPointPanel(); scheduleAutosave(); requestDraw();
+  renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); scheduleAutosave(); requestDraw();
 }
 
 canvasEl.addEventListener('pointerdown', (e)=>{
@@ -1555,25 +2287,98 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     const [wx,wy]=screenToWorld(sx,sy);
     state.measure = {x1:wx, y1:wy, x2:wx, y2:wy};
     dragging=true;
-  } else if(state.tool==='nav' && layer){
-    const hit = findNavPointAt(layer, sx, sy, 14);
-    if(hit){
-      pushUndo(layer);
-      state.draggingNavPoint = {layerId:layer.id, instanceName:hit.instanceName};
-      state.selectedNavPoint = {layerId:layer.id, instanceName:hit.instanceName};
+  } else if(state.tool==='align'){
+    const handleHit = state.alignLine ? findLineEndpointHit(state.alignLine, sx, sy, 12) : null;
+    if(handleHit){
+      state.draggingAlignHandle = handleHit;
       dragging = true;
     } else {
       const [wx,wy]=screenToWorld(sx,sy);
-      const [lx,ly]=worldToLayer(layer, wx, wy);
+      state.alignLine = {x1:wx, y1:wy, x2:wx, y2:wy};
+      state.draggingAlignHandle = 'end';
+      dragging = true;
+      renderAlignPanel();
+    }
+  } else if(state.tool==='nav' && layer){
+    const selPath = getSelectedPath();
+    const cpHit = (selPath && selPath.layer.id===layer.id) ? findPairControlHandleAt(selPath, sx, sy, 10) : null;
+    const hit = cpHit ? null : findNavPointAt(layer, sx, sy, 14);
+    if(cpHit){
       pushUndo(layer);
-      if(!layer.extra) layer.extra = {};
-      if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
-      const name = generateNavPointName(layer);
-      layer.extra.advancedPointList.push({className:'LocationMark', instanceName:name, pos:{x:round3(lx), y:round3(ly)}, dir:0, ignoreDir:true, property:[]});
-      state.selectedNavPoint = {layerId:layer.id, instanceName:name};
+      state.draggingControlPoint = {layerId:layer.id, nameA:selPath.nameA||state.selectedPath.nameA, nameB:selPath.nameB||state.selectedPath.nameB, curveDir:cpHit.curveDir, which:cpHit.which};
+      dragging = true;
+    } else if(hit && e.shiftKey){
+      state.newPathFrom = {layerId:layer.id, instanceName:hit.instanceName};
+      const [wx,wy]=screenToWorld(sx,sy);
+      state.tempLine = {x1:wx,y1:wy,x2:wx,y2:wy};
+      dragging = true;
+    } else if(hit){
+      pushUndo(layer);
+      state.draggingNavPoint = {layerId:layer.id, instanceName:hit.instanceName};
+      state.selectedNavPoint = {layerId:layer.id, instanceName:hit.instanceName};
+      state.selectedPath = null;
+      renderPathPanel();
+      dragging = true;
+    } else {
+      const curveHit = findCurveAt(layer, sx, sy, 8);
+      if(curveHit){
+        state.selectedPath = {layerId:layer.id, nameA:curveHit.startPos.instanceName, nameB:curveHit.endPos.instanceName};
+        state.selectedNavPoint = null;
+        renderNavPointPanel();
+      } else {
+        const [wx,wy]=screenToWorld(sx,sy);
+        const [lx,ly]=worldToLayer(layer, wx, wy);
+        pushUndo(layer);
+        if(!layer.extra) layer.extra = {};
+        if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
+        const name = generateNavPointName(layer);
+        layer.extra.advancedPointList.push({className:'LocationMark', instanceName:name, pos:{x:round3(lx), y:round3(ly)}, dir:0, ignoreDir:true, property:[]});
+        state.selectedNavPoint = {layerId:layer.id, instanceName:name};
+        state.selectedPath = null;
+        renderPathPanel();
+      }
     }
     renderNavPointPanel();
+    renderPathPanel();
     scheduleAutosave(); requestDraw();
+  } else if(state.tool==='area' && layer){
+    const selArea = (state.selectedArea && state.selectedArea.layerId===layer.id) ? state.selectedArea : null;
+    const rotHitIdx = selArea && selArea.areaIndex!=null ? findAreaRotateHandleAt(layer, sx, sy, 10) : -1;
+    const rotHit = (rotHitIdx>=0 && rotHitIdx===selArea.areaIndex) ? rotHitIdx : -1;
+    const vHit = (rotHit<0 && selArea && selArea.areaIndex!=null) ? findAreaVertexAt(layer, sx, sy, 12) : null;
+    const vHitMatchesSelected = vHit && vHit.areaIndex===selArea.areaIndex;
+
+    if(rotHit>=0){
+      const area = layer.extra.advancedAreaList[rotHit];
+      const rect = rectFromPosGroup(area.posGroup);
+      pushUndo(layer);
+      const [wx,wy] = screenToWorld(sx,sy);
+      const [wcx,wcy] = layerToWorld(layer, rect.cx, rect.cy);
+      state.areaAction = {type:'rotate', layerId:layer.id, areaIndex:rotHit, centerWorld:[wcx,wcy], startAngle:Math.atan2(wy-wcy,wx-wcx), startRot:rect.rot};
+      dragging = true;
+    } else if(vHit && vHitMatchesSelected){
+      const area = layer.extra.advancedAreaList[vHit.areaIndex];
+      pushUndo(layer);
+      const r = rectFromPosGroup(area.posGroup);
+      area.posGroup = posGroupFromRect(r.cx, r.cy, r.w, r.h, r.rot);
+      state.areaAction = {type:'resize', layerId:layer.id, areaIndex:vHit.areaIndex, cornerIndex:vHit.vertexIndex};
+      dragging = true;
+    } else {
+      const areaIdx = findAreaBodyAt(layer, sx, sy);
+      if(areaIdx>=0){
+        const area = layer.extra.advancedAreaList[areaIdx];
+        pushUndo(layer);
+        state.selectedArea = {layerId:layer.id, groupId:area.__group, areaIndex:areaIdx};
+        state.areaAction = {type:'move', layerId:layer.id, groupId:area.__group, lastWorld:screenToWorld(sx,sy)};
+        dragging = true;
+        renderAreaPanel();
+      } else {
+        const [wx,wy] = screenToWorld(sx,sy);
+        state.areaAction = {type:'draw', layerId:layer.id, x1:wx, y1:wy, x2:wx, y2:wy};
+        dragging = true;
+      }
+    }
+    requestDraw();
   }
 });
 
@@ -1613,6 +2418,25 @@ canvasEl.addEventListener('pointermove', (e)=>{
     if(name !== state.hoverNavPoint){ state.hoverNavPoint = name; requestDraw(); }
   } else if(state.tool!=='nav' && state.hoverNavPoint){
     state.hoverNavPoint = null;
+  }
+
+  if(state.tool==='area' && !dragging){
+    const hoverLayer = getEditableActiveLayer();
+    const selArea = (hoverLayer && state.selectedArea && state.selectedArea.layerId===hoverLayer.id) ? state.selectedArea : null;
+    let vHit = null, rotHit = -1;
+    if(hoverLayer && selArea && selArea.areaIndex!=null){
+      rotHit = findAreaRotateHandleAt(hoverLayer, sx, sy, 10);
+      if(rotHit!==selArea.areaIndex) rotHit = -1;
+      if(rotHit<0){
+        const v = findAreaVertexAt(hoverLayer, sx, sy, 12);
+        if(v && v.areaIndex===selArea.areaIndex) vHit = v;
+      }
+    }
+    if(JSON.stringify(vHit)!==JSON.stringify(state.hoverAreaVertex) || rotHit!==state.hoverAreaRotate){
+      state.hoverAreaVertex = vHit; state.hoverAreaRotate = rotHit; requestDraw();
+    }
+  } else if(state.tool!=='area' && (state.hoverAreaVertex || state.hoverAreaRotate>=0)){
+    state.hoverAreaVertex = null; state.hoverAreaRotate = -1;
   }
 
   if(activePointers.size===2 && pinchMid){
@@ -1657,6 +2481,11 @@ canvasEl.addEventListener('pointermove', (e)=>{
     state.selectionRect.x2=wx; state.selectionRect.y2=wy; requestDraw();
   } else if(state.tool==='measure' && state.measure){
     state.measure.x2=wx; state.measure.y2=wy; requestDraw();
+  } else if(state.tool==='align' && state.draggingAlignHandle && state.alignLine){
+    if(state.draggingAlignHandle==='start'){ state.alignLine.x1=wx; state.alignLine.y1=wy; }
+    else { state.alignLine.x2=wx; state.alignLine.y2=wy; }
+    renderAlignPanel();
+    requestDraw();
   } else if(state.tool==='nav' && state.draggingNavPoint && layer){
     const pt = findNavPointByName(layer, state.draggingNavPoint.instanceName);
     if(pt){
@@ -1664,6 +2493,53 @@ canvasEl.addEventListener('pointermove', (e)=>{
       pt.pos.x = round3(lx); pt.pos.y = round3(ly);
       syncCurvesForPoint(layer, pt.instanceName);
       renderNavPointPanel();
+      requestDraw();
+    }
+  } else if(state.tool==='nav' && state.newPathFrom && state.tempLine){
+    state.tempLine.x2=wx; state.tempLine.y2=wy; requestDraw();
+  } else if(state.tool==='nav' && state.draggingControlPoint && layer){
+    const {nameA, nameB, curveDir, which} = state.draggingControlPoint;
+    const curve = curveDir==='forward' ? findCurveByEndpoints(layer, nameA, nameB) : findCurveByEndpoints(layer, nameB, nameA);
+    const mirror = curveDir==='forward' ? findCurveByEndpoints(layer, nameB, nameA) : findCurveByEndpoints(layer, nameA, nameB);
+    if(curve){
+      const [lx,ly] = worldToLayer(layer, wx, wy);
+      curve[which] = {x:round3(lx), y:round3(ly)};
+      if(mirror && curve.__unsplit && mirror.__unsplit){
+        const mirrorWhich = which==='controlPos1' ? 'controlPos2' : 'controlPos1';
+        mirror[mirrorWhich] = {x:round3(lx), y:round3(ly)};
+      }
+      requestDraw();
+    }
+  } else if(state.tool==='area' && state.areaAction && layer){
+    const action = state.areaAction;
+    const areaList = layer.extra && layer.extra.advancedAreaList;
+    if(action.type==='resize' && areaList){
+      const area = areaList[action.areaIndex];
+      if(area){
+        const rect = rectFromPosGroup(area.posGroup);
+        const [lx,ly] = worldToLayer(layer, wx, wy);
+        const newRect = resizeRectFromCorner(rect, action.cornerIndex, lx, ly);
+        area.posGroup = posGroupFromRect(newRect.cx, newRect.cy, newRect.w, newRect.h, newRect.rot);
+        requestDraw();
+      }
+    } else if(action.type==='rotate' && areaList){
+      const area = areaList[action.areaIndex];
+      if(area){
+        const angle = Math.atan2(wy-action.centerWorld[1], wx-action.centerWorld[0]);
+        const newRot = action.startRot + (angle-action.startAngle);
+        const rect = rectFromPosGroup(area.posGroup);
+        area.posGroup = posGroupFromRect(rect.cx, rect.cy, rect.w, rect.h, newRot);
+        requestDraw();
+      }
+    } else if(action.type==='move'){
+      const [ldx,ldy] = worldDeltaToLocal(layer, wx-action.lastWorld[0], wy-action.lastWorld[1]);
+      for(const area of getGroupAreas(layer, action.groupId)){
+        area.posGroup = area.posGroup.map(v=>({x:round3(v.x+ldx), y:round3(v.y+ldy)}));
+      }
+      action.lastWorld = [wx,wy];
+      requestDraw();
+    } else if(action.type==='draw'){
+      action.x2 = wx; action.y2 = wy;
       requestDraw();
     }
   }
@@ -1708,9 +2584,68 @@ function endPointer(e){
     state.selectionRect = null;
   }
 
+  if(state.tool==='align' && state.draggingAlignHandle){
+    state.draggingAlignHandle = null;
+  }
+
+  if(state.tool==='nav' && state.newPathFrom && state.tempLine){
+    const layer = getEditableActiveLayer();
+    if(layer){
+      const [tsx,tsy] = worldToScreen(state.tempLine.x2, state.tempLine.y2);
+      const target = findNavPointAt(layer, tsx, tsy, 14);
+      if(target && target.instanceName !== state.newPathFrom.instanceName){
+        const existingFwd = findCurveByEndpoints(layer, state.newPathFrom.instanceName, target.instanceName);
+        const existingBwd = findCurveByEndpoints(layer, target.instanceName, state.newPathFrom.instanceName);
+        if(!existingFwd && !existingBwd){
+          pushUndo(layer);
+          createBidirPath(layer, state.newPathFrom.instanceName, target.instanceName);
+          state.selectedPath = {layerId:layer.id, nameA:state.newPathFrom.instanceName, nameB:target.instanceName};
+          state.selectedNavPoint = null;
+          renderNavPointPanel(); renderPathPanel();
+          scheduleAutosave();
+        }
+      }
+    }
+    state.newPathFrom = null;
+    state.tempLine = null;
+  }
   if(state.tool==='nav' && state.draggingNavPoint){
     state.draggingNavPoint = null;
     scheduleAutosave();
+  }
+  if(state.tool==='nav' && state.draggingControlPoint){
+    state.draggingControlPoint = null;
+    scheduleAutosave();
+  }
+  if(state.tool==='area' && state.areaAction){
+    const action = state.areaAction;
+    if(action.type==='draw'){
+      const layer = getEditableActiveLayer();
+      if(layer){
+        const worldW = Math.abs(action.x2-action.x1), worldH = Math.abs(action.y2-action.y1);
+        if(worldW>=0.05 && worldH>=0.05){
+          pushUndo(layer);
+          const worldCx = (action.x1+action.x2)/2, worldCy = (action.y1+action.y2)/2;
+          const [lcx,lcy] = worldToLayer(layer, worldCx, worldCy);
+          const localRot = -layer.transform.rot;
+          const posGroup = posGroupFromRect(lcx, lcy, worldW, worldH, localRot);
+          if(!layer.extra) layer.extra = {};
+          if(!Array.isArray(layer.extra.advancedAreaList)) layer.extra.advancedAreaList = [];
+          const gid = nextGroupId(layer);
+          const newArea = {
+            className:'ReflectorArea', instanceName:generateAreaName(layer), posGroup,
+            dir:localRot, property:[], attribute:{colorPen:4294901760, colorBrush:4294923520}, __group:gid,
+          };
+          layer.extra.advancedAreaList.push(newArea);
+          state.selectedArea = {layerId:layer.id, groupId:gid, areaIndex:layer.extra.advancedAreaList.length-1};
+          renderAreaPanel();
+          scheduleAutosave();
+        }
+      }
+    } else {
+      scheduleAutosave();
+    }
+    state.areaAction = null;
   }
 
   if(activePointers.size===0){ dragging=false; canvasEl.classList.remove('dragging'); rotateStart=null; }
@@ -1745,7 +2680,7 @@ document.addEventListener('keydown', (e)=>{
   if(tag==='input' || tag==='textarea') return;
   if(e.code==='Space' && state.tool!=='pan'){ state.prevTool=state.tool; setTool('pan'); e.preventDefault(); return; }
   if(e.key==='Escape' && state.measure){ state.measure = null; requestDraw(); return; }
-  const map = {h:'pan', v:'move', r:'rotate', e:'erase', l:'draw', k:'reflector', s:'select', m:'measure', n:'nav'};
+  const map = {h:'pan', v:'move', r:'rotate', e:'erase', l:'draw', k:'reflector', s:'select', m:'measure', n:'nav', a:'area', g:'align'};
   if(map[e.key.toLowerCase()]) setTool(map[e.key.toLowerCase()]);
 });
 document.addEventListener('keyup', (e)=>{
@@ -1913,7 +2848,10 @@ function loadProjectData(data){
   if(data.view) state.view = data.view;
   state.fitted = !!data.fitted;
   state.selectedNavPoint = null;
-  renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel();
+  state.selectedPath = null;
+  state.selectedArea = null;
+  for(const layer of state.layers){ normalizeCurvePairs(layer); normalizeAreaRects(layer); }
+  renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel();
   if(!state.fitted){ fitView(); state.fitted=true; }
   requestDraw();
 }
@@ -2009,6 +2947,8 @@ setTool('pan');
 renderLayersList();
 renderDetailPanel();
 renderNavPointPanel();
+renderPathPanel();
+renderAreaPanel();
 checkAutosaveRestore();
 requestDraw();
 
