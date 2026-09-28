@@ -253,10 +253,34 @@
     background:rgba(10,14,12,0.75); padding:3px 7px; border-radius:5px; pointer-events:none; white-space:nowrap;
     transform:translate(-50%,0);
   }
+  .rel-toolbar{
+    position:absolute; z-index:9; display:flex; gap:4px; padding:4px;
+    background:#0a0e0c; border:1px solid #3fd0ff; border-radius:6px;
+    transform:translate(-50%,-130%); box-shadow:0 2px 10px rgba(0,0,0,0.4);
+  }
+  .rel-toolbar button{
+    width:26px; height:26px; font-size:14px; font-weight:700; line-height:1; border-radius:4px;
+    border:1px solid #3a4a45; background:#12201c; color:#eaf6ff; cursor:pointer;
+  }
+  .rel-toolbar button:hover{ border-color:#3fd0ff; }
+  .rel-menu{
+    position:absolute; z-index:10; min-width:160px; padding:4px;
+    background:#0a0e0c; border:1px solid #3a4a45; border-radius:6px; box-shadow:0 4px 16px rgba(0,0,0,0.5);
+    font-size:12px; color:#eaf6ff;
+  }
+  .rel-menu .rel-menu-title{ padding:4px 8px; font-size:10.5px; color:#9fb0aa; text-transform:uppercase; letter-spacing:0.05em; }
+  .rel-menu-item{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:6px 8px; border-radius:4px; cursor:pointer;
+  }
+  .rel-menu-item:hover{ background:#16241f; }
+  .rel-menu-item .rel-del{ color:#ff6a5a; font-weight:700; padding:0 4px; }
+  .rel-menu-empty{ padding:6px 8px; color:#7c8a85; }
+  .rel-menu-divider{ height:1px; background:#243530; margin:4px 0; }
 
   /* ---------- print ---------- */
   @media print{
-    header, aside, .hud, .scalebar, .tool-status, .no-layer-banner, .restore-banner, .dim-inline-input, .dim-inline-hint{display:none !important;}
+    header, aside, .hud, .scalebar, .tool-status, .no-layer-banner, .restore-banner, .dim-inline-input, .dim-inline-hint, .rel-toolbar, .rel-menu{display:none !important;}
     body, .layout, main{position:static; height:auto; overflow:visible;}
     main{position:fixed; inset:0;}
     canvas{width:100%; height:100%;}
@@ -318,10 +342,11 @@
         <button class="tool-btn" data-tool="reflector" title="Add reflector (K)"><span class="glyph">◎</span>Reflect.</button>
         <button class="tool-btn" data-tool="select" title="Rectangle select and delete (S)"><span class="glyph">▭</span>Select</button>
         <button class="tool-btn" data-tool="measure" title="Measure distance (M)"><span class="glyph">📏</span>Ruler</button>
-        <button class="tool-btn" data-tool="nav" title="Add / move nav points, drag curve handles, edit paths (N)"><span class="glyph">📍</span>Nav Pts</button>
+        <button class="tool-btn" data-tool="nav" title="Add / move nav points, drag curve handles. Shift-drag from one nav point to another to add a path between them (N)"><span class="glyph">📍</span>Nav Pts</button>
         <button class="tool-btn" data-tool="area" title="Draw / reshape / rotate reflector areas (A)"><span class="glyph">⬠</span>Area</button>
         <button class="tool-btn" data-tool="align" title="Draw a line, then align the layer's axis to it (G)"><span class="glyph">↔</span>Align</button>
-        <button class="tool-btn" data-tool="dist" title="Pin a horizontal/vertical distance between an area edge or nav point and a reference (D)"><span class="glyph">📐</span>Distance</button>
+        <button class="tool-btn" data-tool="dist" title="Pin a horizontal/vertical distance between an area edge, nav point, reflector, or bezier control handle and a reference (D)"><span class="glyph">📐</span>Distance</button>
+        <button class="tool-btn" data-tool="constraints" title="Select 2+ points (or one bezier handle) and make them Horizontal/Vertical/Coincident (C)"><span class="glyph">🔗</span>Constrain</button>
       </div>
 
       <div class="tool-options" id="opts-erase" hidden>
@@ -377,11 +402,22 @@
         <div class="row">
           <span style="width:52px;">Axis</span>
           <div class="shape-toggle">
-            <button type="button" class="shape-btn active" id="distAxisH" title="Horizontal distance (dx) — used when the first click is a nav point">↔ dx</button>
-            <button type="button" class="shape-btn" id="distAxisV" title="Vertical distance (dy) — used when the first click is a nav point">↕ dy</button>
+            <button type="button" class="shape-btn active" id="distAxisH" title="Always horizontal distance (dx) — used when the first click is a nav point">↔ dx</button>
+            <button type="button" class="shape-btn" id="distAxisV" title="Always vertical distance (dy) — used when the first click is a nav point">↕ dy</button>
+            <button type="button" class="shape-btn" id="distAxisSmart" title="Smart: dx or dy is picked from whichever way your mouse has moved more while referencing">Smart</button>
           </div>
         </div>
         <div class="tool-hint" id="distHint" style="margin-top:8px;">Click an area edge, a nav point, or a reflector to pin it. Then click a nav point, reflector, scan point, or parallel edge to reference. Esc cancels.</div>
+      </div>
+      <div class="tool-options" id="opts-constraints" hidden>
+        <div class="tool-hint" id="constraintsHint" style="margin-top:0;">Click points, reflectors, or a bezier control handle to select them (click again to deselect). Select 2+, or a single control handle, to enable Horizontal/Vertical/Coincident below.</div>
+        <div class="row" style="gap:8px; margin-top:8px;">
+          <button type="button" class="shape-btn" id="relBtnHFixed" disabled title="Make selection Horizontal (H)">— Horizontal</button>
+          <button type="button" class="shape-btn" id="relBtnVFixed" disabled title="Make selection Vertical (V)">| Vertical</button>
+          <button type="button" class="shape-btn" id="relBtnOFixed" disabled title="Make selection Coincident (O)">&#8853; Coincident</button>
+        </div>
+        <div class="stat-line" style="margin-top:8px;"><span>Relations in project</span><b id="relCount" class="mono">0</b></div>
+        <button class="btn danger" id="btnDeleteAllRelations" style="width:100%; margin-top:6px;">Delete all relations</button>
       </div>
     </div>
 
@@ -482,6 +518,7 @@
       <label class="legend-row check"><input type="checkbox" id="showReflector" checked><span class="legend-swatch" style="background:#ff6a4a;"></span>Reflectors</label>
       <label class="legend-row check"><input type="checkbox" id="showAreas" checked><span class="legend-swatch sq" style="background:#ff5500;"></span>Reflector areas</label>
       <label class="legend-row check"><input type="checkbox" id="showAreaDims" checked><span class="legend-swatch sq" style="background:#ffb347;"></span>Area dimensions</label>
+      <label class="legend-row check"><input type="checkbox" id="showRelations" checked><span class="legend-swatch sq" style="background:#3fd0ff;"></span>Relations</label>
       <label class="legend-row check"><input type="checkbox" id="showExtra" checked><span class="legend-swatch sq" style="background:#9aa39d;"></span>Walls</label>
       <label class="legend-row check"><input type="checkbox" id="showNav" checked><span class="legend-swatch" style="background:#7c6cff;"></span>Nav points / paths</label>
       <label class="legend-row check" style="margin-top:6px;"><input type="checkbox" id="colorizeLayers"><span class="legend-swatch sq" style="background:linear-gradient(90deg,#7fe9c9,#f2c14e,#7ea6ff);"></span>Colorize layers</label>
@@ -515,10 +552,21 @@
     <div class="no-layer-banner" id="noLayerBanner" hidden>No layer selected — this tool needs an active layer</div>
     <input type="number" id="dimInlineInput" class="dim-inline-input mono" step="0.01" hidden>
     <div class="dim-inline-hint" id="dimInlineHint" hidden>Enter to set &nbsp; clear + Enter to unpin &nbsp; Esc to cancel</div>
+    <div class="rel-toolbar" id="relToolbar" hidden>
+      <button type="button" id="relToolbarH" title="Horizontal (H)">—</button>
+      <button type="button" id="relToolbarV" title="Vertical (V)">|</button>
+      <button type="button" id="relToolbarO" title="Coincident (O)">&#8853;</button>
+    </div>
+    <div class="rel-menu" id="relMenu" hidden></div>
     <div class="restore-banner" id="restoreBanner" hidden>
       <span id="restoreText"></span>
       <button id="btnRestoreYes">Restore</button>
       <button id="btnRestoreNo">Discard</button>
+    </div>
+    <div class="restore-banner" id="conflictBanner" hidden>
+      <span id="conflictBannerText"></span>
+      <button id="btnConflictKeepOld">Keep old</button>
+      <button id="btnConflictUseNew">Use new</button>
     </div>
   </main>
 </div>
@@ -545,7 +593,7 @@ const state = {
   eraseRadius: 0.5,
   eraseShape: 'circle',
   eraseTargets: { scan:true, rssi:true, extra:true },
-  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true, areaDims:true },
+  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true, areaDims:true, relations:true },
   showOrigin: false,
   uniformLayerColor: true,
   mouse: null,
@@ -580,6 +628,12 @@ const state = {
   distHoverTarget: null,
   distPickHover: null,
   dimDrag: null,
+  relations: [],
+  relSelection: [],
+  relHoverHighlight: [],
+  relMenuFor: null,
+  pendingConflict: null,
+  selectedDimension: null,
   alignLine: null,
   alignAxis: 'x',
   draggingAlignHandle: null,
@@ -865,25 +919,49 @@ function renameNavPoint(layer, oldName, newName){
       }
     }
   }
+  const fixAnchorName = (c)=>{
+    if(c.anchorKind==='navPoint' && c.anchorLayerId===layer.id && c.anchorName===oldName) c.anchorName = newName;
+    if(c.anchorKind==='controlPoint' && c.anchorLayerId===layer.id){
+      if(c.anchorNameA===oldName) c.anchorNameA = newName;
+      if(c.anchorNameB===oldName) c.anchorNameB = newName;
+    }
+  };
   for(const otherLayer of state.layers){
     const areas = otherLayer.extra && otherLayer.extra.advancedAreaList;
     if(Array.isArray(areas)){
       for(const area of areas){
         if(!area.__edgeConstraints) continue;
-        for(const ek of Object.keys(area.__edgeConstraints)){
-          const c = area.__edgeConstraints[ek];
-          if(c.anchorKind==='navPoint' && c.anchorLayerId===layer.id && c.anchorName===oldName) c.anchorName = newName;
-        }
+        for(const ek of Object.keys(area.__edgeConstraints)) fixAnchorName(area.__edgeConstraints[ek]);
       }
     }
     const otherPts = otherLayer.extra && otherLayer.extra.advancedPointList;
     if(Array.isArray(otherPts)){
       for(const otherPt of otherPts){
         if(!otherPt.__ptConstraints) continue;
-        for(const axis of Object.keys(otherPt.__ptConstraints)){
-          const c = otherPt.__ptConstraints[axis];
-          if(c.anchorKind==='navPoint' && c.anchorLayerId===layer.id && c.anchorName===oldName) c.anchorName = newName;
+        for(const axis of Object.keys(otherPt.__ptConstraints)) fixAnchorName(otherPt.__ptConstraints[axis]);
+      }
+    }
+    for(const r of otherLayer.reflectors){
+      if(!r.__ptConstraints) continue;
+      for(const axis of Object.keys(r.__ptConstraints)) fixAnchorName(r.__ptConstraints[axis]);
+    }
+    const otherCurves = otherLayer.extra && otherLayer.extra.advancedCurveList;
+    if(Array.isArray(otherCurves)){
+      for(const c of otherCurves){
+        if(!c.__cpConstraints) continue;
+        for(const which of Object.keys(c.__cpConstraints)){
+          for(const axis of Object.keys(c.__cpConstraints[which])) fixAnchorName(c.__cpConstraints[which][axis]);
         }
+      }
+    }
+  }
+  for(const rel of state.relations){
+    for(const p of rel.participants){
+      if(p.layerId!==layer.id) continue;
+      if(p.kind==='navPoint' && p.instanceName===oldName) p.instanceName = newName;
+      if(p.kind==='controlPoint'){
+        if(p.nameA===oldName) p.nameA = newName;
+        if(p.nameB===oldName) p.nameB = newName;
       }
     }
   }
@@ -971,6 +1049,7 @@ function applyNavPointFields(){
   if(!sel || !sel.layer.visible) return;
   const {layer, pt} = sel;
   if(!navFieldsUndoPushed){ pushUndo(layer); navFieldsUndoPushed = true; }
+  const oldLX = pt.pos.x, oldLY = pt.pos.y;
   const wx = parseFloat(navX.value)||0, wy = parseFloat(navY.value)||0;
   const [lx, ly] = worldToLayer(layer, wx, wy);
   pt.pos.x = round3(lx); pt.pos.y = round3(ly);
@@ -978,7 +1057,7 @@ function applyNavPointFields(){
     const worldDirDeg = parseFloat(navRot.value)||0;
     pt.dir = (worldDirDeg*Math.PI/180) - layer.transform.rot;
   }
-  syncCurvesForPoint(layer, pt.instanceName);
+  syncCurvesForPoint(layer, pt.instanceName, oldLX, oldLY);
   scheduleAutosave(); requestDraw();
 }
 [navX,navY,navRot].forEach(el=>{
@@ -1195,6 +1274,7 @@ function formatEdgeAnchorLabel(constraint){
     return 'Area '+name+' ('+constraint.anchorEdgeKey+')';
   }
   if(constraint.anchorKind==='scanPoint') return 'Scan point';
+  if(constraint.anchorKind==='controlPoint') return 'Handle '+constraint.anchorNameA+'→'+constraint.anchorNameB+' ('+(constraint.anchorWhich==='controlPos1'?'1':'2')+')';
   return '';
 }
 
@@ -1429,6 +1509,13 @@ function removeReflectorsWithIndexFix(layer, predicate){
         else constraint.anchorReflectorIndex -= removedIndices.filter(ri=>ri<constraint.anchorReflectorIndex).length;
       }
     });
+    state.relations = state.relations.filter(rel=>{
+      rel.participants = rel.participants.filter(p=>!(p.kind==='reflector' && p.layerId===layer.id && removedIndices.includes(p.index)));
+      for(const p of rel.participants){
+        if(p.kind==='reflector' && p.layerId===layer.id) p.index -= removedIndices.filter(ri=>ri<p.index).length;
+      }
+      return rel.participants.length>=2;
+    });
   }
   return removedIndices;
 }
@@ -1505,12 +1592,13 @@ const optsReflector = document.getElementById('opts-reflector');
 const optsSelect = document.getElementById('opts-select');
 const optsAlign = document.getElementById('opts-align');
 const optsDist = document.getElementById('opts-dist');
+const optsConstraints = document.getElementById('opts-constraints');
 const toolStatus = document.getElementById('toolStatus');
 const noLayerBanner = document.getElementById('noLayerBanner');
 const canvasEl = document.getElementById('canvas');
 
-const TOOL_LABELS = { pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', select:'Rectangle select', measure:'Ruler', nav:'Nav points', area:'Reflector area', align:'Align to line', dist:'Distance' };
-const TOOL_NEEDS_LAYER = { move:true, rotate:true, erase:true, draw:true, reflector:true, select:true, pan:false, measure:false, nav:true, area:true, align:true, dist:false };
+const TOOL_LABELS = { pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', select:'Rectangle select', measure:'Ruler', nav:'Nav points', area:'Reflector area', align:'Align to line', dist:'Distance', constraints:'Constrain' };
+const TOOL_NEEDS_LAYER = { move:true, rotate:true, erase:true, draw:true, reflector:true, select:true, pan:false, measure:false, nav:true, area:true, align:true, dist:false, constraints:false };
 
 function updateToolStatus(){
   const tool = state.tool;
@@ -1531,7 +1619,10 @@ function setTool(tool){
     state.distTarget = null; state.distHoverTarget = null; state.distPickHover = null;
     if(state.dimInlineEdit) closeDimInlineEdit();
   }
-  if(tool!=='area' && tool!=='dist'){ state.dimDrag = null; }
+  if(tool!=='area' && tool!=='dist' && tool!=='pan'){ state.dimDrag = null; state.selectedDimension = null; }
+  if(tool!=='constraints' && tool!=='pan'){ state.relSelection = []; }
+  if(tool!=='constraints'){ closeRelToolbar(); }
+  closeRelMenu();
   state.tool = tool;
   toolButtons.forEach(b=>b.classList.toggle('active', b.dataset.tool===tool));
   optsErase.hidden = tool!=='erase';
@@ -1540,6 +1631,7 @@ function setTool(tool){
   optsSelect.hidden = tool!=='select';
   optsAlign.hidden = tool!=='align';
   optsDist.hidden = tool!=='dist';
+  optsConstraints.hidden = tool!=='constraints';
   canvasEl.className = 'tool-'+tool;
   updateToolStatus();
   renderNavPointPanel();
@@ -1547,6 +1639,7 @@ function setTool(tool){
   renderAreaPanel();
   renderAlignPanel();
   updateDistHint();
+  renderRelPanel();
   requestDraw();
 }
 toolButtons.forEach(b=>b.addEventListener('click', ()=>setTool(b.dataset.tool)));
@@ -1629,13 +1722,16 @@ alignAxisYBtn.addEventListener('click', ()=>setAlignAxis('y'));
 
 const distAxisHBtn = document.getElementById('distAxisH');
 const distAxisVBtn = document.getElementById('distAxisV');
+const distAxisSmartBtn = document.getElementById('distAxisSmart');
 function setDistAxis(axis){
   state.distAxis = axis;
   distAxisHBtn.classList.toggle('active', axis==='x');
   distAxisVBtn.classList.toggle('active', axis==='y');
+  distAxisSmartBtn.classList.toggle('active', axis==='smart');
 }
 distAxisHBtn.addEventListener('click', ()=>setDistAxis('x'));
 distAxisVBtn.addEventListener('click', ()=>setDistAxis('y'));
+distAxisSmartBtn.addEventListener('click', ()=>setDistAxis('smart'));
 btnAlignClear.addEventListener('click', ()=>{ state.alignLine = null; renderAlignPanel(); requestDraw(); });
 btnAlignConfirm.addEventListener('click', ()=>{
   const layer = getEditableActiveLayer();
@@ -1654,6 +1750,7 @@ document.getElementById('showRssi').addEventListener('change', e=>{ state.typeVi
 document.getElementById('showReflector').addEventListener('change', e=>{ state.typeVisibility.reflector = e.target.checked; requestDraw(); });
 document.getElementById('showAreas').addEventListener('change', e=>{ state.typeVisibility.areas = e.target.checked; requestDraw(); });
 document.getElementById('showAreaDims').addEventListener('change', e=>{ state.typeVisibility.areaDims = e.target.checked; requestDraw(); });
+document.getElementById('showRelations').addEventListener('change', e=>{ state.typeVisibility.relations = e.target.checked; requestDraw(); });
 document.getElementById('showExtra').addEventListener('change', e=>{ state.typeVisibility.extra = e.target.checked; requestDraw(); });
 document.getElementById('showNav').addEventListener('change', e=>{ state.typeVisibility.nav = e.target.checked; requestDraw(); });
 const showOriginEl = document.getElementById('showOrigin');
@@ -1676,6 +1773,7 @@ function pushUndo(layer){
     manualLines: layer.manualLines.map(l=>({...l})),
     extra: JSON.parse(JSON.stringify(layer.extra||{})),
     transform: {...layer.transform},
+    relations: JSON.parse(JSON.stringify(state.relations)),
   });
   if(state.undoStack.length>20) state.undoStack.shift();
 }
@@ -1687,8 +1785,9 @@ function undo(){
   layer.points = entry.points; layer.rssi = entry.rssi; layer.reflectors = entry.reflectors; layer.extra = entry.extra;
   layer.manualLines = entry.manualLines;
   if(entry.transform) layer.transform = entry.transform;
+  if(entry.relations) state.relations = entry.relations;
   layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
-  renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); scheduleAutosave(); requestDraw();
+  renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderRelPanel(); scheduleAutosave(); requestDraw();
 }
 
 // ---------------- canvas / view ----------------
@@ -1872,7 +1971,7 @@ function drawNavPoints(layer, pal){
   const fillColor = state.uniformLayerColor ? pal.ink : (layer.color||PALETTE[0]);
   const isActiveLayer = layer.id===state.activeLayerId;
 
-  const showHandles = state.tool==='nav' && isActiveLayer;
+  const showHandles = (state.tool==='nav' && isActiveLayer) || state.tool==='constraints' || state.tool==='dist';
   if(Array.isArray(extra.advancedCurveList)){
     for(const item of extra.advancedCurveList){
       const sp = item && item.startPos && item.startPos.pos, ep = item && item.endPos && item.endPos.pos;
@@ -2117,11 +2216,24 @@ function resolveConstraintAnchorPoint(constraint){
     const det = detectEdgeAxis(found.layer, rect, constraint.anchorEdgeKey);
     return det ? det.mid : null;
   }
+  if(constraint.anchorKind==='controlPoint'){
+    return getRelationParticipantWorldPoint({kind:'controlPoint', layerId:constraint.anchorLayerId, nameA:constraint.anchorNameA, nameB:constraint.anchorNameB, which:constraint.anchorWhich});
+  }
   return null;
+}
+
+function matchesSelectedDimension(kind, layerId, extra){
+  const s = state.selectedDimension;
+  if(!s || s.kind!==kind || s.layerId!==layerId) return false;
+  if(kind==='edge') return s.areaIndex===extra.areaIndex && s.edgeKey===extra.edgeKey;
+  if(kind==='reflector') return s.index===extra.index && s.axis===extra.axis;
+  if(kind==='controlPoint') return s.nameA===extra.nameA && s.nameB===extra.nameB && s.which===extra.which && s.axis===extra.axis;
+  return s.instanceName===extra.instanceName && s.axis===extra.axis;
 }
 
 function drawDimensionAnnotations(){
   const dimColor = state.printFriendly ? DIM_COLOR_PRINT : DIM_COLOR;
+  const selColor = '#3fd0ff';
   state.dimLabelHitboxes = [];
   if(state.typeVisibility.areaDims){
     if(state.typeVisibility.areas){
@@ -2141,7 +2253,8 @@ function drawDimensionAnnotations(){
             if(!anchorWorldPos) continue;
             const edgeWorldPos = det.axis==='x' ? [det.value, det.mid[1]] : [det.mid[0], det.value];
             const label = Math.abs(constraint.offset).toFixed(2);
-            const {box, lineA, lineB} = drawCadDimension(det.axis, edgeWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, dimColor, dimConstraintLabelT(constraint));
+            const isSel = matchesSelectedDimension('edge', layer.id, {areaIndex:ai, edgeKey});
+            const {box, lineA, lineB} = drawCadDimension(det.axis, edgeWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, isSel?selColor:dimColor, dimConstraintLabelT(constraint));
             if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, areaIndex:ai, edgeKey});
           }
         }
@@ -2161,7 +2274,8 @@ function drawDimensionAnnotations(){
             if(!anchorWorldPos) continue;
             const ptWorldPos = axis==='x' ? [pwx, pwy] : [pwx, pwy];
             const label = Math.abs(constraint.offset).toFixed(2);
-            const {box, lineA, lineB} = drawCadDimension(axis, ptWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, dimColor, dimConstraintLabelT(constraint));
+            const isSel = matchesSelectedDimension('navPoint', layer.id, {instanceName:pt.instanceName, axis});
+            const {box, lineA, lineB} = drawCadDimension(axis, ptWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, isSel?selColor:dimColor, dimConstraintLabelT(constraint));
             if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, instanceName:pt.instanceName, axis});
           }
         }
@@ -2180,8 +2294,35 @@ function drawDimensionAnnotations(){
             if(!anchorWorldPos) continue;
             const rWorldPos = [rwx, rwy];
             const label = Math.abs(constraint.offset).toFixed(2);
-            const {box, lineA, lineB} = drawCadDimension(axis, rWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, dimColor, dimConstraintLabelT(constraint));
+            const isSel = matchesSelectedDimension('reflector', layer.id, {index:ri, axis});
+            const {box, lineA, lineB} = drawCadDimension(axis, rWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, isSel?selColor:dimColor, dimConstraintLabelT(constraint));
             if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, reflIndex:ri, axis});
+          }
+        }
+      }
+    }
+    if(state.typeVisibility.nav){
+      for(const layer of state.layers){
+        if(!layer.visible) continue;
+        const curves = layer.extra && layer.extra.advancedCurveList;
+        if(!Array.isArray(curves)) continue;
+        for(const curve of curves){
+          if(!curve.__cpConstraints || !curve.startPos || !curve.endPos) continue;
+          for(const which of ['controlPos1','controlPos2']){
+            const bucket = curve.__cpConstraints[which];
+            if(!bucket) continue;
+            const cpRef = {kind:'controlPoint', layerId:layer.id, nameA:curve.startPos.instanceName, nameB:curve.endPos.instanceName, which};
+            const cpWorldPos = getRelationParticipantWorldPoint(cpRef);
+            if(!cpWorldPos) continue;
+            for(const axis of Object.keys(bucket)){
+              const constraint = bucket[axis];
+              const anchorWorldPos = resolveConstraintAnchorPoint(constraint);
+              if(!anchorWorldPos) continue;
+              const label = Math.abs(constraint.offset).toFixed(2);
+              const isSel = matchesSelectedDimension('controlPoint', layer.id, {nameA:cpRef.nameA, nameB:cpRef.nameB, which, axis});
+              const {box, lineA, lineB} = drawCadDimension(axis, cpWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, isSel?selColor:dimColor, dimConstraintLabelT(constraint));
+              if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, cpNameA:cpRef.nameA, cpNameB:cpRef.nameB, cpWhich:which, axis});
+            }
           }
         }
       }
@@ -2190,20 +2331,29 @@ function drawDimensionAnnotations(){
   if(state.distTarget){
     const target = state.distTarget;
     const anchorPoint = getTargetWorldPoint(target);
-    const curValue = anchorPoint ? (target.axis==='x' ? anchorPoint[0] : anchorPoint[1]) : null;
-    if(curValue!=null && anchorPoint){
-      const sourceWorldPos = target.axis==='x' ? [curValue, anchorPoint[1]] : [anchorPoint[0], curValue];
-      let targetWorldPos = null, targetVal = null;
-      if(state.distPickHover){
-        targetVal = anchorWorldValue(state.distPickHover, target.axis);
-      } else if(state.mouse){
-        const [mwx,mwy] = screenToWorld(state.mouse.x, state.mouse.y);
-        targetVal = target.axis==='x' ? mwx : mwy;
+    if(anchorPoint){
+      let axis = null, targetVal = null;
+      if(target.smart){
+        // Smart mode: no axis exists until a real second point is under the
+        // cursor — nothing to preview before that.
+        if(state.distPickHover){
+          axis = computeSmartAxisFromPair(target, state.distPickHover);
+          targetVal = anchorWorldValue(state.distPickHover, axis);
+        }
+      } else {
+        axis = target.axis;
+        if(state.distPickHover) targetVal = anchorWorldValue(state.distPickHover, axis);
+        else if(state.mouse){
+          const [mwx,mwy] = screenToWorld(state.mouse.x, state.mouse.y);
+          targetVal = axis==='x' ? mwx : mwy;
+        }
       }
-      if(targetVal!=null){
-        targetWorldPos = target.axis==='x' ? [targetVal, anchorPoint[1]] : [anchorPoint[0], targetVal];
+      if(axis && targetVal!=null){
+        const curValue = axis==='x' ? anchorPoint[0] : anchorPoint[1];
+        const sourceWorldPos = axis==='x' ? [curValue, anchorPoint[1]] : [anchorPoint[0], curValue];
+        const targetWorldPos = axis==='x' ? [targetVal, anchorPoint[1]] : [anchorPoint[0], targetVal];
         const label = Math.abs(curValue-targetVal).toFixed(2);
-        drawCadDimension(target.axis, sourceWorldPos, targetWorldPos, 24, label, DIM_LIVE_COLOR);
+        drawCadDimension(axis, sourceWorldPos, targetWorldPos, 24, label, DIM_LIVE_COLOR);
       }
     }
   }
@@ -2288,6 +2438,7 @@ function findDimensionLineAt(sx, sy, pxThreshold){
 function hitToTargetRef(hit){
   if(hit.edgeKey!=null) return {kind:'edge', layerId:hit.layerId, areaIndex:hit.areaIndex, edgeKey:hit.edgeKey};
   if(hit.reflIndex!=null) return {kind:'reflector', layerId:hit.layerId, index:hit.reflIndex, axis:hit.axis};
+  if(hit.cpWhich!=null) return {kind:'controlPoint', layerId:hit.layerId, nameA:hit.cpNameA, nameB:hit.cpNameB, which:hit.cpWhich, axis:hit.axis};
   if(hit.instanceName!=null) return {kind:'navPoint', layerId:hit.layerId, instanceName:hit.instanceName, axis:hit.axis};
   return null;
 }
@@ -2299,7 +2450,20 @@ function startDimensionDrag(sx, sy){
   const constraint = targetRef && getConstraintByTargetRef(targetRef);
   if(!constraint) return false;
   state.dimDrag = {targetRef};
+  state.selectedDimension = targetRef;
   return true;
+}
+
+function deleteSelectedDimension(){
+  const ref = state.selectedDimension;
+  if(!ref) return;
+  const layer = getTargetLayer(ref);
+  if(layer) pushUndo(layer);
+  deleteConstraintByTargetRef(ref);
+  state.selectedDimension = null;
+  scheduleAutosave();
+  renderAreaPanel(); renderNavPointPanel(); renderRelPanel();
+  requestDraw();
 }
 
 function openDimensionEditAt(sx, sy){
@@ -2348,6 +2512,7 @@ function getTargetWorldPoint(target){
     const found = getReflectorByRef({layerId:target.layerId, index:target.index});
     return found ? layerToWorld(found.layer, found.r.x, found.r.y) : null;
   }
+  if(target.kind==='controlPoint') return getRelationParticipantWorldPoint(target);
   return null;
 }
 function getTargetWorldValue(target, axis){
@@ -2357,19 +2522,35 @@ function getTargetWorldValue(target, axis){
 function targetToRef(target){
   if(target.kind==='edge') return {kind:'edge', layerId:target.layerId, areaIndex:target.areaIndex, edgeKey:target.edgeKey};
   if(target.kind==='reflector') return {kind:'reflector', layerId:target.layerId, index:target.index, axis:target.axis};
+  if(target.kind==='controlPoint') return {kind:'controlPoint', layerId:target.layerId, nameA:target.nameA, nameB:target.nameB, which:target.which, axis:target.axis};
   return {kind:'navPoint', layerId:target.layerId, instanceName:target.instanceName, axis:target.axis};
 }
 function isSelfAnchorRef(constraint, target){
   if(constraint.anchorKind==='edge' && target.kind==='edge') return constraint.anchorLayerId===target.layerId && constraint.anchorAreaIndex===target.areaIndex;
   if(constraint.anchorKind==='navPoint' && target.kind==='navPoint') return constraint.anchorLayerId===target.layerId && constraint.anchorName===target.instanceName && constraint.axis===target.axis;
   if(constraint.anchorKind==='reflector' && target.kind==='reflector') return constraint.anchorLayerId===target.layerId && constraint.anchorReflectorIndex===target.index && constraint.axis===target.axis;
+  if(constraint.anchorKind==='controlPoint' && target.kind==='controlPoint') return constraint.anchorLayerId===target.layerId && constraint.anchorNameA===target.nameA && constraint.anchorNameB===target.nameB && constraint.anchorWhich===target.which && constraint.axis===target.axis;
   return false;
 }
 function applyAnchorToConstraint(constraint, anchor){
   if(anchor.kind==='navPoint'){ constraint.anchorKind='navPoint'; constraint.anchorLayerId=anchor.layerId; constraint.anchorName=anchor.name; }
   else if(anchor.kind==='reflector'){ constraint.anchorKind='reflector'; constraint.anchorLayerId=anchor.layerId; constraint.anchorReflectorIndex=anchor.index; }
+  else if(anchor.kind==='controlPoint'){ constraint.anchorKind='controlPoint'; constraint.anchorLayerId=anchor.layerId; constraint.anchorNameA=anchor.nameA; constraint.anchorNameB=anchor.nameB; constraint.anchorWhich=anchor.which; }
   else if(anchor.kind==='scanPoint'){ constraint.anchorKind='scanPoint'; constraint.anchorLayerId=anchor.layerId; constraint.anchorLocalX=anchor.localX; constraint.anchorLocalY=anchor.localY; }
   else { constraint.anchorKind='edge'; constraint.anchorLayerId=anchor.layerId; constraint.anchorAreaIndex=anchor.areaIndex; constraint.anchorEdgeKey=anchor.edgeKey; }
+}
+function getCurveConstraintsBucket(ref, create){
+  const found = getCurveByRef(ref);
+  if(!found) return null;
+  if(!found.curve.__cpConstraints){
+    if(!create) return null;
+    found.curve.__cpConstraints = {};
+  }
+  if(!found.curve.__cpConstraints[ref.which]){
+    if(!create) return null;
+    found.curve.__cpConstraints[ref.which] = {};
+  }
+  return found.curve.__cpConstraints[ref.which];
 }
 function storeConstraintOnTarget(target, constraint){
   if(target.kind==='edge'){
@@ -2380,6 +2561,9 @@ function storeConstraintOnTarget(target, constraint){
     const found = getReflectorByRef({layerId:target.layerId, index:target.index});
     if(!found.r.__ptConstraints) found.r.__ptConstraints = {};
     found.r.__ptConstraints[target.axis] = constraint;
+  } else if(target.kind==='controlPoint'){
+    const bucket = getCurveConstraintsBucket(target, true);
+    if(bucket) bucket[target.axis] = constraint;
   } else {
     const found = getPointByRef({layerId:target.layerId, instanceName:target.instanceName});
     if(!found.pt.__ptConstraints) found.pt.__ptConstraints = {};
@@ -2395,6 +2579,10 @@ function getConstraintByTargetRef(ref){
     const found = getReflectorByRef({layerId:ref.layerId, index:ref.index});
     return found && found.r.__ptConstraints && found.r.__ptConstraints[ref.axis];
   }
+  if(ref.kind==='controlPoint'){
+    const bucket = getCurveConstraintsBucket(ref, false);
+    return bucket && bucket[ref.axis];
+  }
   const found = getPointByRef({layerId:ref.layerId, instanceName:ref.instanceName});
   return found && found.pt.__ptConstraints && found.pt.__ptConstraints[ref.axis];
 }
@@ -2409,6 +2597,13 @@ function deleteConstraintByTargetRef(ref){
     if(!found || !found.r.__ptConstraints) return;
     delete found.r.__ptConstraints[ref.axis];
     if(Object.keys(found.r.__ptConstraints).length===0) delete found.r.__ptConstraints;
+  } else if(ref.kind==='controlPoint'){
+    const found = getCurveByRef(ref);
+    const bucket = getCurveConstraintsBucket(ref, false);
+    if(!bucket) return;
+    delete bucket[ref.axis];
+    if(Object.keys(bucket).length===0) delete found.curve.__cpConstraints[ref.which];
+    if(Object.keys(found.curve.__cpConstraints).length===0) delete found.curve.__cpConstraints;
   } else {
     const found = getPointByRef({layerId:ref.layerId, instanceName:ref.instanceName});
     if(!found || !found.pt.__ptConstraints) return;
@@ -2443,6 +2638,16 @@ function openInlineEditForLabelHit(labelHit, sx, sy){
     const constraint = found && found.r.__ptConstraints && found.r.__ptConstraints[labelHit.axis];
     if(!constraint) return false;
     openDimInlineEdit({kind:'reflector', layerId:labelHit.layerId, index:labelHit.reflIndex, axis:labelHit.axis}, sx, sy, constraint.offset, false);
+    return true;
+  }
+  if(labelHit.cpWhich!=null){
+    const ref = {kind:'controlPoint', layerId:labelHit.layerId, nameA:labelHit.cpNameA, nameB:labelHit.cpNameB, which:labelHit.cpWhich, axis:labelHit.axis};
+    const constraint = getConstraintByTargetRef(ref);
+    if(!constraint) return false;
+    state.selectedPath = {layerId:labelHit.layerId, nameA:labelHit.cpNameA, nameB:labelHit.cpNameB};
+    state.selectedNavPoint = null;
+    renderNavPointPanel(); renderPathPanel();
+    openDimInlineEdit(ref, sx, sy, constraint.offset, false);
     return true;
   }
   return false;
@@ -2480,8 +2685,27 @@ function commitDimInlineEdit(){
   } else {
     const v = parseFloat(raw);
     if(constraint && layer && !isNaN(v)){
+      const prevOffset = constraint.offset;
       if(!edit.isNew) pushUndo(layer);
       applyPositiveOffsetInput(constraint, v);
+      const targetRef = edit.targetRef;
+      const relType = targetRef.axis==='y' ? 'horizontal' : 'vertical';
+      const groupConflict = (targetRef.kind==='navPoint' || targetRef.kind==='reflector' || targetRef.kind==='controlPoint')
+        ? findGroupConflictFor(targetRef.axis, relType, targetRef) : null;
+      if(groupConflict){
+        const newOffset = constraint.offset;
+        constraint.offset = prevOffset;
+        resolveAllConstraints(); resolveAllRelations();
+        const newEntry = groupConflict.find(e=>relationParticipantEquals(e.ref, targetRef));
+        const oldEntry = groupConflict.find(e=>!relationParticipantEquals(e.ref, targetRef)) || groupConflict[0];
+        const sx = parseInt(dimInlineInputEl.style.left,10);
+        const sy = parseInt(dimInlineInputEl.style.top,10);
+        closeDimInlineEdit();
+        renderAreaPanel(); renderNavPointPanel(); requestDraw();
+        showConflictBanner({axis:targetRef.axis, relType, oldEntry, newEntry,
+          redo:{kind:'distance', targetRef, constraint:{...constraint, offset:newOffset}, sx, sy}});
+        return;
+      }
       resolveAllConstraints();
       scheduleAutosave();
     }
@@ -2505,8 +2729,54 @@ dimInlineInputEl.addEventListener('keydown', (e)=>{
 });
 dimInlineInputEl.addEventListener('blur', ()=>{ if(state.dimInlineEdit) commitDimInlineEdit(); });
 
+function drawRelBadge(sx, sy, type){
+  const haloColor = state.printFriendly ? '#ffffff' : '#000000';
+  const color = '#3fd0ff';
+  const bx = sx+9, by = sy-9;
+  ctx.font = 'bold 11px ui-monospace, monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3; ctx.strokeStyle = haloColor;
+  const glyph = type==='horizontal' ? 'H' : type==='vertical' ? 'V' : '⊕';
+  ctx.strokeText(glyph, bx, by);
+  ctx.fillStyle = color;
+  ctx.fillText(glyph, bx, by);
+  ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+}
+
+function drawRelations(){
+  if(state.typeVisibility.relations){
+    for(const rel of state.relations){
+      for(const p of rel.participants){
+        const w = getRelationParticipantWorldPoint(p);
+        if(!w) continue;
+        const [sx,sy] = worldToScreen(w[0], w[1]);
+        drawRelBadge(sx, sy, rel.type);
+      }
+    }
+  }
+  if(state.tool==='constraints'){
+    for(const p of state.relSelection){
+      const w = getRelationParticipantWorldPoint(p);
+      if(!w) continue;
+      const [sx,sy] = worldToScreen(w[0], w[1]);
+      ctx.strokeStyle = '#3fd0ff'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(sx,sy,11,0,Math.PI*2); ctx.stroke();
+    }
+  }
+  if(state.relHoverHighlight.length){
+    for(const p of state.relHoverHighlight){
+      const w = getRelationParticipantWorldPoint(p);
+      if(!w) continue;
+      const [sx,sy] = worldToScreen(w[0], w[1]);
+      ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(sx,sy,13,0,Math.PI*2); ctx.stroke();
+    }
+  }
+}
+
 function draw(){
   resolveAllConstraints();
+  resolveAllRelations();
   const pal = currentPalette();
   ctx.fillStyle = pal.bg;
   ctx.fillRect(0,0,cssW,cssH);
@@ -2728,6 +2998,7 @@ function draw(){
 
   drawDimensionAnnotations();
   drawDistToolHighlights();
+  drawRelations();
 
   if(state.tool==='erase' && state.mouse){
     const r = Math.max(3, state.eraseRadius*state.view.scale);
@@ -2838,13 +3109,38 @@ function findNavPointByName(layer, name){
   const list = layer.extra && layer.extra.advancedPointList;
   return Array.isArray(list) ? list.find(p=>p.instanceName===name) : null;
 }
-function syncCurvesForPoint(layer, name){
+function controlPointHasAnyRelation(layer, nameA, nameB, which){
+  return state.relations.some(rel=>rel.participants.some(p=>
+    p.kind==='controlPoint' && p.layerId===layer.id && p.nameA===nameA && p.nameB===nameB && p.which===which
+  ));
+}
+// oldLocalX/oldLocalY (the point's local position before this move) let control
+// handles translate rigidly with their own endpoint, so a curve's shape stays
+// put relative to the point instead of getting left behind. Skipped per-handle
+// when that handle is itself governed by a relation (relation wins). A linked
+// bidirectional pair already stores this point as both a startPos (forward
+// curve) and endPos (backward curve), so both handles get the same delta
+// independently through the loop below and stay equal without extra mirroring.
+function syncCurvesForPoint(layer, name, oldLocalX, oldLocalY){
   const curves = layer.extra && layer.extra.advancedCurveList;
   const pt = findNavPointByName(layer, name);
   if(!Array.isArray(curves) || !pt) return;
+  const dx = (oldLocalX!=null) ? pt.pos.x-oldLocalX : 0;
+  const dy = (oldLocalY!=null) ? pt.pos.y-oldLocalY : 0;
+  const hasDelta = dx!==0 || dy!==0;
   for(const c of curves){
-    if(c.startPos && c.startPos.instanceName===name) c.startPos.pos = {x:pt.pos.x, y:pt.pos.y};
-    if(c.endPos && c.endPos.instanceName===name) c.endPos.pos = {x:pt.pos.x, y:pt.pos.y};
+    if(c.startPos && c.startPos.instanceName===name){
+      c.startPos.pos = {x:pt.pos.x, y:pt.pos.y};
+      if(hasDelta && c.controlPos1 && !controlPointHasAnyRelation(layer, c.startPos.instanceName, c.endPos.instanceName, 'controlPos1')){
+        c.controlPos1 = {x:round3(c.controlPos1.x+dx), y:round3(c.controlPos1.y+dy)};
+      }
+    }
+    if(c.endPos && c.endPos.instanceName===name){
+      c.endPos.pos = {x:pt.pos.x, y:pt.pos.y};
+      if(hasDelta && c.controlPos2 && !controlPointHasAnyRelation(layer, c.startPos.instanceName, c.endPos.instanceName, 'controlPos2')){
+        c.controlPos2 = {x:round3(c.controlPos2.x+dx), y:round3(c.controlPos2.y+dy)};
+      }
+    }
   }
 }
 function generateNavPointName(layer){
@@ -2894,6 +3190,7 @@ function deleteNavPoint(layer, name){
       !(c.startPos && c.startPos.instanceName===name) && !(c.endPos && c.endPos.instanceName===name)
     );
   }
+  pruneInvalidRelations();
 }
 
 function worldDeltaToLocal(layer, dx, dy){
@@ -2932,7 +3229,7 @@ function findCurveAt(layer, sx, sy, pxThreshold){
   if(!Array.isArray(list)) return null;
   let best=null, bestD=pxThreshold;
   for(const curve of list){
-    const pts = curveScreenSamples(layer, curve, 16);
+    const pts = curveScreenSamples(layer, curve, 48);
     for(let i=1;i<pts.length;i++){
       const d = distToSegmentScreen(sx,sy, pts[i-1][0],pts[i-1][1], pts[i][0],pts[i][1]);
       if(d<bestD){ bestD=d; best=curve; }
@@ -2961,6 +3258,19 @@ function findPairControlHandleAt(selPath, sx, sy, pxThreshold){
   if(backward && !linked){
     const which = findControlHandleAt(layer, backward, sx, sy, pxThreshold);
     if(which) return {curveDir:'backward', which};
+  }
+  return null;
+}
+
+// Control handles are drawn for every curve on the active layer (not just the
+// selected one), so a direct click-drag on any visible handle must be able to
+// grab it without a separate "select the path first" click.
+function findAnyControlHandleAt(layer, sx, sy, pxThreshold){
+  const list = layer.extra && layer.extra.advancedCurveList;
+  if(!Array.isArray(list)) return null;
+  for(const curve of list){
+    const which = findControlHandleAt(layer, curve, sx, sy, pxThreshold);
+    if(which) return {curve, which};
   }
   return null;
 }
@@ -3142,6 +3452,432 @@ function getReflectorByRef(ref){
   return r ? {layer, r} : null;
 }
 
+// ---------------- geometric relations (Horizontal / Vertical / Coincident) ----------------
+// Project-wide, not layer-scoped: state.relations is a flat list of
+// {id, type:'horizontal'|'vertical'|'coincident', participants:[ref, ref, ...]}.
+// participants[0] is the reference (stays put); the rest are driven to match
+// its world Y (horizontal), X (vertical), or both (coincident) every frame,
+// same one-pass philosophy as the Distance tool's __ptConstraints/__edgeConstraints.
+
+function getCurveByRef(ref){
+  const layer = getLayer(ref.layerId);
+  const curve = layer && findCurveByEndpoints(layer, ref.nameA, ref.nameB);
+  return curve ? {layer, curve} : null;
+}
+
+function getRelationParticipantWorldPoint(ref){
+  if(ref.kind==='navPoint'){
+    const found = getPointByRef(ref);
+    return found ? layerToWorld(found.layer, found.pt.pos.x, found.pt.pos.y) : null;
+  }
+  if(ref.kind==='reflector'){
+    const found = getReflectorByRef(ref);
+    return found ? layerToWorld(found.layer, found.r.x, found.r.y) : null;
+  }
+  if(ref.kind==='controlPoint'){
+    const found = getCurveByRef(ref);
+    const cp = found && found.curve[ref.which];
+    return cp ? layerToWorld(found.layer, cp.x, cp.y) : null;
+  }
+  return null;
+}
+
+function setRelationParticipantWorldPoint(ref, wx, wy){
+  const layer = getLayer(ref.layerId);
+  if(!layer) return;
+  const [lx,ly] = worldToLayer(layer, wx, wy);
+  if(ref.kind==='navPoint'){
+    const pt = findNavPointByName(layer, ref.instanceName);
+    if(!pt) return;
+    const oldLX = pt.pos.x, oldLY = pt.pos.y;
+    pt.pos = {x:round3(lx), y:round3(ly)};
+    syncCurvesForPoint(layer, ref.instanceName, oldLX, oldLY);
+  } else if(ref.kind==='reflector'){
+    const r = layer.reflectors[ref.index];
+    if(!r) return;
+    r.x = round3(lx); r.y = round3(ly);
+  } else if(ref.kind==='controlPoint'){
+    const curve = findCurveByEndpoints(layer, ref.nameA, ref.nameB);
+    if(!curve) return;
+    curve[ref.which] = {x:round3(lx), y:round3(ly)};
+    // a linked bidirectional pair is one logical handle — keep the mirror in
+    // sync exactly like manual control-point dragging already does.
+    if(curve.__unsplit){
+      const mirror = findCurveByEndpoints(layer, ref.nameB, ref.nameA);
+      if(mirror && mirror.__unsplit){
+        const mirrorWhich = ref.which==='controlPos1' ? 'controlPos2' : 'controlPos1';
+        mirror[mirrorWhich] = {x:round3(lx), y:round3(ly)};
+      }
+    }
+  }
+}
+
+function relationParticipantEquals(a, b){
+  if(!a || !b || a.kind!==b.kind || a.layerId!==b.layerId) return false;
+  if(a.kind==='navPoint') return a.instanceName===b.instanceName;
+  if(a.kind==='reflector') return a.index===b.index;
+  if(a.kind==='controlPoint') return a.nameA===b.nameA && a.nameB===b.nameB && a.which===b.which;
+  return false;
+}
+
+function relationParticipantLabel(ref){
+  if(ref.kind==='navPoint') return 'Point '+ref.instanceName;
+  if(ref.kind==='reflector') return 'Reflector #'+(ref.index+1);
+  if(ref.kind==='controlPoint') return 'Handle '+ref.nameA+'→'+ref.nameB;
+  return '?';
+}
+
+function pruneInvalidRelations(){
+  state.relations = state.relations.filter(rel=>{
+    rel.participants = (rel.participants||[]).filter(p=>getRelationParticipantWorldPoint(p)!=null);
+    return rel.participants.length>=2;
+  });
+}
+
+// ---- grouped resolution (relations that share an axis, plus any Distance
+// constraint that lands on a group member, must all agree on one value) ----
+
+function cellKey(ref){
+  if(!ref) return null;
+  if(ref.kind==='navPoint') return 'navPoint:'+ref.layerId+':'+ref.instanceName;
+  if(ref.kind==='reflector') return 'reflector:'+ref.layerId+':'+ref.index;
+  if(ref.kind==='controlPoint') return 'controlPoint:'+ref.layerId+':'+ref.nameA+':'+ref.nameB+':'+ref.which;
+  return null;
+}
+
+// Union-find over every relation of relType ('horizontal' groups share Y,
+// 'vertical' groups share X). A 'coincident' relation implies both, so it
+// contributes to every axis grouping. Returns Map<rootKey, ref[]>.
+function buildGroups(relType){
+  const parent = new Map(), refByKey = new Map();
+  function find(k){ while(parent.get(k)!==k) k=parent.get(k); return k; }
+  function union(a,b){ const ra=find(a), rb=find(b); if(ra!==rb) parent.set(ra, rb); }
+  for(const rel of state.relations){
+    if(rel.type!==relType && rel.type!=='coincident') continue;
+    const keys = [];
+    for(const p of rel.participants){
+      const k = cellKey(p);
+      if(!k) continue;
+      if(!parent.has(k)){ parent.set(k,k); refByKey.set(k,p); }
+      keys.push(k);
+    }
+    for(let i=1;i<keys.length;i++) union(keys[0], keys[i]);
+  }
+  const groups = new Map();
+  for(const k of parent.keys()){
+    const root = find(k);
+    if(!groups.has(root)) groups.set(root, []);
+    groups.get(root).push(refByKey.get(k));
+  }
+  return groups;
+}
+function groupRootFor(relType, ref){
+  const groups = buildGroups(relType);
+  const key = cellKey(ref);
+  for(const [root, refs] of groups){
+    if(refs.some(r=>relationParticipantEquals(r, ref))) return refs;
+  }
+  return null;
+}
+
+// The one Distance constraint (if any) directly on this participant's own axis
+// — not following any chain, just what's stored on the object itself.
+function getDirectAxisConstraint(ref, axis){
+  if(ref.kind==='navPoint'){
+    const found = getPointByRef(ref);
+    return found && found.pt.__ptConstraints && found.pt.__ptConstraints[axis];
+  }
+  if(ref.kind==='reflector'){
+    const found = getReflectorByRef(ref);
+    return found && found.r.__ptConstraints && found.r.__ptConstraints[axis];
+  }
+  if(ref.kind==='controlPoint'){
+    const bucket = getCurveConstraintsBucket(ref, false);
+    return bucket && bucket[axis];
+  }
+  return null;
+}
+
+// Distinct resolved anchor values among a group's members' own Distance
+// constraints on this axis. 0 = no outside anchor (group is free), 1 = a
+// consistent shared target, 2+ = over-constrained (genuine contradiction).
+function groupAnchorValues(axis, refs){
+  const entries = [];
+  for(const ref of refs){
+    const c = getDirectAxisConstraint(ref, axis);
+    if(!c) continue;
+    const v = resolveAnchorWorldValue(c);
+    if(v==null) continue;
+    if(!entries.some(e=>Math.abs(e.value-v)<1e-6)) entries.push({ref, value:v, constraint:c});
+  }
+  return entries;
+}
+
+// Only meaningful once ref's own change (a just-created Distance constraint,
+// or the ref's membership in a just-created relation) is already reflected
+// in the live data — checks whether ref's group now disagrees with itself.
+function findGroupConflictFor(axis, relType, ref){
+  const refs = groupRootFor(relType, ref);
+  if(!refs || refs.length<2) return null;
+  const anchors = groupAnchorValues(axis, refs);
+  return anchors.length>=2 ? anchors : null;
+}
+
+function resolveGroupedAxis(axis, relType){
+  const groups = buildGroups(relType);
+  for(const refs of groups.values()){
+    if(!refs.length) continue;
+    const anchors = groupAnchorValues(axis, refs);
+    let targetValue;
+    if(anchors.length===0){
+      const p = getRelationParticipantWorldPoint(refs[0]);
+      if(!p) continue;
+      targetValue = axis==='x' ? p[0] : p[1];
+    } else {
+      // Over-constrained: silently keep the map consistent during ordinary
+      // redraws (deterministic pick, no popup spam) — the interactive
+      // old/new prompt only fires at the moment a *new* conflict is created.
+      targetValue = anchors[0].value;
+    }
+    for(const ref of refs){
+      const cur = getRelationParticipantWorldPoint(ref);
+      if(!cur) continue;
+      const curVal = axis==='x' ? cur[0] : cur[1];
+      if(Math.abs(curVal-targetValue)>1e-9){
+        const newWorld = axis==='x' ? [targetValue, cur[1]] : [cur[0], targetValue];
+        setRelationParticipantWorldPoint(ref, newWorld[0], newWorld[1]);
+      }
+    }
+  }
+}
+
+function resolveAllRelations(){
+  resolveGroupedAxis('y', 'horizontal');
+  resolveGroupedAxis('x', 'vertical');
+}
+
+function relationsForParticipant(ref){
+  return state.relations.filter(rel=>rel.participants.some(p=>relationParticipantEquals(p, ref)));
+}
+
+let relIdCounter = 1;
+function createRelation(type, participants){
+  if(participants.length<2) return null;
+  const rel = {id:'rel'+(relIdCounter++), type, participants: participants.slice()};
+  state.relations.push(rel);
+  resolveAllRelations();
+  return rel;
+}
+
+function deleteRelation(id){
+  state.relations = state.relations.filter(r=>r.id!==id);
+}
+
+function relSelectionValid(){
+  const sel = state.relSelection;
+  return sel.length>=2 || (sel.length===1 && sel[0].kind==='controlPoint');
+}
+
+function toggleRelSelection(ref){
+  const idx = state.relSelection.findIndex(p=>relationParticipantEquals(p, ref));
+  if(idx>=0) state.relSelection.splice(idx,1);
+  else state.relSelection.push(ref);
+}
+
+function applyRelationFromSelection(type){
+  if(!relSelectionValid()) return;
+  let participants = state.relSelection.slice();
+  if(participants.length===1 && participants[0].kind==='controlPoint'){
+    const cpRef = participants[0];
+    const anchorName = cpRef.which==='controlPos1' ? cpRef.nameA : cpRef.nameB;
+    participants = [{kind:'navPoint', layerId:cpRef.layerId, instanceName:anchorName}, cpRef];
+  }
+  const layerForUndo = getLayer(participants[0].layerId);
+  if(layerForUndo) pushUndo(layerForUndo);
+  const rel = createRelation(type, participants);
+  const axisChecks = type==='coincident' ? [['y','horizontal'],['x','vertical']]
+    : type==='horizontal' ? [['y','horizontal']] : [['x','vertical']];
+  let groupConflict = null, conflictAxis = null;
+  for(const [axis, groupRelType] of axisChecks){
+    const gc = findGroupConflictFor(axis, groupRelType, participants[0]);
+    if(gc){ groupConflict = gc; conflictAxis = axis; break; }
+  }
+  state.relSelection = [];
+  closeRelToolbar();
+  if(groupConflict){
+    deleteRelation(rel.id);
+    resolveAllConstraints(); resolveAllRelations();
+    const newEntry = groupConflict.find(e=>participants.some(p=>relationParticipantEquals(e.ref, p)));
+    const oldEntry = groupConflict.find(e=>e!==newEntry) || groupConflict[0];
+    showConflictBanner({axis:conflictAxis, relType:type, oldEntry, newEntry, redo:{kind:'relation', relType:type, participants}});
+  } else {
+    scheduleAutosave();
+  }
+  renderRelPanel();
+  requestDraw();
+}
+
+const relToolbarEl = document.getElementById('relToolbar');
+function relToolbarAnchorScreenPos(){
+  const sel = state.relSelection;
+  if(!sel.length) return null;
+  const last = sel[sel.length-1];
+  const w = getRelationParticipantWorldPoint(last);
+  return w ? worldToScreen(w[0], w[1]) : null;
+}
+function updateRelToolbar(){
+  if(state.tool!=='constraints' || !relSelectionValid()){ relToolbarEl.hidden = true; return; }
+  const pos = relToolbarAnchorScreenPos();
+  if(!pos){ relToolbarEl.hidden = true; return; }
+  relToolbarEl.style.left = pos[0]+'px';
+  relToolbarEl.style.top = pos[1]+'px';
+  relToolbarEl.hidden = false;
+}
+function closeRelToolbar(){ relToolbarEl.hidden = true; }
+
+function renderRelPanel(){
+  const valid = relSelectionValid();
+  document.getElementById('relBtnHFixed').disabled = !valid;
+  document.getElementById('relBtnVFixed').disabled = !valid;
+  document.getElementById('relBtnOFixed').disabled = !valid;
+  document.getElementById('relCount').textContent = String(state.relations.length);
+  updateRelToolbar();
+}
+
+const relMenuEl = document.getElementById('relMenu');
+function closeRelMenu(){
+  relMenuEl.hidden = true;
+  state.relMenuFor = null;
+  state.relHoverHighlight = [];
+}
+function openRelMenu(ref, sx, sy){
+  state.relMenuFor = ref;
+  state.relHoverHighlight = [];
+  const rels = relationsForParticipant(ref);
+  let html = '<div class="rel-menu-title">'+relationParticipantLabel(ref)+'</div>';
+  if(rels.length===0){
+    html += '<div class="rel-menu-empty">No relations on this object</div>';
+  } else {
+    for(const rel of rels){
+      const others = rel.participants.filter(p=>!relationParticipantEquals(p, ref));
+      const typeLabel = rel.type==='horizontal' ? '— Horizontal' : rel.type==='vertical' ? '| Vertical' : '⊕ Coincident';
+      const label = typeLabel + ' with ' + others.map(relationParticipantLabel).join(', ');
+      html += '<div class="rel-menu-item" data-rel-id="'+rel.id+'"><span>'+label+'</span><span class="rel-del" data-del-id="'+rel.id+'" title="Delete this relation">×</span></div>';
+    }
+  }
+  html += '<div class="rel-menu-divider"></div><div class="rel-menu-item" id="relMenuDeleteAll"><span>Delete all relations (project)</span></div>';
+  relMenuEl.innerHTML = html;
+  const mainRect = mainEl.getBoundingClientRect();
+  relMenuEl.style.left = Math.min(sx, mainRect.width-180)+'px';
+  relMenuEl.style.top = Math.min(sy, mainRect.height-80)+'px';
+  relMenuEl.hidden = false;
+  requestDraw();
+}
+function deleteRelationWithUndo(id){
+  const layer = getActiveLayer() || state.layers[0];
+  if(layer) pushUndo(layer);
+  deleteRelation(id);
+  scheduleAutosave();
+  renderRelPanel();
+  closeRelMenu();
+  requestDraw();
+}
+function deleteAllRelations(){
+  if(!state.relations.length) return;
+  const layer = getActiveLayer() || state.layers[0];
+  if(layer) pushUndo(layer);
+  state.relations = [];
+  scheduleAutosave();
+  renderRelPanel();
+  closeRelMenu();
+  requestDraw();
+}
+relMenuEl.addEventListener('mouseover', (e)=>{
+  const item = e.target.closest('.rel-menu-item[data-rel-id]');
+  if(!item) return;
+  const rel = state.relations.find(r=>r.id===item.dataset.relId);
+  state.relHoverHighlight = rel ? rel.participants.slice() : [];
+  requestDraw();
+});
+relMenuEl.addEventListener('mouseout', (e)=>{
+  if(!relMenuEl.contains(e.relatedTarget)){ state.relHoverHighlight = []; requestDraw(); }
+});
+relMenuEl.addEventListener('click', (e)=>{
+  const delEl = e.target.closest('.rel-del');
+  if(delEl){ deleteRelationWithUndo(delEl.dataset.delId); return; }
+  if(e.target.closest('#relMenuDeleteAll')){ deleteAllRelations(); return; }
+  closeRelMenu();
+  requestDraw();
+});
+document.addEventListener('pointerdown', (e)=>{
+  if(!state.relMenuFor) return;
+  if(!relMenuEl.contains(e.target)) closeRelMenu();
+});
+canvasEl.addEventListener('contextmenu', (e)=>{
+  const rect = canvasEl.getBoundingClientRect();
+  const sx = e.clientX-rect.left, sy = e.clientY-rect.top;
+  const hit = findRelationPointAt(sx, sy, 14);
+  if(!hit){ closeRelMenu(); return; }
+  e.preventDefault();
+  openRelMenu(hit, sx, sy);
+});
+document.getElementById('relBtnHFixed').addEventListener('click', ()=>applyRelationFromSelection('horizontal'));
+document.getElementById('relBtnVFixed').addEventListener('click', ()=>applyRelationFromSelection('vertical'));
+document.getElementById('relBtnOFixed').addEventListener('click', ()=>applyRelationFromSelection('coincident'));
+document.getElementById('relToolbarH').addEventListener('click', ()=>applyRelationFromSelection('horizontal'));
+document.getElementById('relToolbarV').addEventListener('click', ()=>applyRelationFromSelection('vertical'));
+document.getElementById('relToolbarO').addEventListener('click', ()=>applyRelationFromSelection('coincident'));
+document.getElementById('btnDeleteAllRelations').addEventListener('click', deleteAllRelations);
+
+function showConflictBanner(info){
+  state.pendingConflict = info;
+  const axisLabel = info.axis==='x' ? 'X' : 'Y';
+  document.getElementById('conflictBannerText').textContent =
+    'Conflict: this group already has a different '+axisLabel+' ('+info.oldEntry.value.toFixed(2)+' vs '+info.newEntry.value.toFixed(2)+'). Keep the old one, or use the new one?';
+  document.getElementById('conflictBanner').hidden = false;
+}
+function closeConflictBanner(){
+  document.getElementById('conflictBanner').hidden = true;
+  state.pendingConflict = null;
+  state.relHoverHighlight = [];
+  requestDraw();
+}
+const btnConflictKeepOld = document.getElementById('btnConflictKeepOld');
+const btnConflictUseNew = document.getElementById('btnConflictUseNew');
+btnConflictKeepOld.addEventListener('mouseenter', ()=>{
+  if(state.pendingConflict){ state.relHoverHighlight = [state.pendingConflict.oldEntry.ref]; requestDraw(); }
+});
+btnConflictUseNew.addEventListener('mouseenter', ()=>{
+  if(state.pendingConflict){ state.relHoverHighlight = [state.pendingConflict.newEntry.ref]; requestDraw(); }
+});
+[btnConflictKeepOld, btnConflictUseNew].forEach(b=>b.addEventListener('mouseleave', ()=>{
+  if(state.pendingConflict){ state.relHoverHighlight = []; requestDraw(); }
+}));
+btnConflictKeepOld.addEventListener('click', closeConflictBanner);
+btnConflictUseNew.addEventListener('click', ()=>{
+  const info = state.pendingConflict;
+  if(!info) return;
+  const oldLayer = getLayer(info.oldEntry.ref.layerId);
+  if(oldLayer) pushUndo(oldLayer);
+  if(info.redo.kind==='distance'){
+    const newLayer = getLayer(info.redo.targetRef.layerId);
+    if(newLayer && newLayer!==oldLayer) pushUndo(newLayer);
+  }
+  deleteConstraintByTargetRef({...info.oldEntry.ref, axis: info.axis});
+  if(info.redo.kind==='distance'){
+    storeConstraintOnTarget(info.redo.targetRef, info.redo.constraint);
+    resolveAllConstraints(); resolveAllRelations();
+    scheduleAutosave();
+    openDimInlineEdit(info.redo.targetRef, info.redo.sx, info.redo.sy, info.redo.constraint.offset, true);
+  } else if(info.redo.kind==='relation'){
+    createRelation(info.redo.relType, info.redo.participants);
+    scheduleAutosave();
+  }
+  closeConflictBanner();
+  renderAreaPanel(); renderNavPointPanel(); renderPathPanel(); renderRelPanel();
+  requestDraw();
+});
+
 function resolveAnchorWorldValue(constraint, depth){
   depth = depth||0;
   if(depth>20) return null;
@@ -3195,6 +3931,21 @@ function resolveAnchorWorldValue(constraint, depth){
     }
     return anchorValue + constraint.offset;
   }
+  if(constraint.anchorKind==='controlPoint'){
+    const cpRef = {kind:'controlPoint', layerId:constraint.anchorLayerId, nameA:constraint.anchorNameA, nameB:constraint.anchorNameB, which:constraint.anchorWhich};
+    const bucket = getCurveConstraintsBucket(cpRef, false);
+    const cpConstraint = bucket && bucket[constraint.axis];
+    let anchorValue;
+    if(cpConstraint){
+      anchorValue = resolveAnchorWorldValue(cpConstraint, depth+1);
+      if(anchorValue==null) return null;
+    } else {
+      const p = getRelationParticipantWorldPoint(cpRef);
+      if(!p) return null;
+      anchorValue = constraint.axis==='x' ? p[0] : p[1];
+    }
+    return anchorValue + constraint.offset;
+  }
   return null;
 }
 
@@ -3217,6 +3968,13 @@ function constraintChainHitsTarget(constraint, target, depth){
     if(target.kind==='reflector' && constraint.anchorLayerId===target.layerId && constraint.anchorReflectorIndex===target.index && constraint.axis===target.axis) return true;
     const found = getReflectorByRef({layerId:constraint.anchorLayerId, index:constraint.anchorReflectorIndex});
     const next = found && found.r.__ptConstraints && found.r.__ptConstraints[constraint.axis];
+    return next ? constraintChainHitsTarget(next, target, depth+1) : false;
+  }
+  if(constraint.anchorKind==='controlPoint'){
+    if(target.kind==='controlPoint' && constraint.anchorLayerId===target.layerId && constraint.anchorNameA===target.nameA && constraint.anchorNameB===target.nameB && constraint.anchorWhich===target.which && constraint.axis===target.axis) return true;
+    const cpRef = {kind:'controlPoint', layerId:constraint.anchorLayerId, nameA:constraint.anchorNameA, nameB:constraint.anchorNameB, which:constraint.anchorWhich};
+    const bucket = getCurveConstraintsBucket(cpRef, false);
+    const next = bucket && bucket[constraint.axis];
     return next ? constraintChainHitsTarget(next, target, depth+1) : false;
   }
   return false;
@@ -3250,6 +4008,7 @@ function resolveAllConstraints(){
       for(const pt of pts){
         if(!pt.__ptConstraints) continue;
         let moved = false;
+        const oldLX = pt.pos.x, oldLY = pt.pos.y;
         for(const axis of ['x','y']){
           const c = pt.__ptConstraints[axis];
           if(!c) continue;
@@ -3261,7 +4020,7 @@ function resolveAllConstraints(){
           pt.pos = {x:round3(nlx), y:round3(nly)};
           moved = true;
         }
-        if(moved) syncCurvesForPoint(layer, pt.instanceName);
+        if(moved) syncCurvesForPoint(layer, pt.instanceName, oldLX, oldLY);
       }
     }
     for(const r of layer.reflectors){
@@ -3275,6 +4034,29 @@ function resolveAllConstraints(){
         const newWorld = axis==='x' ? [target, wy] : [wx, target];
         const [nlx,nly] = worldToLayer(layer, newWorld[0], newWorld[1]);
         r.x = round3(nlx); r.y = round3(nly);
+      }
+    }
+    const curves = layer.extra && layer.extra.advancedCurveList;
+    if(Array.isArray(curves)){
+      for(const curve of curves){
+        if(!curve.__cpConstraints || !curve.startPos || !curve.endPos) continue;
+        for(const which of ['controlPos1','controlPos2']){
+          const bucket = curve.__cpConstraints[which];
+          if(!bucket) continue;
+          const cpRef = {kind:'controlPoint', layerId:layer.id, nameA:curve.startPos.instanceName, nameB:curve.endPos.instanceName, which};
+          const cur = getRelationParticipantWorldPoint(cpRef);
+          if(!cur) continue;
+          let [wx,wy] = cur, moved = false;
+          for(const axis of ['x','y']){
+            const c = bucket[axis];
+            if(!c) continue;
+            const target = resolveAnchorWorldValue(c);
+            if(target==null) continue;
+            if(axis==='x') wx = target; else wy = target;
+            moved = true;
+          }
+          if(moved) setRelationParticipantWorldPoint(cpRef, wx, wy);
+        }
       }
     }
   }
@@ -3303,6 +4085,20 @@ function findPickableAnchorAt(sx, sy, pxThreshold, excludeRef, requiredAxis){
       const d = Math.hypot(ssx-sx, ssy-sy);
       if(d<bestD){ bestD=d; best={kind:'reflector', layerId:layer.id, index:ri}; }
     }
+    const curves = layer.extra && layer.extra.advancedCurveList;
+    if(Array.isArray(curves)){
+      for(const curve of curves){
+        if(!curve.startPos || !curve.endPos || !curve.controlPos1 || !curve.controlPos2) continue;
+        for(const which of ['controlPos1','controlPos2']){
+          if(excludeRef && excludeRef.cpWhich!=null && excludeRef.layerId===layer.id && excludeRef.cpNameA===curve.startPos.instanceName && excludeRef.cpNameB===curve.endPos.instanceName && excludeRef.cpWhich===which) continue;
+          const cp = curve[which];
+          const [wx,wy] = layerToWorld(layer, cp.x, cp.y);
+          const [ssx,ssy] = worldToScreen(wx,wy);
+          const d = Math.hypot(ssx-sx, ssy-sy);
+          if(d<bestD){ bestD=d; best={kind:'controlPoint', layerId:layer.id, nameA:curve.startPos.instanceName, nameB:curve.endPos.instanceName, which}; }
+        }
+      }
+    }
     const areas = layer.extra && layer.extra.advancedAreaList;
     if(Array.isArray(areas)){
       for(let ai=0; ai<areas.length; ai++){
@@ -3310,7 +4106,7 @@ function findPickableAnchorAt(sx, sy, pxThreshold, excludeRef, requiredAxis){
         const rect = rectFromPosGroup(areas[ai].posGroup);
         for(const edgeKey of ['S','E','N','W']){
           const det = detectEdgeAxis(layer, rect, edgeKey);
-          if(!det || det.axis!==requiredAxis) continue;
+          if(!det || (requiredAxis!=null && det.axis!==requiredAxis)) continue;
           const [wa,wb] = edgeWorldEndpoints(layer, rect, edgeKey);
           const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
           const [sb0,sb1] = worldToScreen(wb[0],wb[1]);
@@ -3343,8 +4139,49 @@ function updateDistHint(){
   const hintEl = document.getElementById('distHint');
   if(!hintEl) return;
   hintEl.textContent = state.distTarget
-    ? 'Click a nav point, reflector, scan point, or parallel edge to reference. Esc cancels.'
-    : 'Click an area edge, a nav point, or a reflector to pin it. Then click a nav point, reflector, scan point, or parallel edge to reference. Esc cancels.';
+    ? 'Click a nav point, reflector, control handle, scan point, or parallel edge to reference. Esc cancels.'
+    : 'Click an area edge, a nav point, a reflector, or a bezier control handle to pin it. Then click a nav point, reflector, control handle, scan point, or parallel edge to reference. Esc cancels.';
+}
+
+function findRelationPointAt(sx, sy, pxThreshold){
+  let best=null, bestD=pxThreshold;
+  for(const layer of state.layers){
+    if(!layer.visible) continue;
+    const pts = layer.extra && layer.extra.advancedPointList;
+    if(Array.isArray(pts)){
+      for(const pt of pts){
+        if(!pt || !pt.pos) continue;
+        const [wx,wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
+        const [ssx,ssy] = worldToScreen(wx,wy);
+        const d = Math.hypot(ssx-sx, ssy-sy);
+        if(d<bestD){ bestD=d; best={kind:'navPoint', layerId:layer.id, instanceName:pt.instanceName}; }
+      }
+    }
+    for(let ri=0; ri<layer.reflectors.length; ri++){
+      const r = layer.reflectors[ri];
+      const [wx,wy] = layerToWorld(layer, r.x, r.y);
+      const [ssx,ssy] = worldToScreen(wx,wy);
+      const d = Math.hypot(ssx-sx, ssy-sy);
+      if(d<bestD){ bestD=d; best={kind:'reflector', layerId:layer.id, index:ri}; }
+    }
+    if(state.typeVisibility.nav){
+      const curves = layer.extra && layer.extra.advancedCurveList;
+      if(Array.isArray(curves)){
+        for(const curve of curves){
+          if(!curve.startPos || !curve.endPos) continue;
+          for(const which of ['controlPos1','controlPos2']){
+            const cp = curve[which];
+            if(!cp) continue;
+            const [wx,wy] = layerToWorld(layer, cp.x, cp.y);
+            const [ssx,ssy] = worldToScreen(wx,wy);
+            const d = Math.hypot(ssx-sx, ssy-sy);
+            if(d<bestD){ bestD=d; best={kind:'controlPoint', layerId:layer.id, nameA:curve.startPos.instanceName, nameB:curve.endPos.instanceName, which}; }
+          }
+        }
+      }
+    }
+  }
+  return best;
 }
 
 function findConstrainableTargetAt(sx, sy, pxThreshold){
@@ -3367,6 +4204,19 @@ function findConstrainableTargetAt(sx, sy, pxThreshold){
       const [ssx,ssy] = worldToScreen(wx,wy);
       const d = Math.hypot(ssx-sx, ssy-sy);
       if(d<bestD){ bestD=d; best={kind:'reflector', layerId:layer.id, index:ri}; }
+    }
+    const curves = layer.extra && layer.extra.advancedCurveList;
+    if(Array.isArray(curves)){
+      for(const curve of curves){
+        if(!curve.startPos || !curve.endPos || !curve.controlPos1 || !curve.controlPos2) continue;
+        for(const which of ['controlPos1','controlPos2']){
+          const cp = curve[which];
+          const [wx,wy] = layerToWorld(layer, cp.x, cp.y);
+          const [ssx,ssy] = worldToScreen(wx,wy);
+          const d = Math.hypot(ssx-sx, ssy-sy);
+          if(d<bestD){ bestD=d; best={kind:'controlPoint', layerId:layer.id, nameA:curve.startPos.instanceName, nameB:curve.endPos.instanceName, which}; }
+        }
+      }
     }
     const areas = layer.extra && layer.extra.advancedAreaList;
     if(Array.isArray(areas)){
@@ -3407,7 +4257,40 @@ function anchorWorldValue(anchor, axis){
     const [wx,wy] = layerToWorld(layer, anchor.localX, anchor.localY);
     return axis==='x' ? wx : wy;
   }
+  if(anchor.kind==='controlPoint'){
+    const p = getRelationParticipantWorldPoint(anchor);
+    return p ? (axis==='x' ? p[0] : p[1]) : null;
+  }
   return null;
+}
+
+function anchorWorldPoint(anchor){
+  const layer = getLayer(anchor.layerId);
+  if(!layer) return null;
+  if(anchor.kind==='navPoint'){
+    const pt = findNavPointByName(layer, anchor.name);
+    return pt ? layerToWorld(layer, pt.pos.x, pt.pos.y) : null;
+  }
+  if(anchor.kind==='reflector'){
+    const r = layer.reflectors[anchor.index];
+    return r ? layerToWorld(layer, r.x, r.y) : null;
+  }
+  if(anchor.kind==='scanPoint') return layerToWorld(layer, anchor.localX, anchor.localY);
+  if(anchor.kind==='controlPoint') return getRelationParticipantWorldPoint(anchor);
+  return null; // edges carry their own intrinsic axis, no single point needed
+}
+
+// Smart mode: axis is decided from the actual world-space relationship between
+// the target and whichever candidate reference is under the cursor, not from
+// how the mouse traveled to get there. An edge candidate is axis-intrinsic
+// (its own alignment wins); for a point candidate, whichever separation
+// (world dx vs world dy) is larger wins.
+function computeSmartAxisFromPair(target, anchor){
+  if(anchor.kind==='edge') return anchor.axis;
+  const tp = getTargetWorldPoint(target);
+  const ap = anchorWorldPoint(anchor);
+  if(!tp || !ap) return target.axis || 'x';
+  return Math.abs(tp[0]-ap[0]) >= Math.abs(tp[1]-ap[1]) ? 'x' : 'y';
 }
 
 function hasAnyEdgeConstraint(area){
@@ -3646,11 +4529,20 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     }
   } else if(state.tool==='nav' && layer){
     const selPath = getSelectedPath();
-    const cpHit = (selPath && selPath.layer.id===layer.id) ? findPairControlHandleAt(selPath, sx, sy, 10) : null;
+    let cpHit = (selPath && selPath.layer.id===layer.id) ? findPairControlHandleAt(selPath, sx, sy, 14) : null;
+    if(!cpHit){
+      const anyHit = findAnyControlHandleAt(layer, sx, sy, 14);
+      if(anyHit){
+        state.selectedPath = {layerId:layer.id, nameA:anyHit.curve.startPos.instanceName, nameB:anyHit.curve.endPos.instanceName};
+        state.selectedNavPoint = null;
+        cpHit = {curveDir:'forward', which:anyHit.which};
+        renderNavPointPanel(); renderPathPanel();
+      }
+    }
     const hit = cpHit ? null : findNavPointAt(layer, sx, sy, 14);
     if(cpHit){
       pushUndo(layer);
-      state.draggingControlPoint = {layerId:layer.id, nameA:selPath.nameA||state.selectedPath.nameA, nameB:selPath.nameB||state.selectedPath.nameB, curveDir:cpHit.curveDir, which:cpHit.which};
+      state.draggingControlPoint = {layerId:layer.id, nameA:state.selectedPath.nameA, nameB:state.selectedPath.nameB, curveDir:cpHit.curveDir, which:cpHit.which};
       dragging = true;
     } else if(hit && e.shiftKey){
       state.newPathFrom = {layerId:layer.id, instanceName:hit.instanceName};
@@ -3665,7 +4557,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       renderPathPanel();
       dragging = true;
     } else {
-      const curveHit = findCurveAt(layer, sx, sy, 8);
+      const curveHit = findCurveAt(layer, sx, sy, 14);
       if(curveHit){
         state.selectedPath = {layerId:layer.id, nameA:curveHit.startPos.instanceName, nameB:curveHit.endPos.instanceName};
         state.selectedNavPoint = null;
@@ -3692,6 +4584,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       requestDraw();
       return;
     }
+    if(state.selectedDimension){ state.selectedDimension = null; requestDraw(); }
     const selArea = (state.selectedArea && state.selectedArea.layerId===layer.id) ? state.selectedArea : null;
     const selectedAreaObj = (selArea && selArea.areaIndex!=null && layer.extra && layer.extra.advancedAreaList) ? layer.extra.advancedAreaList[selArea.areaIndex] : null;
     const locked = hasAnyEdgeConstraint(selectedAreaObj);
@@ -3748,9 +4641,13 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       return;
     }
     if(!state.distTarget){
+      if(state.selectedDimension){ state.selectedDimension = null; requestDraw(); }
       const target = findConstrainableTargetAt(sx, sy, 14);
       if(target){
-        if(target.kind!=='edge') target.axis = state.distAxis;
+        if(target.kind!=='edge'){
+          if(state.distAxis==='smart'){ target.smart = true; target.axis = null; }
+          else target.axis = state.distAxis;
+        }
         state.distTarget = target;
       }
       updateDistHint();
@@ -3761,10 +4658,12 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     let excludeRef = {layerId:target.layerId};
     if(target.kind==='edge') excludeRef.areaIndex = target.areaIndex;
     else if(target.kind==='reflector') excludeRef.reflectorIndex = target.index;
+    else if(target.kind==='controlPoint'){ excludeRef.cpNameA = target.nameA; excludeRef.cpNameB = target.nameB; excludeRef.cpWhich = target.which; }
     else excludeRef.instanceName = target.instanceName;
-    const anchor = findPickableAnchorAt(sx, sy, 14, excludeRef, target.axis);
+    const anchor = findPickableAnchorAt(sx, sy, 14, excludeRef, target.smart ? null : target.axis);
+    if(anchor && target.smart) target.axis = computeSmartAxisFromPair(target, anchor);
     let confirmed = false;
-    if(anchor){
+    if(anchor && target.axis){
       const currentValue = getTargetWorldValue(target, target.axis);
       const anchorValue = anchorWorldValue(anchor, target.axis);
       if(currentValue!=null && anchorValue!=null){
@@ -3777,21 +4676,36 @@ canvasEl.addEventListener('pointerdown', (e)=>{
           const targetLayer = getTargetLayer(target);
           pushUndo(targetLayer);
           storeConstraintOnTarget(target, constraint);
-          resolveAllConstraints();
-          if(target.kind==='edge'){
-            const found = getAreaByRef({layerId:target.layerId, areaIndex:target.areaIndex});
-            state.selectedArea = {layerId:target.layerId, groupId:found.area.__group, areaIndex:target.areaIndex};
-            state.selectedAreaEdge = {layerId:target.layerId, areaIndex:target.areaIndex, edgeKey:target.edgeKey};
-          } else if(target.kind==='navPoint'){
-            state.selectedNavPoint = {layerId:target.layerId, instanceName:target.instanceName};
-            state.selectedPath = null;
+          const relType = target.axis==='y' ? 'horizontal' : 'vertical';
+          const groupConflict = (target.kind==='navPoint' || target.kind==='reflector' || target.kind==='controlPoint')
+            ? findGroupConflictFor(target.axis, relType, targetRef) : null;
+          if(groupConflict){
+            deleteConstraintByTargetRef(targetRef);
+            resolveAllConstraints(); resolveAllRelations();
+            const newEntry = groupConflict.find(e=>relationParticipantEquals(e.ref, targetRef));
+            const oldEntry = groupConflict.find(e=>!relationParticipantEquals(e.ref, targetRef)) || groupConflict[0];
+            showConflictBanner({axis:target.axis, relType, oldEntry, newEntry,
+              redo:{kind:'distance', targetRef, constraint, sx, sy}});
+          } else {
+            resolveAllConstraints();
+            if(target.kind==='edge'){
+              const found = getAreaByRef({layerId:target.layerId, areaIndex:target.areaIndex});
+              state.selectedArea = {layerId:target.layerId, groupId:found.area.__group, areaIndex:target.areaIndex};
+              state.selectedAreaEdge = {layerId:target.layerId, areaIndex:target.areaIndex, edgeKey:target.edgeKey};
+            } else if(target.kind==='navPoint'){
+              state.selectedNavPoint = {layerId:target.layerId, instanceName:target.instanceName};
+              state.selectedPath = null;
+            } else if(target.kind==='controlPoint'){
+              state.selectedPath = {layerId:target.layerId, nameA:target.nameA, nameB:target.nameB};
+              state.selectedNavPoint = null;
+            }
+            scheduleAutosave();
+            openDimInlineEdit(targetRef, sx, sy, constraint.offset, true);
           }
-          scheduleAutosave();
           state.distTarget = null;
           state.distPickHover = null;
           updateDistHint();
           renderAreaPanel(); renderNavPointPanel(); renderPathPanel(); requestDraw();
-          openDimInlineEdit(targetRef, sx, sy, constraint.offset, true);
           confirmed = true;
         }
       }
@@ -3802,6 +4716,13 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       updateDistHint();
       requestDraw();
     }
+  } else if(state.tool==='constraints'){
+    closeRelMenu();
+    const hit = findRelationPointAt(sx, sy, 14);
+    if(hit) toggleRelSelection(hit);
+    else state.relSelection = [];
+    renderRelPanel();
+    requestDraw();
   }
 });
 
@@ -3854,8 +4775,11 @@ canvasEl.addEventListener('pointermove', (e)=>{
     const excludeRef = {layerId:target.layerId};
     if(target.kind==='edge') excludeRef.areaIndex = target.areaIndex;
     else if(target.kind==='reflector') excludeRef.reflectorIndex = target.index;
+    else if(target.kind==='controlPoint'){ excludeRef.cpNameA = target.nameA; excludeRef.cpNameB = target.nameB; excludeRef.cpWhich = target.which; }
     else excludeRef.instanceName = target.instanceName;
-    state.distPickHover = findPickableAnchorAt(sx, sy, 14, excludeRef, target.axis);
+    const hover = findPickableAnchorAt(sx, sy, 14, excludeRef, target.smart ? null : target.axis);
+    if(target.smart) target.axis = hover ? computeSmartAxisFromPair(target, hover) : null;
+    state.distPickHover = hover;
     requestDraw();
   } else if(state.tool==='dist' && !state.distTarget){
     const hit = findConstrainableTargetAt(sx, sy, 14);
@@ -3937,9 +4861,10 @@ canvasEl.addEventListener('pointermove', (e)=>{
   } else if(state.tool==='nav' && state.draggingNavPoint && layer){
     const pt = findNavPointByName(layer, state.draggingNavPoint.instanceName);
     if(pt){
+      const oldLX = pt.pos.x, oldLY = pt.pos.y;
       const [lx,ly] = worldToLayer(layer, wx, wy);
       pt.pos.x = round3(lx); pt.pos.y = round3(ly);
-      syncCurvesForPoint(layer, pt.instanceName);
+      syncCurvesForPoint(layer, pt.instanceName, oldLX, oldLY);
       renderNavPointPanel();
       requestDraw();
     }
@@ -4135,6 +5060,24 @@ canvasEl.addEventListener('dblclick', (e)=>{
   fitView(); requestDraw();
 });
 
+const KEYMAP_DEFAULTS = {
+  pan:'h', move:'v', rotate:'r', erase:'e', draw:'l', reflector:'k', select:'s',
+  measure:'m', nav:'n', area:'a', align:'g', dist:'d', constraints:'c',
+  fitView:'f', relHorizontal:'h', relVertical:'v', relCoincident:'o',
+};
+const KEYMAP_STORAGE_KEY = 'smapEditorKeymap';
+function loadKeymap(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(KEYMAP_STORAGE_KEY));
+    if(saved && typeof saved==='object') return {...KEYMAP_DEFAULTS, ...saved};
+  }catch(e){}
+  return {...KEYMAP_DEFAULTS};
+}
+// Remappable action->key lookup; a future settings UI can write to KEYMAP and
+// persist via localStorage[KEYMAP_STORAGE_KEY] without touching dispatch code.
+const KEYMAP = loadKeymap();
+const TOOL_KEY_ACTIONS = ['pan','move','rotate','erase','draw','reflector','select','measure','nav','area','align','dist','constraints'];
+
 document.addEventListener('keydown', (e)=>{
   const tag = (e.target.tagName||'').toLowerCase();
   const isTextField = tag==='textarea' || (tag==='input' && (!e.target.type || e.target.type==='text'));
@@ -4145,9 +5088,18 @@ document.addEventListener('keydown', (e)=>{
   if(e.code==='Space' && state.tool!=='pan'){ state.prevTool=state.tool; setTool('pan'); e.preventDefault(); return; }
   if(e.key==='Escape' && state.measure){ state.measure = null; requestDraw(); return; }
   if(e.key==='Escape' && state.distTarget){ state.distTarget = null; state.distPickHover = null; updateDistHint(); requestDraw(); return; }
-  if(e.key.toLowerCase()==='f'){ fitView(); requestDraw(); return; }
-  const map = {h:'pan', v:'move', r:'rotate', e:'erase', l:'draw', k:'reflector', s:'select', m:'measure', n:'nav', a:'area', g:'align', d:'dist'};
-  if(map[e.key.toLowerCase()]) setTool(map[e.key.toLowerCase()]);
+  if(e.key==='Escape' && state.relMenuFor){ closeRelMenu(); requestDraw(); return; }
+  if(e.key==='Escape' && state.tool==='constraints' && state.relSelection.length){ state.relSelection = []; renderRelPanel(); requestDraw(); return; }
+  if(e.key==='Escape' && state.selectedDimension){ state.selectedDimension = null; requestDraw(); return; }
+  if((e.key==='Delete' || e.key==='Backspace') && state.selectedDimension){ deleteSelectedDimension(); e.preventDefault(); return; }
+  const key = e.key.toLowerCase();
+  if(key===KEYMAP.fitView){ fitView(); requestDraw(); return; }
+  if(state.tool==='constraints'){
+    if(key===KEYMAP.relHorizontal){ if(relSelectionValid()) applyRelationFromSelection('horizontal'); e.preventDefault(); return; }
+    if(key===KEYMAP.relVertical){ if(relSelectionValid()) applyRelationFromSelection('vertical'); e.preventDefault(); return; }
+    if(key===KEYMAP.relCoincident){ if(relSelectionValid()) applyRelationFromSelection('coincident'); e.preventDefault(); return; }
+  }
+  for(const action of TOOL_KEY_ACTIONS){ if(KEYMAP[action]===key){ setTool(action); return; } }
 });
 document.addEventListener('keyup', (e)=>{
   if(e.code==='Space' && state.tool==='pan' && state.prevTool!=='pan'){ setTool(state.prevTool); }
@@ -4187,6 +5139,7 @@ function downloadJSON(obj, filename){
 
 function buildSmapFromLayers(layers, mapName){
   resolveAllConstraints();
+  resolveAllRelations();
   const normalPosList = [], rssiPosList = [], reflectorPosList = [];
   const mergedExtra = {};
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
@@ -4301,6 +5254,7 @@ function serializeProject(){
     })),
     nextId: state.nextId, colorIdx: state.colorIdx,
     view: state.view, fitted: state.fitted,
+    relations: state.relations,
   };
 }
 function loadProjectData(data){
@@ -4317,8 +5271,11 @@ function loadProjectData(data){
   state.selectedNavPoint = null;
   state.selectedPath = null;
   state.selectedArea = null;
+  state.relations = Array.isArray(data.relations) ? data.relations : [];
+  state.relSelection = [];
   for(const layer of state.layers){ normalizeCurvePairs(layer); normalizeAreaRects(layer); }
-  renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel();
+  pruneInvalidRelations();
+  renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderRelPanel();
   if(!state.fitted){ fitView(); state.fitted=true; }
   requestDraw();
 }
