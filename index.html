@@ -119,7 +119,13 @@
     font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em;
     color:var(--ink-dim); margin:0 0 8px;
     display:flex; align-items:center; justify-content:space-between;
+    cursor:pointer; user-select:none;
   }
+  .section-title .chev{font-size:10px; opacity:0.55; transition:transform 0.15s; flex:0 0 auto;}
+  .section.collapsed{padding-bottom:12px;}
+  .section.collapsed > .section-title{margin-bottom:0;}
+  .section.collapsed > .section-title .chev{transform:rotate(-90deg);}
+  .section.collapsed > *:not(.section-title){display:none !important;}
 
   /* ---------- layers list ---------- */
   #layersList{display:flex; flex-direction:column; gap:3px; max-height:220px; overflow-y:auto;}
@@ -192,6 +198,8 @@
   }
   .shape-btn.active{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
 
+  .dim-label{width:20px; text-align:center; flex:0 0 auto; color:var(--ink-dim); font-size:13px;}
+
   kbd{
     font-family:ui-monospace,monospace; font-size:10.5px; background:var(--panel-2);
     border:1px solid var(--line); border-bottom-width:2px; border-radius:3px; padding:0 4px;
@@ -234,10 +242,21 @@
     font-size:11.5px; padding:4px 9px; border-radius:5px; border:1px solid rgba(255,255,255,0.5);
     background:rgba(255,255,255,0.15); color:inherit; cursor:pointer;
   }
+  .dim-inline-input{
+    position:absolute; z-index:9; width:88px; text-align:center; font-size:13px;
+    padding:4px 6px; border-radius:5px; border:1.5px solid #3fd0ff; background:#0a0e0c; color:#eaf6ff;
+    transform:translate(-50%,-50%); box-shadow:0 2px 10px rgba(0,0,0,0.4);
+  }
+  .dim-inline-input:focus{outline:none; box-shadow:0 0 0 3px rgba(63,208,255,0.35);}
+  .dim-inline-hint{
+    position:absolute; z-index:9; font-size:10.5px; color:#dfe7e2;
+    background:rgba(10,14,12,0.75); padding:3px 7px; border-radius:5px; pointer-events:none; white-space:nowrap;
+    transform:translate(-50%,0);
+  }
 
   /* ---------- print ---------- */
   @media print{
-    header, aside, .hud, .scalebar, .tool-status, .no-layer-banner, .restore-banner{display:none !important;}
+    header, aside, .hud, .scalebar, .tool-status, .no-layer-banner, .restore-banner, .dim-inline-input, .dim-inline-hint{display:none !important;}
     body, .layout, main{position:static; height:auto; overflow:visible;}
     main{position:fixed; inset:0;}
     canvas{width:100%; height:100%;}
@@ -268,13 +287,13 @@
   <aside>
 
     <div class="section">
-      <div class="section-title">Layers <span id="layerCount" class="mono"></span></div>
+      <div class="section-title" data-key="layers"><span>Layers <span id="layerCount" class="mono"></span></span><span class="chev">▾</span></div>
       <div id="layersList"></div>
       <div class="empty-hint" id="emptyHint">No layers yet. Click <b>+ Add Layer(s)</b> to load one or more .smap files — each becomes its own layer you can move, rotate, and edit independently.</div>
     </div>
 
     <div class="section" id="detailSection" hidden>
-      <div class="section-title">Selected layer</div>
+      <div class="section-title" data-key="detail"><span>Selected layer</span><span class="chev">▾</span></div>
       <div class="stat-line"><span>Source</span><b id="detFile" class="mono"></b></div>
       <div class="stat-line"><span>Scan pts</span><b id="detPoints" class="mono"></b></div>
       <div class="stat-line"><span>RSSI pts</span><b id="detRssi" class="mono"></b></div>
@@ -289,7 +308,7 @@
     </div>
 
     <div class="section">
-      <div class="section-title">Tools</div>
+      <div class="section-title" data-key="tools"><span>Tools</span><span class="chev">▾</span></div>
       <div class="tool-grid">
         <button class="tool-btn" data-tool="pan" title="Pan (H, or hold Space)"><span class="glyph">✋</span>Pan</button>
         <button class="tool-btn" data-tool="move" title="Move layer (V)"><span class="glyph">✛</span>Move</button>
@@ -302,6 +321,7 @@
         <button class="tool-btn" data-tool="nav" title="Add / move nav points, drag curve handles, edit paths (N)"><span class="glyph">📍</span>Nav Pts</button>
         <button class="tool-btn" data-tool="area" title="Draw / reshape / rotate reflector areas (A)"><span class="glyph">⬠</span>Area</button>
         <button class="tool-btn" data-tool="align" title="Draw a line, then align the layer's axis to it (G)"><span class="glyph">↔</span>Align</button>
+        <button class="tool-btn" data-tool="dist" title="Pin a horizontal/vertical distance between an area edge or nav point and a reference (D)"><span class="glyph">📐</span>Distance</button>
       </div>
 
       <div class="tool-options" id="opts-erase" hidden>
@@ -353,20 +373,43 @@
         <button class="btn primary" id="btnAlignConfirm" style="width:100%; margin-top:8px;" disabled>Confirm</button>
         <button class="btn" id="btnAlignClear" style="width:100%; margin-top:6px;">Clear line</button>
       </div>
+      <div class="tool-options" id="opts-dist" hidden>
+        <div class="row">
+          <span style="width:52px;">Axis</span>
+          <div class="shape-toggle">
+            <button type="button" class="shape-btn active" id="distAxisH" title="Horizontal distance (dx) — used when the first click is a nav point">↔ dx</button>
+            <button type="button" class="shape-btn" id="distAxisV" title="Vertical distance (dy) — used when the first click is a nav point">↕ dy</button>
+          </div>
+        </div>
+        <div class="tool-hint" id="distHint" style="margin-top:8px;">Click an area edge, a nav point, or a reflector to pin it. Then click a nav point, reflector, scan point, or parallel edge to reference. Esc cancels.</div>
+      </div>
     </div>
 
     <div class="section" id="navPointSection" hidden>
-      <div class="section-title">Selected nav point</div>
+      <div class="section-title" data-key="navpoint"><span>Selected nav point</span><span class="chev">▾</span></div>
       <div class="field-row"><label for="navPtName">Name</label><input type="text" id="navPtName" class="mono"></div>
       <div class="field-row"><label for="navX">X (m)</label><input type="number" id="navX" step="0.01"></div>
       <div class="field-row"><label for="navY">Y (m)</label><input type="number" id="navY" step="0.01"></div>
       <label class="check-inline" style="margin-bottom:6px;"><input type="checkbox" id="navHasDir"> Has orientation</label>
       <div class="field-row"><label for="navRot">Rot (°)</label><input type="number" id="navRot" step="0.5"></div>
       <button class="btn danger" id="btnDeleteNavPoint" style="width:100%;">Delete nav point</button>
+
+      <div class="label-sub" style="margin-top:10px;">Distance constraints</div>
+      <div id="navPtDimHint" class="tool-hint" style="margin-top:0;">Use the Distance tool (D) to pin this point's X or Y position.</div>
+      <div id="navPtDimX" hidden>
+        <div class="stat-line"><span>X pinned to</span><b id="navPtDimXAnchor" class="mono"></b></div>
+        <div class="field-row"><label for="navPtDimXOffset">dx</label><input type="number" id="navPtDimXOffset" step="0.01"></div>
+        <button class="btn" id="btnNavPtUnpinX" style="width:100%; margin-bottom:8px;">Unpin X</button>
+      </div>
+      <div id="navPtDimY" hidden>
+        <div class="stat-line"><span>Y pinned to</span><b id="navPtDimYAnchor" class="mono"></b></div>
+        <div class="field-row"><label for="navPtDimYOffset">dy</label><input type="number" id="navPtDimYOffset" step="0.01"></div>
+        <button class="btn" id="btnNavPtUnpinY" style="width:100%;">Unpin Y</button>
+      </div>
     </div>
 
     <div class="section" id="pathSection" hidden>
-      <div class="section-title">Selected path</div>
+      <div class="section-title" data-key="path"><span>Selected path</span><span class="chev">▾</span></div>
       <div class="stat-line"><span>Name</span><b id="pathName" class="mono"></b></div>
       <div class="label-sub">Forward <span id="pathFwdLabel" class="mono"></span></div>
       <div class="field-row"><label for="pathFwdDirection">Direction</label>
@@ -391,23 +434,54 @@
     </div>
 
     <div class="section" id="areaSection" hidden>
-      <div class="section-title">Selected area</div>
+      <div class="section-title" data-key="area"><span>Selected area</span><span class="chev">▾</span></div>
       <div class="stat-line"><span>Group</span><b id="areaGroupLabel" class="mono"></b></div>
       <div class="stat-line"><span>Rectangles</span><b id="areaCount" class="mono"></b></div>
+      <div class="field-row"><label for="areaName">Name</label><input type="text" id="areaName" class="mono"></div>
+      <div class="field-row">
+        <span class="dim-label">↔</span>
+        <input type="number" id="areaWidth" step="0.01">
+        <span id="areaWidthDerived" class="mono" hidden></span>
+      </div>
+      <div class="field-row">
+        <span class="dim-label">↕</span>
+        <input type="number" id="areaHeight" step="0.01">
+        <span id="areaHeightDerived" class="mono" hidden></span>
+      </div>
+      <div class="field-row">
+        <label for="areaColorStroke">Colors</label>
+        <input type="color" id="areaColorStroke" class="layer-color-input" title="Outline color">
+        <input type="color" id="areaColorFill" class="layer-color-input" title="Fill color">
+      </div>
+      <div class="field-row" style="align-items:flex-start;">
+        <label for="areaDesc" style="margin-top:5px;">Desc.</label>
+        <textarea id="areaDesc" rows="2" style="flex:1; resize:vertical; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px; font-family:inherit;"></textarea>
+      </div>
       <div class="field-row"><label for="areaMergeSelect">Merge into</label>
         <select id="areaMergeSelect" style="flex:1; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;"></select>
       </div>
       <button class="btn" id="btnAreaMerge" style="width:100%; margin-bottom:8px;">Merge</button>
       <button class="btn danger" id="btnDeleteArea" style="width:100%;">Delete area</button>
-      <div class="tool-hint" style="margin-top:8px;">Drag inside a rectangle to move the whole area. Drag a corner to resize (stays a rectangle). Drag the small handle off a corner to rotate. Drag on empty space to draw a new rectangle.</div>
+
+      <div class="label-sub" style="margin-top:10px;">Selected edge <span id="areaEdgeName" class="mono"></span></div>
+      <div id="areaEdgeNone" class="tool-hint" style="margin-top:0;">Click an edge, then use the Distance tool (D) to pin it to a point or another edge.</div>
+      <div id="areaEdgeConstrained" hidden>
+        <div class="stat-line"><span>Pinned to</span><b id="areaEdgeAnchorLabel" class="mono"></b></div>
+        <div class="field-row"><label id="areaEdgeOffsetLabel" for="areaEdgeOffset">dx</label><input type="number" id="areaEdgeOffset" step="0.01"></div>
+        <button class="btn" id="btnAreaEdgeUnpin" style="width:100%;">Unpin</button>
+      </div>
+      <div id="areaEdgeMsg" class="tool-hint" hidden style="margin-top:6px; color:var(--danger);"></div>
+
+      <div class="tool-hint" style="margin-top:8px;">Drag inside a rectangle to move it. Drag a corner to resize. Drag the handle off a corner to rotate. Drag on empty space to draw a new rectangle. A pinned edge can't be resized or rotated freely — unpin first.</div>
     </div>
 
     <div class="section">
-      <div class="section-title">Show</div>
+      <div class="section-title" data-key="show"><span>Show</span><span class="chev">▾</span></div>
       <label class="legend-row check"><input type="checkbox" id="showScan" checked><span class="legend-swatch" style="background:#7fe9c9;"></span>Scan points</label>
       <label class="legend-row check"><input type="checkbox" id="showRssi" checked><span class="legend-swatch sq" style="background:#f2c14e;"></span>RSSI samples</label>
       <label class="legend-row check"><input type="checkbox" id="showReflector" checked><span class="legend-swatch" style="background:#ff6a4a;"></span>Reflectors</label>
       <label class="legend-row check"><input type="checkbox" id="showAreas" checked><span class="legend-swatch sq" style="background:#ff5500;"></span>Reflector areas</label>
+      <label class="legend-row check"><input type="checkbox" id="showAreaDims" checked><span class="legend-swatch sq" style="background:#ffb347;"></span>Area dimensions</label>
       <label class="legend-row check"><input type="checkbox" id="showExtra" checked><span class="legend-swatch sq" style="background:#9aa39d;"></span>Walls</label>
       <label class="legend-row check"><input type="checkbox" id="showNav" checked><span class="legend-swatch" style="background:#7c6cff;"></span>Nav points / paths</label>
       <label class="legend-row check" style="margin-top:6px;"><input type="checkbox" id="colorizeLayers"><span class="legend-swatch sq" style="background:linear-gradient(90deg,#7fe9c9,#f2c14e,#7ea6ff);"></span>Colorize layers</label>
@@ -417,11 +491,12 @@
     </div>
 
     <div class="section" style="border-bottom:none;">
-      <div class="section-title">Shortcuts</div>
+      <div class="section-title" data-key="shortcuts"><span>Shortcuts</span><span class="chev">▾</span></div>
       <div style="font-size:11px; color:var(--ink-dim); line-height:1.7;">
         <kbd>H</kbd> pan &nbsp; <kbd>V</kbd> move &nbsp; <kbd>R</kbd> rotate<br>
         <kbd>E</kbd> erase &nbsp; <kbd>L</kbd> draw &nbsp; <kbd>K</kbd> reflector<br>
         <kbd>S</kbd> select &nbsp; <kbd>M</kbd> ruler &nbsp; <kbd>N</kbd> nav pts &nbsp; <kbd>A</kbd> area<br>
+        <kbd>G</kbd> align &nbsp; <kbd>D</kbd> distance &nbsp; <kbd>F</kbd> fit view<br>
         <kbd>Esc</kbd> clear ruler<br>
         <kbd>Space</kbd> hold to pan &nbsp; <kbd>Ctrl+Z</kbd> undo edit
       </div>
@@ -438,6 +513,8 @@
       <span id="scalebarLabel">– m</span>
     </div>
     <div class="no-layer-banner" id="noLayerBanner" hidden>No layer selected — this tool needs an active layer</div>
+    <input type="number" id="dimInlineInput" class="dim-inline-input mono" step="0.01" hidden>
+    <div class="dim-inline-hint" id="dimInlineHint" hidden>Enter to set &nbsp; clear + Enter to unpin &nbsp; Esc to cancel</div>
     <div class="restore-banner" id="restoreBanner" hidden>
       <span id="restoreText"></span>
       <button id="btnRestoreYes">Restore</button>
@@ -468,7 +545,7 @@ const state = {
   eraseRadius: 0.5,
   eraseShape: 'circle',
   eraseTargets: { scan:true, rssi:true, extra:true },
-  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true },
+  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true, areaDims:true },
   showOrigin: false,
   uniformLayerColor: true,
   mouse: null,
@@ -493,7 +570,16 @@ const state = {
   areaAction: null,
   hoverAreaVertex: null,
   hoverAreaRotate: -1,
+  hoverAreaEdge: null,
   newAreaRect: null,
+  selectedAreaEdge: null,
+  dimInlineEdit: null,
+  dimLabelHitboxes: [],
+  distAxis: 'x',
+  distTarget: null,
+  distHoverTarget: null,
+  distPickHover: null,
+  dimDrag: null,
   alignLine: null,
   alignAxis: 'x',
   draggingAlignHandle: null,
@@ -728,17 +814,23 @@ function renderDetailPanel(){
   fX.disabled = fY.disabled = fRot.disabled = btnResetTransform.disabled = !layer.visible;
 }
 
+let transformFieldsUndoPushed = false;
 function applyTransformFields(){
   const layer = getEditableActiveLayer();
   if(!layer) return;
+  if(!transformFieldsUndoPushed){ pushUndo(layer); transformFieldsUndoPushed = true; }
   const tx = parseFloat(fX.value)||0, ty = parseFloat(fY.value)||0, rotDeg = parseFloat(fRot.value)||0;
   layer.transform.tx = tx; layer.transform.ty = ty; layer.transform.rot = rotDeg*Math.PI/180;
   scheduleAutosave(); requestDraw();
 }
-[fX,fY,fRot].forEach(el=>el.addEventListener('input', applyTransformFields));
+[fX,fY,fRot].forEach(el=>{
+  el.addEventListener('focus', ()=>{ transformFieldsUndoPushed = false; });
+  el.addEventListener('input', applyTransformFields);
+});
 
 btnResetTransform.addEventListener('click', ()=>{
   const layer = getEditableActiveLayer(); if(!layer) return;
+  pushUndo(layer);
   layer.transform = {tx:0, ty:0, rot:0};
   renderDetailPanel(); scheduleAutosave(); requestDraw();
 });
@@ -773,6 +865,28 @@ function renameNavPoint(layer, oldName, newName){
       }
     }
   }
+  for(const otherLayer of state.layers){
+    const areas = otherLayer.extra && otherLayer.extra.advancedAreaList;
+    if(Array.isArray(areas)){
+      for(const area of areas){
+        if(!area.__edgeConstraints) continue;
+        for(const ek of Object.keys(area.__edgeConstraints)){
+          const c = area.__edgeConstraints[ek];
+          if(c.anchorKind==='navPoint' && c.anchorLayerId===layer.id && c.anchorName===oldName) c.anchorName = newName;
+        }
+      }
+    }
+    const otherPts = otherLayer.extra && otherLayer.extra.advancedPointList;
+    if(Array.isArray(otherPts)){
+      for(const otherPt of otherPts){
+        if(!otherPt.__ptConstraints) continue;
+        for(const axis of Object.keys(otherPt.__ptConstraints)){
+          const c = otherPt.__ptConstraints[axis];
+          if(c.anchorKind==='navPoint' && c.anchorLayerId===layer.id && c.anchorName===oldName) c.anchorName = newName;
+        }
+      }
+    }
+  }
   return true;
 }
 
@@ -794,6 +908,28 @@ function renderNavPointPanel(){
   const disabled = !layer.visible;
   navPtName.disabled = navX.disabled = navY.disabled = navHasDir.disabled = btnDeleteNavPoint.disabled = disabled;
   navRot.disabled = disabled || !hasDir;
+  renderNavPointDimPanel(layer, pt);
+}
+
+function renderNavPointDimPanel(layer, pt){
+  const hintEl = document.getElementById('navPtDimHint');
+  const xEl = document.getElementById('navPtDimX');
+  const yEl = document.getElementById('navPtDimY');
+  const cx = pt.__ptConstraints && pt.__ptConstraints.x;
+  const cy = pt.__ptConstraints && pt.__ptConstraints.y;
+  hintEl.hidden = !!(cx || cy);
+  xEl.hidden = !cx;
+  yEl.hidden = !cy;
+  if(cx){
+    document.getElementById('navPtDimXAnchor').textContent = formatEdgeAnchorLabel(cx);
+    const input = document.getElementById('navPtDimXOffset');
+    if(document.activeElement !== input) input.value = Math.abs(cx.offset).toFixed(2);
+  }
+  if(cy){
+    document.getElementById('navPtDimYAnchor').textContent = formatEdgeAnchorLabel(cy);
+    const input = document.getElementById('navPtDimYOffset');
+    if(document.activeElement !== input) input.value = Math.abs(cy.offset).toFixed(2);
+  }
 }
 
 navHasDir.addEventListener('change', ()=>{
@@ -829,10 +965,12 @@ navPtName.addEventListener('change', ()=>{
 });
 navPtName.addEventListener('keydown', e=>{ if(e.key==='Enter') navPtName.blur(); });
 
+let navFieldsUndoPushed = false;
 function applyNavPointFields(){
   const sel = getSelectedNavPoint();
   if(!sel || !sel.layer.visible) return;
   const {layer, pt} = sel;
+  if(!navFieldsUndoPushed){ pushUndo(layer); navFieldsUndoPushed = true; }
   const wx = parseFloat(navX.value)||0, wy = parseFloat(navY.value)||0;
   const [lx, ly] = worldToLayer(layer, wx, wy);
   pt.pos.x = round3(lx); pt.pos.y = round3(ly);
@@ -843,7 +981,10 @@ function applyNavPointFields(){
   syncCurvesForPoint(layer, pt.instanceName);
   scheduleAutosave(); requestDraw();
 }
-[navX,navY,navRot].forEach(el=>el.addEventListener('input', applyNavPointFields));
+[navX,navY,navRot].forEach(el=>{
+  el.addEventListener('focus', ()=>{ navFieldsUndoPushed = false; });
+  el.addEventListener('input', applyNavPointFields);
+});
 
 btnDeleteNavPoint.addEventListener('click', ()=>{
   const sel = getSelectedNavPoint();
@@ -856,6 +997,36 @@ btnDeleteNavPoint.addEventListener('click', ()=>{
   renderPathPanel();
   scheduleAutosave(); requestDraw();
 });
+
+function unpinNavPointAxis(axis){
+  const sel = getSelectedNavPoint();
+  if(!sel || !sel.layer.visible) return;
+  const {layer, pt} = sel;
+  if(!pt.__ptConstraints || !pt.__ptConstraints[axis]) return;
+  pushUndo(layer);
+  delete pt.__ptConstraints[axis];
+  if(Object.keys(pt.__ptConstraints).length===0) delete pt.__ptConstraints;
+  renderNavPointPanel();
+  scheduleAutosave(); requestDraw();
+}
+document.getElementById('btnNavPtUnpinX').addEventListener('click', ()=>unpinNavPointAxis('x'));
+document.getElementById('btnNavPtUnpinY').addEventListener('click', ()=>unpinNavPointAxis('y'));
+
+function editNavPointDimOffset(axis, value){
+  const sel = getSelectedNavPoint();
+  if(!sel || !sel.layer.visible) return;
+  const {layer, pt} = sel;
+  const constraint = pt.__ptConstraints && pt.__ptConstraints[axis];
+  if(!constraint) return;
+  const v = parseFloat(value);
+  if(isNaN(v)) { renderNavPointPanel(); return; }
+  pushUndo(layer);
+  applyPositiveOffsetInput(constraint, v);
+  resolveAllConstraints();
+  scheduleAutosave(); requestDraw(); renderNavPointPanel();
+}
+document.getElementById('navPtDimXOffset').addEventListener('change', e=>editNavPointDimOffset('x', e.target.value));
+document.getElementById('navPtDimYOffset').addEventListener('change', e=>editNavPointDimOffset('y', e.target.value));
 
 function getIntProperty(item, key, fallback){
   const prop = (item.property||[]).find(p=>p.key===key);
@@ -1007,11 +1178,101 @@ function getSelectedAreaGroup(){
   return members.length ? {layer, members} : null;
 }
 
+function applyPositiveOffsetInput(constraint, v){
+  if(isNaN(v)) return false;
+  const sign = constraint.offset < 0 ? -1 : 1;
+  constraint.offset = sign * Math.abs(v);
+  return true;
+}
+
+function formatEdgeAnchorLabel(constraint){
+  if(!constraint) return '';
+  if(constraint.anchorKind==='navPoint') return 'Point '+constraint.anchorName;
+  if(constraint.anchorKind==='reflector') return 'Reflector #'+(constraint.anchorReflectorIndex+1);
+  if(constraint.anchorKind==='edge'){
+    const found = getAreaByRef({layerId:constraint.anchorLayerId, areaIndex:constraint.anchorAreaIndex});
+    const name = found ? found.area.instanceName : '?';
+    return 'Area '+name+' ('+constraint.anchorEdgeKey+')';
+  }
+  if(constraint.anchorKind==='scanPoint') return 'Scan point';
+  return '';
+}
+
+function setRectWidthHeight(area, newW, newH){
+  const rect = rectFromPosGroup(area.posGroup);
+  const constraints = area.__edgeConstraints || {};
+  let {cx, cy, w, h, rot} = rect;
+  if(newW!=null && newW>0.02 && !(constraints.W && constraints.E)){
+    if(constraints.W){ const boundW = cx-w/2; cx = boundW+newW/2; w = newW; }
+    else if(constraints.E){ const boundE = cx+w/2; cx = boundE-newW/2; w = newW; }
+    else { w = newW; }
+  }
+  if(newH!=null && newH>0.02 && !(constraints.S && constraints.N)){
+    if(constraints.S){ const boundS = cy-h/2; cy = boundS+newH/2; h = newH; }
+    else if(constraints.N){ const boundN = cy+h/2; cy = boundN-newH/2; h = newH; }
+    else { h = newH; }
+  }
+  area.posGroup = posGroupFromRect(cx, cy, w, h, rot);
+}
+
+function renderAreaWidthHeight(layer, area){
+  const rect = rectFromPosGroup(area.posGroup);
+  const constraints = area.__edgeConstraints || {};
+  const wInput = document.getElementById('areaWidth'), wDerived = document.getElementById('areaWidthDerived');
+  const hInput = document.getElementById('areaHeight'), hDerived = document.getElementById('areaHeightDerived');
+  const wDerivedFlag = !!(constraints.W && constraints.E);
+  const hDerivedFlag = !!(constraints.S && constraints.N);
+  wInput.hidden = wDerivedFlag; wDerived.hidden = !wDerivedFlag;
+  hInput.hidden = hDerivedFlag; hDerived.hidden = !hDerivedFlag;
+  if(wDerivedFlag) wDerived.textContent = '('+rect.w.toFixed(2)+' m)';
+  else if(document.activeElement !== wInput) wInput.value = rect.w.toFixed(2);
+  if(hDerivedFlag) hDerived.textContent = '('+rect.h.toFixed(2)+' m)';
+  else if(document.activeElement !== hInput) hInput.value = rect.h.toFixed(2);
+}
+
+function renderAreaEdgePanel(layer, area){
+  const areaEdgeNoneEl = document.getElementById('areaEdgeNone');
+  const areaEdgeConstrainedEl = document.getElementById('areaEdgeConstrained');
+  const areaEdgeMsgEl = document.getElementById('areaEdgeMsg');
+  const areaEdgeNameEl = document.getElementById('areaEdgeName');
+  const sel = (state.selectedAreaEdge && state.selectedAreaEdge.layerId===layer.id && state.selectedAreaEdge.areaIndex===state.selectedArea.areaIndex) ? state.selectedAreaEdge : null;
+  if(!sel){
+    areaEdgeNameEl.textContent = '';
+    areaEdgeNoneEl.hidden = false;
+    areaEdgeConstrainedEl.hidden = true;
+    areaEdgeMsgEl.hidden = true;
+    return;
+  }
+  areaEdgeNameEl.textContent = sel.edgeKey;
+  const constraint = area.__edgeConstraints && area.__edgeConstraints[sel.edgeKey];
+  if(constraint){
+    areaEdgeNoneEl.hidden = true;
+    areaEdgeConstrainedEl.hidden = false;
+    areaEdgeMsgEl.hidden = true;
+    document.getElementById('areaEdgeAnchorLabel').textContent = formatEdgeAnchorLabel(constraint);
+    document.getElementById('areaEdgeOffsetLabel').textContent = constraint.axis==='x' ? 'dx' : 'dy';
+    const offsetInput = document.getElementById('areaEdgeOffset');
+    if(document.activeElement !== offsetInput) offsetInput.value = Math.abs(constraint.offset).toFixed(2);
+  } else {
+    areaEdgeConstrainedEl.hidden = true;
+    const rect = rectFromPosGroup(area.posGroup);
+    const det = detectEdgeAxis(layer, rect, sel.edgeKey);
+    if(!det){
+      areaEdgeNoneEl.hidden = true;
+      areaEdgeMsgEl.hidden = false; areaEdgeMsgEl.style.color = 'var(--danger)';
+      areaEdgeMsgEl.textContent = "This edge isn't aligned to world X/Y — rotate to a 90° step first.";
+    } else {
+      areaEdgeNoneEl.hidden = false;
+      areaEdgeMsgEl.hidden = true;
+    }
+  }
+}
+
 function renderAreaPanel(){
   const sel = getSelectedAreaGroup();
   const visible = sel && state.tool==='area';
   areaSection.hidden = !visible;
-  if(!sel){ state.selectedArea = null; return; }
+  if(!sel){ state.selectedArea = null; state.selectedAreaEdge = null; return; }
   if(!visible) return;
   const {layer, members} = sel;
   areaGroupLabel.textContent = members.map(a=>a.instanceName).join(', ');
@@ -1027,7 +1288,68 @@ function renderAreaPanel(){
   const disabled = !layer.visible;
   areaMergeSelect.disabled = btnAreaMerge.disabled = allGroups.length===0 || disabled;
   btnDeleteArea.disabled = disabled;
+
+  const primaryArea = (state.selectedArea.areaIndex!=null) ? layer.extra.advancedAreaList[state.selectedArea.areaIndex] : null;
+  if(primaryArea){
+    renderAreaWidthHeight(layer, primaryArea);
+    renderAreaEdgePanel(layer, primaryArea);
+    renderAreaMeta(primaryArea);
+  }
 }
+
+function renderAreaMeta(area){
+  const nameInput = document.getElementById('areaName');
+  const descInput = document.getElementById('areaDesc');
+  const strokeInput = document.getElementById('areaColorStroke');
+  const fillInput = document.getElementById('areaColorFill');
+  const attr = area.attribute || {};
+  if(document.activeElement !== nameInput) nameInput.value = area.instanceName || '';
+  if(document.activeElement !== descInput) descInput.value = area.desc ? b64DecodeUtf8(area.desc) : '';
+  if(document.activeElement !== strokeInput) strokeInput.value = decodeQColorHex(attr.colorPen, '#ff5500');
+  if(document.activeElement !== fillInput) fillInput.value = decodeQColorHex(attr.colorBrush, '#ff5500');
+}
+
+function getPrimarySelectedArea(){
+  if(!state.selectedArea || state.selectedArea.areaIndex==null) return null;
+  const layer = getLayer(state.selectedArea.layerId);
+  const area = layer && layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[state.selectedArea.areaIndex];
+  return area ? {layer, area} : null;
+}
+
+document.getElementById('areaName').addEventListener('change', (e)=>{
+  const found = getPrimarySelectedArea();
+  if(!found) return;
+  const v = e.target.value.trim();
+  if(!v){ renderAreaPanel(); return; }
+  pushUndo(found.layer);
+  found.area.instanceName = v;
+  scheduleAutosave(); renderAreaPanel();
+});
+document.getElementById('areaName').addEventListener('keydown', e=>{ if(e.key==='Enter') e.target.blur(); });
+
+document.getElementById('areaDesc').addEventListener('change', (e)=>{
+  const found = getPrimarySelectedArea();
+  if(!found) return;
+  pushUndo(found.layer);
+  const v = e.target.value;
+  if(v) found.area.desc = b64EncodeUtf8(v); else delete found.area.desc;
+  scheduleAutosave();
+});
+
+document.getElementById('areaColorStroke').addEventListener('input', (e)=>{
+  const found = getPrimarySelectedArea();
+  if(!found) return;
+  if(!found.area.attribute) found.area.attribute = {};
+  found.area.attribute.colorPen = encodeQColorRGB(found.area.attribute.colorPen, e.target.value);
+  scheduleAutosave(); requestDraw();
+});
+document.getElementById('areaColorFill').addEventListener('input', (e)=>{
+  const found = getPrimarySelectedArea();
+  if(!found) return;
+  if(!found.area.attribute) found.area.attribute = {};
+  found.area.attribute.colorBrush = encodeQColorRGB(found.area.attribute.colorBrush, e.target.value);
+  scheduleAutosave(); requestDraw();
+});
 
 btnAreaMerge.addEventListener('click', ()=>{
   const sel = getSelectedAreaGroup();
@@ -1040,14 +1362,138 @@ btnAreaMerge.addEventListener('click', ()=>{
   renderAreaPanel();
   scheduleAutosave(); requestDraw();
 });
+function removeAreasWithIndexFix(layer, predicate){
+  const list = layer.extra.advancedAreaList;
+  const removedIndices = [];
+  const kept = [];
+  list.forEach((a, i)=>{ if(predicate(a)) removedIndices.push(i); else kept.push(a); });
+  layer.extra.advancedAreaList = kept;
+  if(removedIndices.length){
+    for(const otherLayer of state.layers){
+      const otherList = otherLayer.extra && otherLayer.extra.advancedAreaList;
+      if(!Array.isArray(otherList)) continue;
+      for(const other of otherList){
+        if(!other.__edgeConstraints) continue;
+        for(const ek of Object.keys(other.__edgeConstraints)){
+          const c = other.__edgeConstraints[ek];
+          if(c.anchorKind==='edge' && c.anchorLayerId===layer.id){
+            if(removedIndices.includes(c.anchorAreaIndex)) delete other.__edgeConstraints[ek];
+            else c.anchorAreaIndex -= removedIndices.filter(ri=>ri<c.anchorAreaIndex).length;
+          }
+        }
+        if(Object.keys(other.__edgeConstraints).length===0) delete other.__edgeConstraints;
+      }
+    }
+  }
+  return removedIndices;
+}
+
+function forEachConstraint(fn){
+  for(const layer of state.layers){
+    const areas = layer.extra && layer.extra.advancedAreaList;
+    if(Array.isArray(areas)){
+      for(const area of areas){
+        if(!area.__edgeConstraints) continue;
+        for(const ek of Object.keys(area.__edgeConstraints)){
+          fn(area.__edgeConstraints[ek], ()=>{ delete area.__edgeConstraints[ek]; if(Object.keys(area.__edgeConstraints).length===0) delete area.__edgeConstraints; });
+        }
+      }
+    }
+    const pts = layer.extra && layer.extra.advancedPointList;
+    if(Array.isArray(pts)){
+      for(const pt of pts){
+        if(!pt.__ptConstraints) continue;
+        for(const axis of Object.keys(pt.__ptConstraints)){
+          fn(pt.__ptConstraints[axis], ()=>{ delete pt.__ptConstraints[axis]; if(Object.keys(pt.__ptConstraints).length===0) delete pt.__ptConstraints; });
+        }
+      }
+    }
+    for(const r of layer.reflectors){
+      if(!r.__ptConstraints) continue;
+      for(const axis of Object.keys(r.__ptConstraints)){
+        fn(r.__ptConstraints[axis], ()=>{ delete r.__ptConstraints[axis]; if(Object.keys(r.__ptConstraints).length===0) delete r.__ptConstraints; });
+      }
+    }
+  }
+}
+
+function removeReflectorsWithIndexFix(layer, predicate){
+  const removedIndices = [];
+  const kept = [];
+  layer.reflectors.forEach((r,i)=>{ if(predicate(r,i)) removedIndices.push(i); else kept.push(r); });
+  layer.reflectors = kept;
+  if(removedIndices.length){
+    forEachConstraint((constraint, removeSelf)=>{
+      if(constraint.anchorKind==='reflector' && constraint.anchorLayerId===layer.id){
+        if(removedIndices.includes(constraint.anchorReflectorIndex)) removeSelf();
+        else constraint.anchorReflectorIndex -= removedIndices.filter(ri=>ri<constraint.anchorReflectorIndex).length;
+      }
+    });
+  }
+  return removedIndices;
+}
+
 btnDeleteArea.addEventListener('click', ()=>{
   const sel = getSelectedAreaGroup();
   if(!sel || !sel.layer.visible) return;
   pushUndo(sel.layer);
-  sel.layer.extra.advancedAreaList = sel.layer.extra.advancedAreaList.filter(a=>a.__group!==state.selectedArea.groupId);
+  removeAreasWithIndexFix(sel.layer, a=>a.__group===state.selectedArea.groupId);
   state.selectedArea = null;
+  state.selectedAreaEdge = null;
+  resolveAllConstraints();
   renderAreaPanel();
   scheduleAutosave(); requestDraw();
+});
+
+document.getElementById('areaWidth').addEventListener('change', (e)=>{
+  const layer = state.selectedArea && getLayer(state.selectedArea.layerId);
+  const area = layer && state.selectedArea.areaIndex!=null ? layer.extra.advancedAreaList[state.selectedArea.areaIndex] : null;
+  if(!layer || !area || !layer.visible) return;
+  const v = parseFloat(e.target.value);
+  if(isNaN(v) || v<=0.02) { renderAreaPanel(); return; }
+  pushUndo(layer);
+  setRectWidthHeight(area, v, null);
+  resolveAllConstraints();
+  scheduleAutosave(); requestDraw(); renderAreaPanel();
+});
+document.getElementById('areaHeight').addEventListener('change', (e)=>{
+  const layer = state.selectedArea && getLayer(state.selectedArea.layerId);
+  const area = layer && state.selectedArea.areaIndex!=null ? layer.extra.advancedAreaList[state.selectedArea.areaIndex] : null;
+  if(!layer || !area || !layer.visible) return;
+  const v = parseFloat(e.target.value);
+  if(isNaN(v) || v<=0.02) { renderAreaPanel(); return; }
+  pushUndo(layer);
+  setRectWidthHeight(area, null, v);
+  resolveAllConstraints();
+  scheduleAutosave(); requestDraw(); renderAreaPanel();
+});
+
+document.getElementById('btnAreaEdgeUnpin').addEventListener('click', ()=>{
+  const sel = state.selectedAreaEdge;
+  if(!sel) return;
+  const layer = getLayer(sel.layerId);
+  const area = layer && layer.extra.advancedAreaList[sel.areaIndex];
+  if(!area || !area.__edgeConstraints || !area.__edgeConstraints[sel.edgeKey]) return;
+  pushUndo(layer);
+  delete area.__edgeConstraints[sel.edgeKey];
+  if(Object.keys(area.__edgeConstraints).length===0) delete area.__edgeConstraints;
+  renderAreaPanel();
+  scheduleAutosave(); requestDraw();
+});
+
+document.getElementById('areaEdgeOffset').addEventListener('change', (e)=>{
+  const sel = state.selectedAreaEdge;
+  if(!sel) return;
+  const layer = getLayer(sel.layerId);
+  const area = layer && layer.extra.advancedAreaList[sel.areaIndex];
+  const constraint = area && area.__edgeConstraints && area.__edgeConstraints[sel.edgeKey];
+  if(!constraint) return;
+  const v = parseFloat(e.target.value);
+  if(isNaN(v)) { renderAreaPanel(); return; }
+  pushUndo(layer);
+  applyPositiveOffsetInput(constraint, v);
+  resolveAllConstraints();
+  scheduleAutosave(); requestDraw(); renderAreaPanel();
 });
 
 // ---------------- tools ----------------
@@ -1058,12 +1504,13 @@ const optsDraw = document.getElementById('opts-draw');
 const optsReflector = document.getElementById('opts-reflector');
 const optsSelect = document.getElementById('opts-select');
 const optsAlign = document.getElementById('opts-align');
+const optsDist = document.getElementById('opts-dist');
 const toolStatus = document.getElementById('toolStatus');
 const noLayerBanner = document.getElementById('noLayerBanner');
 const canvasEl = document.getElementById('canvas');
 
-const TOOL_LABELS = { pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', select:'Rectangle select', measure:'Ruler', nav:'Nav points', area:'Reflector area', align:'Align to line' };
-const TOOL_NEEDS_LAYER = { move:true, rotate:true, erase:true, draw:true, reflector:true, select:true, pan:false, measure:false, nav:true, area:true, align:true };
+const TOOL_LABELS = { pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', select:'Rectangle select', measure:'Ruler', nav:'Nav points', area:'Reflector area', align:'Align to line', dist:'Distance' };
+const TOOL_NEEDS_LAYER = { move:true, rotate:true, erase:true, draw:true, reflector:true, select:true, pan:false, measure:false, nav:true, area:true, align:true, dist:false };
 
 function updateToolStatus(){
   const tool = state.tool;
@@ -1079,6 +1526,12 @@ function updateToolStatus(){
 }
 
 function setTool(tool){
+  if(tool!=='area'){ state.selectedAreaEdge = null; }
+  if(tool!=='dist'){
+    state.distTarget = null; state.distHoverTarget = null; state.distPickHover = null;
+    if(state.dimInlineEdit) closeDimInlineEdit();
+  }
+  if(tool!=='area' && tool!=='dist'){ state.dimDrag = null; }
   state.tool = tool;
   toolButtons.forEach(b=>b.classList.toggle('active', b.dataset.tool===tool));
   optsErase.hidden = tool!=='erase';
@@ -1086,12 +1539,14 @@ function setTool(tool){
   optsReflector.hidden = tool!=='reflector';
   optsSelect.hidden = tool!=='select';
   optsAlign.hidden = tool!=='align';
+  optsDist.hidden = tool!=='dist';
   canvasEl.className = 'tool-'+tool;
   updateToolStatus();
   renderNavPointPanel();
   renderPathPanel();
   renderAreaPanel();
   renderAlignPanel();
+  updateDistHint();
   requestDraw();
 }
 toolButtons.forEach(b=>b.addEventListener('click', ()=>setTool(b.dataset.tool)));
@@ -1171,10 +1626,21 @@ function setAlignAxis(axis){
 }
 alignAxisXBtn.addEventListener('click', ()=>setAlignAxis('x'));
 alignAxisYBtn.addEventListener('click', ()=>setAlignAxis('y'));
+
+const distAxisHBtn = document.getElementById('distAxisH');
+const distAxisVBtn = document.getElementById('distAxisV');
+function setDistAxis(axis){
+  state.distAxis = axis;
+  distAxisHBtn.classList.toggle('active', axis==='x');
+  distAxisVBtn.classList.toggle('active', axis==='y');
+}
+distAxisHBtn.addEventListener('click', ()=>setDistAxis('x'));
+distAxisVBtn.addEventListener('click', ()=>setDistAxis('y'));
 btnAlignClear.addEventListener('click', ()=>{ state.alignLine = null; renderAlignPanel(); requestDraw(); });
 btnAlignConfirm.addEventListener('click', ()=>{
   const layer = getEditableActiveLayer();
   if(!layer || !state.alignLine) return;
+  pushUndo(layer);
   const {x1,y1,x2,y2} = state.alignLine;
   const angle = Math.atan2(y2-y1, x2-x1);
   const delta = angleDeltaToAxis(angle, state.alignAxis);
@@ -1187,6 +1653,7 @@ document.getElementById('showScan').addEventListener('change', e=>{ state.typeVi
 document.getElementById('showRssi').addEventListener('change', e=>{ state.typeVisibility.rssi = e.target.checked; requestDraw(); });
 document.getElementById('showReflector').addEventListener('change', e=>{ state.typeVisibility.reflector = e.target.checked; requestDraw(); });
 document.getElementById('showAreas').addEventListener('change', e=>{ state.typeVisibility.areas = e.target.checked; requestDraw(); });
+document.getElementById('showAreaDims').addEventListener('change', e=>{ state.typeVisibility.areaDims = e.target.checked; requestDraw(); });
 document.getElementById('showExtra').addEventListener('change', e=>{ state.typeVisibility.extra = e.target.checked; requestDraw(); });
 document.getElementById('showNav').addEventListener('change', e=>{ state.typeVisibility.nav = e.target.checked; requestDraw(); });
 const showOriginEl = document.getElementById('showOrigin');
@@ -1208,6 +1675,7 @@ function pushUndo(layer){
     reflectors: layer.reflectors.map(r=>({...r})),
     manualLines: layer.manualLines.map(l=>({...l})),
     extra: JSON.parse(JSON.stringify(layer.extra||{})),
+    transform: {...layer.transform},
   });
   if(state.undoStack.length>20) state.undoStack.shift();
 }
@@ -1218,6 +1686,7 @@ function undo(){
   if(!layer) return;
   layer.points = entry.points; layer.rssi = entry.rssi; layer.reflectors = entry.reflectors; layer.extra = entry.extra;
   layer.manualLines = entry.manualLines;
+  if(entry.transform) layer.transform = entry.transform;
   layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
   renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); scheduleAutosave(); requestDraw();
 }
@@ -1306,6 +1775,22 @@ function decodeQColor(intVal, alpha){
   const a = alpha!=null ? alpha : ((intVal>>>24)&0xff)/255;
   return 'rgba('+r+','+g+','+b+','+a.toFixed(3)+')';
 }
+function decodeQColorHex(intVal, fallbackHex){
+  if(typeof intVal !== 'number') return fallbackHex;
+  const r = (intVal>>>16)&0xff, g = (intVal>>>8)&0xff, b = intVal&0xff;
+  return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+function encodeQColorRGB(existingInt, hex){
+  const alpha = typeof existingInt==='number' ? (existingInt>>>24)&0xff : 255;
+  const r = parseInt(hex.slice(1,3),16)||0, g = parseInt(hex.slice(3,5),16)||0, b = parseInt(hex.slice(5,7),16)||0;
+  return ((alpha<<24)|(r<<16)|(g<<8)|b)>>>0;
+}
+function b64EncodeUtf8(str){
+  try{ return btoa(unescape(encodeURIComponent(str))); }catch(e){ return ''; }
+}
+function b64DecodeUtf8(b64){
+  try{ return decodeURIComponent(escape(atob(b64))); }catch(e){ return ''; }
+}
 
 function drawReflectorAreas(layer, pal){
   const extra = layer.extra;
@@ -1358,11 +1843,27 @@ function drawReflectorAreas(layer, pal){
       ctx.fillStyle = isRotHover ? '#ffffff' : stroke; ctx.fill();
       ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; ctx.stroke();
     }
+    if(editing){
+      const rectForEdges = rectFromPosGroup(posGroup);
+      for(const edgeKey of ['S','E','N','W']){
+        const isSelEdge = state.selectedAreaEdge && state.selectedAreaEdge.layerId===layer.id && state.selectedAreaEdge.areaIndex===ai && state.selectedAreaEdge.edgeKey===edgeKey;
+        const isHoverEdge = !isSelEdge && state.hoverAreaEdge && state.hoverAreaEdge.layerId===layer.id && state.hoverAreaEdge.areaIndex===ai && state.hoverAreaEdge.edgeKey===edgeKey;
+        if(!isSelEdge && !isHoverEdge) continue;
+        const [wa,wb] = edgeWorldEndpoints(layer, rectForEdges, edgeKey);
+        const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
+        const [sb0,sb1] = worldToScreen(wb[0],wb[1]);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = isHoverEdge && !isSelEdge ? 2.5 : 4;
+        ctx.beginPath(); ctx.moveTo(sa0,sa1); ctx.lineTo(sb0,sb1); ctx.stroke();
+      }
+    }
   });
 }
 
 const NAV_COLOR = '#7c6cff';
 const NAV_COLOR_PRINT = '#5b3fd6';
+const NAV_ARROW_COLOR = '#ff2f92';
+const NAV_ARROW_COLOR_PRINT = '#c2185b';
 
 function drawNavPoints(layer, pal){
   const extra = layer.extra;
@@ -1440,8 +1941,12 @@ function drawNavPoints(layer, pal){
       const boxW = (isHover||isSelected) ? 27 : 23;
       const boxH = (isHover||isSelected) ? 20 : 17;
 
+      const hasDir = typeof item.dir === 'number' && !item.ignoreDir;
+      const worldDir = hasDir ? (item.dir + layer.transform.rot) : 0;
+
       ctx.save();
       ctx.translate(sx,sy);
+      if(hasDir) ctx.rotate(-worldDir);
       ctx.beginPath(); ctx.rect(-boxW/2,-boxH/2,boxW,boxH);
       ctx.fillStyle = fillColor; ctx.globalAlpha = (isHover||isSelected) ? 0.95 : 0.88; ctx.fill();
       ctx.globalAlpha = 1;
@@ -1449,21 +1954,34 @@ function drawNavPoints(layer, pal){
       ctx.lineWidth = isSelected ? 3.4 : 2.8;
       ctx.stroke();
 
-      if(typeof item.dir === 'number' && !item.ignoreDir){
-        const worldDir = item.dir + layer.transform.rot;
-        const adx = Math.cos(worldDir), ady = -Math.sin(worldDir);
-        const armLen = Math.min(boxW,boxH)/2 - 2;
-        const tipX = adx*armLen, tipY = ady*armLen;
-        const backX = -adx*armLen*0.6, backY = -ady*armLen*0.6;
-        const arrowColor = state.printFriendly ? '#111111' : '#ffffff';
-        ctx.strokeStyle = arrowColor; ctx.lineWidth = 2.2;
-        ctx.beginPath(); ctx.moveTo(backX,backY); ctx.lineTo(tipX,tipY); ctx.stroke();
-        const headAngle = Math.atan2(tipY-backY, tipX-backX);
-        ctx.beginPath();
-        ctx.moveTo(tipX,tipY);
-        ctx.lineTo(tipX-Math.cos(headAngle-0.5)*5, tipY-Math.sin(headAngle-0.5)*5);
-        ctx.lineTo(tipX-Math.cos(headAngle+0.5)*5, tipY-Math.sin(headAngle+0.5)*5);
-        ctx.closePath(); ctx.fillStyle = arrowColor; ctx.fill();
+      if(hasDir){
+        // forward is now the box's local +X axis, since the whole box is rotated to face worldDir
+        const tipX = boxW/2 + ((isHover||isSelected) ? 30 : 24);
+        const backX = -(boxW/2)*0.5;
+        const haloColor = state.printFriendly ? '#ffffff' : '#000000';
+        const arrowColor = state.printFriendly ? NAV_ARROW_COLOR_PRINT : NAV_ARROW_COLOR;
+        const headLen = (isHover||isSelected) ? 15 : 13;
+        const hx1 = tipX-headLen*0.87, hy1 = -headLen*0.5;
+        const hx2 = tipX-headLen*0.87, hy2 = headLen*0.5;
+
+        // halo pass (dark/light outline) for legibility over any background, then the bright pass on top
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = haloColor; ctx.lineWidth = 7.5;
+        ctx.beginPath(); ctx.moveTo(backX,0); ctx.lineTo(tipX,0); ctx.stroke();
+        ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(tipX,0); ctx.lineTo(hx1,hy1); ctx.lineTo(hx2,hy2); ctx.closePath();
+        ctx.fillStyle = haloColor; ctx.fill();
+
+        ctx.strokeStyle = arrowColor; ctx.lineWidth = 3.4;
+        ctx.beginPath(); ctx.moveTo(backX,0); ctx.lineTo(tipX,0); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(tipX,0); ctx.lineTo(hx1,hy1); ctx.lineTo(hx2,hy2); ctx.closePath();
+        ctx.fillStyle = arrowColor; ctx.fill();
+        ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+
+        ctx.beginPath(); ctx.arc(0,0,3.5,0,Math.PI*2);
+        ctx.fillStyle = haloColor; ctx.fill();
+        ctx.beginPath(); ctx.arc(0,0,1.8,0,Math.PI*2);
+        ctx.fillStyle = arrowColor; ctx.fill();
       }
       ctx.restore();
 
@@ -1503,7 +2021,492 @@ function drawManualLines(layer, pal){
   }
 }
 
+const DIM_COLOR = '#ffb347';
+const DIM_COLOR_PRINT = '#a15c00';
+const DIM_LIVE_COLOR = '#3fd0ff';
+
+function drawFloatingLabel(cx, cy, text, color){
+  ctx.font = '12px ui-monospace, monospace';
+  const textW = ctx.measureText(text).width;
+  const padX = 4, boxW = textW+padX*2, boxH = 16;
+  const boxX = cx-boxW/2, boxY = cy-boxH/2;
+  const haloColor = state.printFriendly ? '#ffffff' : '#000000';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = haloColor;
+  ctx.strokeText(text, cx, cy);
+  ctx.fillStyle = color;
+  ctx.fillText(text, cx, cy);
+  ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'miter';
+  return {x:boxX, y:boxY, w:boxW, h:boxH};
+}
+
+function strokeAxisLineWithGap(fixed, min, max, gapCenter, gapHalf, horizontal){
+  const gapStart = gapCenter-gapHalf, gapEnd = gapCenter+gapHalf;
+  ctx.beginPath();
+  const leftEnd = Math.min(gapStart, max);
+  if(leftEnd>min){ if(horizontal){ ctx.moveTo(min,fixed); ctx.lineTo(leftEnd,fixed); } else { ctx.moveTo(fixed,min); ctx.lineTo(fixed,leftEnd); } }
+  const rightStart = Math.max(gapEnd, min);
+  if(max>rightStart){ if(horizontal){ ctx.moveTo(rightStart,fixed); ctx.lineTo(max,fixed); } else { ctx.moveTo(fixed,rightStart); ctx.lineTo(fixed,max); } }
+  ctx.stroke();
+}
+
+function drawCadDimension(axis, worldA, worldB, offsetPx, label, color, labelT){
+  const t = labelT!=null ? labelT : 0.5;
+  const [sa0,sa1] = worldToScreen(worldA[0], worldA[1]);
+  const [sb0,sb1] = worldToScreen(worldB[0], worldB[1]);
+  ctx.font = '12px ui-monospace, monospace';
+  const gapHalf = ctx.measureText(label).width/2 + 6;
+  ctx.lineWidth = 1.5; ctx.strokeStyle = color; ctx.fillStyle = color;
+  let box, lineA, lineB;
+  if(axis==='x'){
+    const dimY = Math.min(sa1, sb1) - offsetPx;
+    const labelX = sa0+(sb0-sa0)*t;
+    const lineMin = Math.min(sa0, sb0, labelX), lineMax = Math.max(sa0, sb0, labelX);
+    ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(sa0, sa1); ctx.lineTo(sa0, dimY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sb0, sb1); ctx.lineTo(sb0, dimY); ctx.stroke();
+    ctx.setLineDash([]);
+    strokeAxisLineWithGap(dimY, lineMin, lineMax, labelX, gapHalf, true);
+    ctx.beginPath(); ctx.arc(sa0, dimY, 3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(sb0, dimY, 3, 0, Math.PI*2); ctx.fill();
+    box = drawFloatingLabel(labelX, dimY, label, color);
+    lineA = [lineMin, dimY]; lineB = [lineMax, dimY];
+  } else {
+    const dimX = Math.min(sa0, sb0) - offsetPx;
+    const labelY = sa1+(sb1-sa1)*t;
+    const lineMin = Math.min(sa1, sb1, labelY), lineMax = Math.max(sa1, sb1, labelY);
+    ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(sa0, sa1); ctx.lineTo(dimX, sa1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sb0, sb1); ctx.lineTo(dimX, sb1); ctx.stroke();
+    ctx.setLineDash([]);
+    strokeAxisLineWithGap(dimX, lineMin, lineMax, labelY, gapHalf, false);
+    ctx.beginPath(); ctx.arc(dimX, sa1, 3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(dimX, sb1, 3, 0, Math.PI*2); ctx.fill();
+    box = drawFloatingLabel(dimX, labelY, label, color);
+    lineA = [dimX, lineMin]; lineB = [dimX, lineMax];
+  }
+  return {box, lineA, lineB};
+}
+
+function dimConstraintOffsetPx(constraint){
+  return (constraint.dispOffset!=null ? constraint.dispOffset*state.view.scale : 24);
+}
+function dimConstraintLabelT(constraint){
+  return constraint.dispLabelT!=null ? constraint.dispLabelT : 0.5;
+}
+
+function resolveConstraintAnchorPoint(constraint){
+  if(constraint.anchorKind==='scanPoint'){
+    const layer = getLayer(constraint.anchorLayerId);
+    return layer ? layerToWorld(layer, constraint.anchorLocalX, constraint.anchorLocalY) : null;
+  }
+  if(constraint.anchorKind==='navPoint' || constraint.anchorKind==='reflector'){
+    const layer = getLayer(constraint.anchorLayerId);
+    if(!layer) return null;
+    if(constraint.anchorKind==='navPoint'){
+      const pt = findNavPointByName(layer, constraint.anchorName);
+      return pt ? layerToWorld(layer, pt.pos.x, pt.pos.y) : null;
+    }
+    const r = layer.reflectors[constraint.anchorReflectorIndex];
+    return r ? layerToWorld(layer, r.x, r.y) : null;
+  }
+  if(constraint.anchorKind==='edge'){
+    const found = getAreaByRef({layerId:constraint.anchorLayerId, areaIndex:constraint.anchorAreaIndex});
+    if(!found) return null;
+    const rect = rectFromPosGroup(found.area.posGroup);
+    const det = detectEdgeAxis(found.layer, rect, constraint.anchorEdgeKey);
+    return det ? det.mid : null;
+  }
+  return null;
+}
+
+function drawDimensionAnnotations(){
+  const dimColor = state.printFriendly ? DIM_COLOR_PRINT : DIM_COLOR;
+  state.dimLabelHitboxes = [];
+  if(state.typeVisibility.areaDims){
+    if(state.typeVisibility.areas){
+      for(const layer of state.layers){
+        if(!layer.visible) continue;
+        const list = layer.extra && layer.extra.advancedAreaList;
+        if(!Array.isArray(list)) continue;
+        for(let ai=0; ai<list.length; ai++){
+          const area = list[ai];
+          if(!area.__edgeConstraints) continue;
+          const rect = rectFromPosGroup(area.posGroup);
+          for(const edgeKey of Object.keys(area.__edgeConstraints)){
+            const constraint = area.__edgeConstraints[edgeKey];
+            const det = detectEdgeAxis(layer, rect, edgeKey);
+            if(!det) continue;
+            const anchorWorldPos = resolveConstraintAnchorPoint(constraint);
+            if(!anchorWorldPos) continue;
+            const edgeWorldPos = det.axis==='x' ? [det.value, det.mid[1]] : [det.mid[0], det.value];
+            const label = Math.abs(constraint.offset).toFixed(2);
+            const {box, lineA, lineB} = drawCadDimension(det.axis, edgeWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, dimColor, dimConstraintLabelT(constraint));
+            if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, areaIndex:ai, edgeKey});
+          }
+        }
+      }
+    }
+    if(state.typeVisibility.nav){
+      for(const layer of state.layers){
+        if(!layer.visible) continue;
+        const pts = layer.extra && layer.extra.advancedPointList;
+        if(!Array.isArray(pts)) continue;
+        for(const pt of pts){
+          if(!pt.__ptConstraints) continue;
+          const [pwx,pwy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
+          for(const axis of Object.keys(pt.__ptConstraints)){
+            const constraint = pt.__ptConstraints[axis];
+            const anchorWorldPos = resolveConstraintAnchorPoint(constraint);
+            if(!anchorWorldPos) continue;
+            const ptWorldPos = axis==='x' ? [pwx, pwy] : [pwx, pwy];
+            const label = Math.abs(constraint.offset).toFixed(2);
+            const {box, lineA, lineB} = drawCadDimension(axis, ptWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, dimColor, dimConstraintLabelT(constraint));
+            if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, instanceName:pt.instanceName, axis});
+          }
+        }
+      }
+    }
+    if(state.typeVisibility.reflector){
+      for(const layer of state.layers){
+        if(!layer.visible) continue;
+        for(let ri=0; ri<layer.reflectors.length; ri++){
+          const r = layer.reflectors[ri];
+          if(!r.__ptConstraints) continue;
+          const [rwx,rwy] = layerToWorld(layer, r.x, r.y);
+          for(const axis of Object.keys(r.__ptConstraints)){
+            const constraint = r.__ptConstraints[axis];
+            const anchorWorldPos = resolveConstraintAnchorPoint(constraint);
+            if(!anchorWorldPos) continue;
+            const rWorldPos = [rwx, rwy];
+            const label = Math.abs(constraint.offset).toFixed(2);
+            const {box, lineA, lineB} = drawCadDimension(axis, rWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, dimColor, dimConstraintLabelT(constraint));
+            if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, reflIndex:ri, axis});
+          }
+        }
+      }
+    }
+  }
+  if(state.distTarget){
+    const target = state.distTarget;
+    const anchorPoint = getTargetWorldPoint(target);
+    const curValue = anchorPoint ? (target.axis==='x' ? anchorPoint[0] : anchorPoint[1]) : null;
+    if(curValue!=null && anchorPoint){
+      const sourceWorldPos = target.axis==='x' ? [curValue, anchorPoint[1]] : [anchorPoint[0], curValue];
+      let targetWorldPos = null, targetVal = null;
+      if(state.distPickHover){
+        targetVal = anchorWorldValue(state.distPickHover, target.axis);
+      } else if(state.mouse){
+        const [mwx,mwy] = screenToWorld(state.mouse.x, state.mouse.y);
+        targetVal = target.axis==='x' ? mwx : mwy;
+      }
+      if(targetVal!=null){
+        targetWorldPos = target.axis==='x' ? [targetVal, anchorPoint[1]] : [anchorPoint[0], targetVal];
+        const label = Math.abs(curValue-targetVal).toFixed(2);
+        drawCadDimension(target.axis, sourceWorldPos, targetWorldPos, 24, label, DIM_LIVE_COLOR);
+      }
+    }
+  }
+}
+
+function drawDistToolHighlight(ref, color, kind){
+  if(kind==='navPoint'){
+    const found = getPointByRef(ref);
+    if(!found) return;
+    const [wx,wy] = layerToWorld(found.layer, found.pt.pos.x, found.pt.pos.y);
+    const [sx,sy] = worldToScreen(wx,wy);
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(sx,sy,12,0,Math.PI*2); ctx.stroke();
+    return;
+  }
+  if(kind==='reflector'){
+    const found = getReflectorByRef(ref);
+    if(!found) return;
+    const [wx,wy] = layerToWorld(found.layer, found.r.x, found.r.y);
+    const [sx,sy] = worldToScreen(wx,wy);
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(sx,sy,10,0,Math.PI*2); ctx.stroke();
+    return;
+  }
+  if(kind==='scanPoint'){
+    const layer = getLayer(ref.layerId);
+    if(!layer) return;
+    const [wx,wy] = layerToWorld(layer, ref.localX, ref.localY);
+    const [sx,sy] = worldToScreen(wx,wy);
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(sx,sy,8,0,Math.PI*2); ctx.stroke();
+    return;
+  }
+  const found = getAreaByRef(ref);
+  if(!found) return;
+  const rect = rectFromPosGroup(found.area.posGroup);
+  const [wa,wb] = edgeWorldEndpoints(found.layer, rect, ref.edgeKey);
+  const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
+  const [sb0,sb1] = worldToScreen(wb[0],wb[1]);
+  ctx.strokeStyle = color; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(sa0,sa1); ctx.lineTo(sb0,sb1); ctx.stroke();
+}
+
+function drawDistAnchorHighlight(anchor, color){
+  if(anchor.kind==='edge'){ drawDistToolHighlight({layerId:anchor.layerId, areaIndex:anchor.areaIndex, edgeKey:anchor.edgeKey}, color, 'edge'); return; }
+  if(anchor.kind==='navPoint'){ drawDistToolHighlight({layerId:anchor.layerId, instanceName:anchor.name}, color, 'navPoint'); return; }
+  if(anchor.kind==='reflector'){ drawDistToolHighlight({layerId:anchor.layerId, index:anchor.index}, color, 'reflector'); return; }
+  if(anchor.kind==='scanPoint'){ drawDistToolHighlight({layerId:anchor.layerId, localX:anchor.localX, localY:anchor.localY}, color, 'scanPoint'); return; }
+}
+
+function drawDistToolHighlights(){
+  if(state.tool!=='dist') return;
+  if(state.distTarget){
+    const target = state.distTarget;
+    drawDistToolHighlight(target, '#3fd0ff', target.kind);
+    if(state.distPickHover) drawDistAnchorHighlight(state.distPickHover, '#ffffff');
+  } else if(state.distHoverTarget){
+    const hover = state.distHoverTarget;
+    drawDistToolHighlight(hover, '#ffffff', hover.kind);
+  }
+}
+
+function findDimensionLabelAt(sx, sy){
+  const boxes = state.dimLabelHitboxes || [];
+  for(const b of boxes){
+    if(sx>=b.x && sx<=b.x+b.w && sy>=b.y && sy<=b.y+b.h) return b;
+  }
+  return null;
+}
+
+function findDimensionLineAt(sx, sy, pxThreshold){
+  const boxes = state.dimLabelHitboxes || [];
+  let best=null, bestD=pxThreshold;
+  for(const b of boxes){
+    if(!b.lineA || !b.lineB) continue;
+    const d = distToSegmentScreen(sx, sy, b.lineA[0], b.lineA[1], b.lineB[0], b.lineB[1]);
+    if(d<bestD){ bestD=d; best=b; }
+  }
+  return best;
+}
+
+function hitToTargetRef(hit){
+  if(hit.edgeKey!=null) return {kind:'edge', layerId:hit.layerId, areaIndex:hit.areaIndex, edgeKey:hit.edgeKey};
+  if(hit.reflIndex!=null) return {kind:'reflector', layerId:hit.layerId, index:hit.reflIndex, axis:hit.axis};
+  if(hit.instanceName!=null) return {kind:'navPoint', layerId:hit.layerId, instanceName:hit.instanceName, axis:hit.axis};
+  return null;
+}
+
+function startDimensionDrag(sx, sy){
+  const hit = findDimensionLabelAt(sx, sy) || findDimensionLineAt(sx, sy, 8);
+  if(!hit) return false;
+  const targetRef = hitToTargetRef(hit);
+  const constraint = targetRef && getConstraintByTargetRef(targetRef);
+  if(!constraint) return false;
+  state.dimDrag = {targetRef};
+  return true;
+}
+
+function openDimensionEditAt(sx, sy){
+  const hit = findDimensionLabelAt(sx, sy) || findDimensionLineAt(sx, sy, 8);
+  return hit ? openInlineEditForLabelHit(hit, sx, sy) : false;
+}
+
+function updateDimensionDrag(sx, sy){
+  const drag = state.dimDrag;
+  if(!drag) return;
+  const constraint = getConstraintByTargetRef(drag.targetRef);
+  if(!constraint) { state.dimDrag = null; return; }
+  const sourcePoint = getTargetWorldPoint(drag.targetRef);
+  const anchorPoint = resolveConstraintAnchorPoint(constraint);
+  if(!sourcePoint || !anchorPoint) return;
+  const [sa0,sa1] = worldToScreen(sourcePoint[0], sourcePoint[1]);
+  const [sb0,sb1] = worldToScreen(anchorPoint[0], anchorPoint[1]);
+  // dragging anywhere on the dimension (line or label) moves the whole thing as one unit:
+  // the perpendicular component sets the offset, the along-line component sets the label position.
+  if(constraint.axis==='x'){
+    constraint.dispOffset = (Math.min(sa1,sb1) - sy) / state.view.scale;
+    const span = sb0-sa0;
+    constraint.dispLabelT = Math.abs(span)<1e-6 ? 0.5 : (sx-sa0)/span;
+  } else {
+    constraint.dispOffset = (Math.min(sa0,sb0) - sx) / state.view.scale;
+    const span = sb1-sa1;
+    constraint.dispLabelT = Math.abs(span)<1e-6 ? 0.5 : (sy-sa1)/span;
+  }
+}
+
+function getTargetLayer(target){ return getLayer(target.layerId); }
+
+function getTargetWorldPoint(target){
+  if(target.kind==='edge'){
+    const found = getAreaByRef({layerId:target.layerId, areaIndex:target.areaIndex});
+    if(!found) return null;
+    const rect = rectFromPosGroup(found.area.posGroup);
+    const det = detectEdgeAxis(found.layer, rect, target.edgeKey);
+    return det ? det.mid.slice() : null;
+  }
+  if(target.kind==='navPoint'){
+    const found = getPointByRef({layerId:target.layerId, instanceName:target.instanceName});
+    return found ? layerToWorld(found.layer, found.pt.pos.x, found.pt.pos.y) : null;
+  }
+  if(target.kind==='reflector'){
+    const found = getReflectorByRef({layerId:target.layerId, index:target.index});
+    return found ? layerToWorld(found.layer, found.r.x, found.r.y) : null;
+  }
+  return null;
+}
+function getTargetWorldValue(target, axis){
+  const p = getTargetWorldPoint(target);
+  return p ? (axis==='x' ? p[0] : p[1]) : null;
+}
+function targetToRef(target){
+  if(target.kind==='edge') return {kind:'edge', layerId:target.layerId, areaIndex:target.areaIndex, edgeKey:target.edgeKey};
+  if(target.kind==='reflector') return {kind:'reflector', layerId:target.layerId, index:target.index, axis:target.axis};
+  return {kind:'navPoint', layerId:target.layerId, instanceName:target.instanceName, axis:target.axis};
+}
+function isSelfAnchorRef(constraint, target){
+  if(constraint.anchorKind==='edge' && target.kind==='edge') return constraint.anchorLayerId===target.layerId && constraint.anchorAreaIndex===target.areaIndex;
+  if(constraint.anchorKind==='navPoint' && target.kind==='navPoint') return constraint.anchorLayerId===target.layerId && constraint.anchorName===target.instanceName && constraint.axis===target.axis;
+  if(constraint.anchorKind==='reflector' && target.kind==='reflector') return constraint.anchorLayerId===target.layerId && constraint.anchorReflectorIndex===target.index && constraint.axis===target.axis;
+  return false;
+}
+function applyAnchorToConstraint(constraint, anchor){
+  if(anchor.kind==='navPoint'){ constraint.anchorKind='navPoint'; constraint.anchorLayerId=anchor.layerId; constraint.anchorName=anchor.name; }
+  else if(anchor.kind==='reflector'){ constraint.anchorKind='reflector'; constraint.anchorLayerId=anchor.layerId; constraint.anchorReflectorIndex=anchor.index; }
+  else if(anchor.kind==='scanPoint'){ constraint.anchorKind='scanPoint'; constraint.anchorLayerId=anchor.layerId; constraint.anchorLocalX=anchor.localX; constraint.anchorLocalY=anchor.localY; }
+  else { constraint.anchorKind='edge'; constraint.anchorLayerId=anchor.layerId; constraint.anchorAreaIndex=anchor.areaIndex; constraint.anchorEdgeKey=anchor.edgeKey; }
+}
+function storeConstraintOnTarget(target, constraint){
+  if(target.kind==='edge'){
+    const found = getAreaByRef({layerId:target.layerId, areaIndex:target.areaIndex});
+    if(!found.area.__edgeConstraints) found.area.__edgeConstraints = {};
+    found.area.__edgeConstraints[target.edgeKey] = constraint;
+  } else if(target.kind==='reflector'){
+    const found = getReflectorByRef({layerId:target.layerId, index:target.index});
+    if(!found.r.__ptConstraints) found.r.__ptConstraints = {};
+    found.r.__ptConstraints[target.axis] = constraint;
+  } else {
+    const found = getPointByRef({layerId:target.layerId, instanceName:target.instanceName});
+    if(!found.pt.__ptConstraints) found.pt.__ptConstraints = {};
+    found.pt.__ptConstraints[target.axis] = constraint;
+  }
+}
+function getConstraintByTargetRef(ref){
+  if(ref.kind==='edge'){
+    const found = getAreaByRef({layerId:ref.layerId, areaIndex:ref.areaIndex});
+    return found && found.area.__edgeConstraints && found.area.__edgeConstraints[ref.edgeKey];
+  }
+  if(ref.kind==='reflector'){
+    const found = getReflectorByRef({layerId:ref.layerId, index:ref.index});
+    return found && found.r.__ptConstraints && found.r.__ptConstraints[ref.axis];
+  }
+  const found = getPointByRef({layerId:ref.layerId, instanceName:ref.instanceName});
+  return found && found.pt.__ptConstraints && found.pt.__ptConstraints[ref.axis];
+}
+function deleteConstraintByTargetRef(ref){
+  if(ref.kind==='edge'){
+    const found = getAreaByRef({layerId:ref.layerId, areaIndex:ref.areaIndex});
+    if(!found || !found.area.__edgeConstraints) return;
+    delete found.area.__edgeConstraints[ref.edgeKey];
+    if(Object.keys(found.area.__edgeConstraints).length===0) delete found.area.__edgeConstraints;
+  } else if(ref.kind==='reflector'){
+    const found = getReflectorByRef({layerId:ref.layerId, index:ref.index});
+    if(!found || !found.r.__ptConstraints) return;
+    delete found.r.__ptConstraints[ref.axis];
+    if(Object.keys(found.r.__ptConstraints).length===0) delete found.r.__ptConstraints;
+  } else {
+    const found = getPointByRef({layerId:ref.layerId, instanceName:ref.instanceName});
+    if(!found || !found.pt.__ptConstraints) return;
+    delete found.pt.__ptConstraints[ref.axis];
+    if(Object.keys(found.pt.__ptConstraints).length===0) delete found.pt.__ptConstraints;
+  }
+}
+
+function openInlineEditForLabelHit(labelHit, sx, sy){
+  if(labelHit.edgeKey!=null){
+    const found = getAreaByRef({layerId:labelHit.layerId, areaIndex:labelHit.areaIndex});
+    const constraint = found && found.area.__edgeConstraints && found.area.__edgeConstraints[labelHit.edgeKey];
+    if(!constraint) return false;
+    state.selectedArea = {layerId:labelHit.layerId, groupId:found.area.__group, areaIndex:labelHit.areaIndex};
+    state.selectedAreaEdge = {layerId:labelHit.layerId, areaIndex:labelHit.areaIndex, edgeKey:labelHit.edgeKey};
+    renderAreaPanel();
+    openDimInlineEdit({kind:'edge', layerId:labelHit.layerId, areaIndex:labelHit.areaIndex, edgeKey:labelHit.edgeKey}, sx, sy, constraint.offset, false);
+    return true;
+  }
+  if(labelHit.instanceName!=null){
+    const found = getPointByRef({layerId:labelHit.layerId, instanceName:labelHit.instanceName});
+    const constraint = found && found.pt.__ptConstraints && found.pt.__ptConstraints[labelHit.axis];
+    if(!constraint) return false;
+    state.selectedNavPoint = {layerId:labelHit.layerId, instanceName:labelHit.instanceName};
+    state.selectedPath = null;
+    renderNavPointPanel(); renderPathPanel();
+    openDimInlineEdit({kind:'navPoint', layerId:labelHit.layerId, instanceName:labelHit.instanceName, axis:labelHit.axis}, sx, sy, constraint.offset, false);
+    return true;
+  }
+  if(labelHit.reflIndex!=null){
+    const found = getReflectorByRef({layerId:labelHit.layerId, index:labelHit.reflIndex});
+    const constraint = found && found.r.__ptConstraints && found.r.__ptConstraints[labelHit.axis];
+    if(!constraint) return false;
+    openDimInlineEdit({kind:'reflector', layerId:labelHit.layerId, index:labelHit.reflIndex, axis:labelHit.axis}, sx, sy, constraint.offset, false);
+    return true;
+  }
+  return false;
+}
+
+const dimInlineInputEl = document.getElementById('dimInlineInput');
+const dimInlineHintEl = document.getElementById('dimInlineHint');
+
+function openDimInlineEdit(targetRef, screenX, screenY, currentValue, isNew){
+  state.dimInlineEdit = {targetRef, isNew};
+  dimInlineInputEl.style.left = screenX+'px';
+  dimInlineInputEl.style.top = screenY+'px';
+  dimInlineHintEl.style.left = screenX+'px';
+  dimInlineHintEl.style.top = (screenY+22)+'px';
+  dimInlineInputEl.value = Math.abs(currentValue).toFixed(2);
+  dimInlineInputEl.hidden = false;
+  dimInlineHintEl.hidden = false;
+  requestAnimationFrame(()=>{ dimInlineInputEl.focus(); dimInlineInputEl.select(); });
+}
+function closeDimInlineEdit(){
+  state.dimInlineEdit = null;
+  dimInlineInputEl.hidden = true;
+  dimInlineHintEl.hidden = true;
+}
+function commitDimInlineEdit(){
+  const edit = state.dimInlineEdit;
+  if(!edit) return;
+  const raw = dimInlineInputEl.value.trim();
+  const constraint = getConstraintByTargetRef(edit.targetRef);
+  const layer = getTargetLayer(edit.targetRef);
+  if(constraint && layer && raw===''){
+    pushUndo(layer);
+    deleteConstraintByTargetRef(edit.targetRef);
+    scheduleAutosave();
+  } else {
+    const v = parseFloat(raw);
+    if(constraint && layer && !isNaN(v)){
+      if(!edit.isNew) pushUndo(layer);
+      applyPositiveOffsetInput(constraint, v);
+      resolveAllConstraints();
+      scheduleAutosave();
+    }
+  }
+  closeDimInlineEdit();
+  renderAreaPanel(); renderNavPointPanel(); requestDraw();
+}
+function cancelDimInlineEdit(){
+  const edit = state.dimInlineEdit;
+  closeDimInlineEdit();
+  if(edit && edit.isNew){
+    undo();
+    state.selectedAreaEdge = null;
+  }
+  renderAreaPanel(); renderNavPointPanel(); requestDraw();
+}
+dimInlineInputEl.addEventListener('keydown', (e)=>{
+  if(e.key==='Enter'){ e.preventDefault(); commitDimInlineEdit(); }
+  else if(e.key==='Escape'){ e.preventDefault(); cancelDimInlineEdit(); }
+  e.stopPropagation();
+});
+dimInlineInputEl.addEventListener('blur', ()=>{ if(state.dimInlineEdit) commitDimInlineEdit(); });
+
 function draw(){
+  resolveAllConstraints();
   const pal = currentPalette();
   ctx.fillStyle = pal.bg;
   ctx.fillRect(0,0,cssW,cssH);
@@ -1722,6 +2725,9 @@ function draw(){
     ctx.beginPath(); ctx.arc(sx2,sy2,6,0,Math.PI*2); ctx.fill();
     ctx.strokeStyle = '#000000'; ctx.stroke();
   }
+
+  drawDimensionAnnotations();
+  drawDistToolHighlights();
 
   if(state.tool==='erase' && state.mouse){
     const r = Math.max(3, state.eraseRadius*state.view.scale);
@@ -2073,6 +3079,344 @@ function findAreaRotateHandleAt(layer, sx, sy, pxThreshold){
   return -1;
 }
 
+const EDGE_CORNERS = { S:[0,1], E:[1,2], N:[2,3], W:[3,0] };
+const AXIS_TOL = 0.01;
+
+function edgeWorldEndpoints(layer, rect, edgeKey){
+  const corners = posGroupFromRect(rect.cx, rect.cy, rect.w, rect.h, rect.rot);
+  const [i,j] = EDGE_CORNERS[edgeKey];
+  return [layerToWorld(layer, corners[i].x, corners[i].y), layerToWorld(layer, corners[j].x, corners[j].y)];
+}
+function detectEdgeAxis(layer, rect, edgeKey){
+  const [wa, wb] = edgeWorldEndpoints(layer, rect, edgeKey);
+  if(Math.abs(wa[0]-wb[0]) < AXIS_TOL) return { axis:'x', value:(wa[0]+wb[0])/2, mid:[(wa[0]+wb[0])/2, (wa[1]+wb[1])/2] };
+  if(Math.abs(wa[1]-wb[1]) < AXIS_TOL) return { axis:'y', value:(wa[1]+wb[1])/2, mid:[(wa[0]+wb[0])/2, (wa[1]+wb[1])/2] };
+  return null;
+}
+function applyEdgeWorldTarget(layer, rect, edgeKey, axis, targetValue, currentMid){
+  const targetWorld = axis==='x' ? [targetValue, currentMid[1]] : [currentMid[0], targetValue];
+  const [tlx, tly] = worldToLayer(layer, targetWorld[0], targetWorld[1]);
+  const bounds = { W: rect.cx-rect.w/2, E: rect.cx+rect.w/2, S: rect.cy-rect.h/2, N: rect.cy+rect.h/2 };
+  bounds[edgeKey] = (edgeKey==='W'||edgeKey==='E') ? tlx : tly;
+  const w = bounds.E-bounds.W, h = bounds.N-bounds.S;
+  if(w<=0.02 || h<=0.02) return null;
+  return { cx:(bounds.E+bounds.W)/2, cy:(bounds.N+bounds.S)/2, w, h, rot:rect.rot };
+}
+
+function findAreaEdgeAt(layer, sx, sy, pxThreshold){
+  const list = layer.extra && layer.extra.advancedAreaList;
+  if(!Array.isArray(list)) return null;
+  let best=null, bestD=pxThreshold;
+  for(let ai=0; ai<list.length; ai++){
+    const rect = rectFromPosGroup(list[ai].posGroup);
+    for(const edgeKey of ['S','E','N','W']){
+      const [wa,wb] = edgeWorldEndpoints(layer, rect, edgeKey);
+      const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
+      const [sb0,sb1] = worldToScreen(wb[0],wb[1]);
+      const d = distToSegmentScreen(sx,sy, sa0,sa1, sb0,sb1);
+      if(d<bestD){ bestD=d; best={areaIndex:ai, edgeKey}; }
+    }
+  }
+  return best;
+}
+
+function getAreaByRef(ref){
+  if(!ref) return null;
+  const layer = getLayer(ref.layerId);
+  const list = layer && layer.extra && layer.extra.advancedAreaList;
+  const area = list && list[ref.areaIndex];
+  return area ? {layer, area} : null;
+}
+
+function getPointByRef(ref){
+  if(!ref) return null;
+  const layer = getLayer(ref.layerId);
+  const pt = layer && findNavPointByName(layer, ref.instanceName);
+  return pt ? {layer, pt} : null;
+}
+
+function getReflectorByRef(ref){
+  if(!ref) return null;
+  const layer = getLayer(ref.layerId);
+  const r = layer && layer.reflectors[ref.index];
+  return r ? {layer, r} : null;
+}
+
+function resolveAnchorWorldValue(constraint, depth){
+  depth = depth||0;
+  if(depth>20) return null;
+  if(constraint.anchorKind==='scanPoint'){
+    const layer = getLayer(constraint.anchorLayerId);
+    if(!layer) return null;
+    const [wx,wy] = layerToWorld(layer, constraint.anchorLocalX, constraint.anchorLocalY);
+    return (constraint.axis==='x' ? wx : wy) + constraint.offset;
+  }
+  if(constraint.anchorKind==='navPoint'){
+    const found = getPointByRef({layerId:constraint.anchorLayerId, instanceName:constraint.anchorName});
+    if(!found) return null;
+    const ptConstraint = found.pt.__ptConstraints && found.pt.__ptConstraints[constraint.axis];
+    let anchorValue;
+    if(ptConstraint){
+      anchorValue = resolveAnchorWorldValue(ptConstraint, depth+1);
+      if(anchorValue==null) return null;
+    } else {
+      const [wx,wy] = layerToWorld(found.layer, found.pt.pos.x, found.pt.pos.y);
+      anchorValue = constraint.axis==='x' ? wx : wy;
+    }
+    return anchorValue + constraint.offset;
+  }
+  if(constraint.anchorKind==='reflector'){
+    const found = getReflectorByRef({layerId:constraint.anchorLayerId, index:constraint.anchorReflectorIndex});
+    if(!found) return null;
+    const rConstraint = found.r.__ptConstraints && found.r.__ptConstraints[constraint.axis];
+    let anchorValue;
+    if(rConstraint){
+      anchorValue = resolveAnchorWorldValue(rConstraint, depth+1);
+      if(anchorValue==null) return null;
+    } else {
+      const [wx,wy] = layerToWorld(found.layer, found.r.x, found.r.y);
+      anchorValue = constraint.axis==='x' ? wx : wy;
+    }
+    return anchorValue + constraint.offset;
+  }
+  if(constraint.anchorKind==='edge'){
+    const found = getAreaByRef({layerId:constraint.anchorLayerId, areaIndex:constraint.anchorAreaIndex});
+    if(!found) return null;
+    const rect = rectFromPosGroup(found.area.posGroup);
+    const anchorConstraint = found.area.__edgeConstraints && found.area.__edgeConstraints[constraint.anchorEdgeKey];
+    let anchorValue;
+    if(anchorConstraint){
+      anchorValue = resolveAnchorWorldValue(anchorConstraint, depth+1);
+      if(anchorValue==null) return null;
+    } else {
+      const det = detectEdgeAxis(found.layer, rect, constraint.anchorEdgeKey);
+      if(!det) return null;
+      anchorValue = det.value;
+    }
+    return anchorValue + constraint.offset;
+  }
+  return null;
+}
+
+function constraintChainHitsTarget(constraint, target, depth){
+  depth = depth||0;
+  if(depth>20) return true; // treat runaway chains as a conflict, refuse
+  if(constraint.anchorKind==='edge'){
+    if(target.kind==='edge' && constraint.anchorLayerId===target.layerId && constraint.anchorAreaIndex===target.areaIndex && constraint.anchorEdgeKey===target.edgeKey) return true;
+    const found = getAreaByRef({layerId:constraint.anchorLayerId, areaIndex:constraint.anchorAreaIndex});
+    const next = found && found.area.__edgeConstraints && found.area.__edgeConstraints[constraint.anchorEdgeKey];
+    return next ? constraintChainHitsTarget(next, target, depth+1) : false;
+  }
+  if(constraint.anchorKind==='navPoint'){
+    if(target.kind==='navPoint' && constraint.anchorLayerId===target.layerId && constraint.anchorName===target.instanceName && constraint.axis===target.axis) return true;
+    const found = getPointByRef({layerId:constraint.anchorLayerId, instanceName:constraint.anchorName});
+    const next = found && found.pt.__ptConstraints && found.pt.__ptConstraints[constraint.axis];
+    return next ? constraintChainHitsTarget(next, target, depth+1) : false;
+  }
+  if(constraint.anchorKind==='reflector'){
+    if(target.kind==='reflector' && constraint.anchorLayerId===target.layerId && constraint.anchorReflectorIndex===target.index && constraint.axis===target.axis) return true;
+    const found = getReflectorByRef({layerId:constraint.anchorLayerId, index:constraint.anchorReflectorIndex});
+    const next = found && found.r.__ptConstraints && found.r.__ptConstraints[constraint.axis];
+    return next ? constraintChainHitsTarget(next, target, depth+1) : false;
+  }
+  return false;
+}
+
+function resolveAllConstraints(){
+  for(const layer of state.layers){
+    const list = layer.extra && layer.extra.advancedAreaList;
+    if(Array.isArray(list)){
+      for(let ai=0; ai<list.length; ai++){
+        const area = list[ai];
+        const constraints = area.__edgeConstraints;
+        if(!constraints) continue;
+        let rect = rectFromPosGroup(area.posGroup);
+        let changed = false;
+        for(const edgeKey of ['S','E','N','W']){
+          const c = constraints[edgeKey];
+          if(!c) continue;
+          const target = resolveAnchorWorldValue(c);
+          if(target==null) continue;
+          const det = detectEdgeAxis(layer, rect, edgeKey);
+          const mid = det ? det.mid : edgeWorldEndpoints(layer, rect, edgeKey).reduce((a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2]);
+          const newRect = applyEdgeWorldTarget(layer, rect, edgeKey, c.axis, target, mid);
+          if(newRect){ rect = newRect; changed = true; }
+        }
+        if(changed) area.posGroup = posGroupFromRect(rect.cx, rect.cy, rect.w, rect.h, rect.rot);
+      }
+    }
+    const pts = layer.extra && layer.extra.advancedPointList;
+    if(Array.isArray(pts)){
+      for(const pt of pts){
+        if(!pt.__ptConstraints) continue;
+        let moved = false;
+        for(const axis of ['x','y']){
+          const c = pt.__ptConstraints[axis];
+          if(!c) continue;
+          const target = resolveAnchorWorldValue(c);
+          if(target==null) continue;
+          const [wx,wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
+          const newWorld = axis==='x' ? [target, wy] : [wx, target];
+          const [nlx,nly] = worldToLayer(layer, newWorld[0], newWorld[1]);
+          pt.pos = {x:round3(nlx), y:round3(nly)};
+          moved = true;
+        }
+        if(moved) syncCurvesForPoint(layer, pt.instanceName);
+      }
+    }
+    for(const r of layer.reflectors){
+      if(!r.__ptConstraints) continue;
+      for(const axis of ['x','y']){
+        const c = r.__ptConstraints[axis];
+        if(!c) continue;
+        const target = resolveAnchorWorldValue(c);
+        if(target==null) continue;
+        const [wx,wy] = layerToWorld(layer, r.x, r.y);
+        const newWorld = axis==='x' ? [target, wy] : [wx, target];
+        const [nlx,nly] = worldToLayer(layer, newWorld[0], newWorld[1]);
+        r.x = round3(nlx); r.y = round3(nly);
+      }
+    }
+  }
+}
+
+function findPickableAnchorAt(sx, sy, pxThreshold, excludeRef, requiredAxis){
+  let best=null, bestD=pxThreshold;
+  for(const layer of state.layers){
+    if(!layer.visible) continue;
+    const pts = layer.extra && layer.extra.advancedPointList;
+    if(Array.isArray(pts)){
+      for(const pt of pts){
+        if(!pt || !pt.pos) continue;
+        if(excludeRef && excludeRef.instanceName!=null && excludeRef.layerId===layer.id && excludeRef.instanceName===pt.instanceName) continue;
+        const [wx,wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
+        const [ssx,ssy] = worldToScreen(wx,wy);
+        const d = Math.hypot(ssx-sx, ssy-sy);
+        if(d<bestD){ bestD=d; best={kind:'navPoint', layerId:layer.id, name:pt.instanceName}; }
+      }
+    }
+    for(let ri=0; ri<layer.reflectors.length; ri++){
+      if(excludeRef && excludeRef.reflectorIndex!=null && excludeRef.layerId===layer.id && excludeRef.reflectorIndex===ri) continue;
+      const r = layer.reflectors[ri];
+      const [wx,wy] = layerToWorld(layer, r.x, r.y);
+      const [ssx,ssy] = worldToScreen(wx,wy);
+      const d = Math.hypot(ssx-sx, ssy-sy);
+      if(d<bestD){ bestD=d; best={kind:'reflector', layerId:layer.id, index:ri}; }
+    }
+    const areas = layer.extra && layer.extra.advancedAreaList;
+    if(Array.isArray(areas)){
+      for(let ai=0; ai<areas.length; ai++){
+        if(excludeRef && excludeRef.areaIndex!=null && excludeRef.layerId===layer.id && excludeRef.areaIndex===ai) continue;
+        const rect = rectFromPosGroup(areas[ai].posGroup);
+        for(const edgeKey of ['S','E','N','W']){
+          const det = detectEdgeAxis(layer, rect, edgeKey);
+          if(!det || det.axis!==requiredAxis) continue;
+          const [wa,wb] = edgeWorldEndpoints(layer, rect, edgeKey);
+          const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
+          const [sb0,sb1] = worldToScreen(wb[0],wb[1]);
+          const d = distToSegmentScreen(sx,sy, sa0,sa1, sb0,sb1);
+          if(d<bestD){ bestD=d; best={kind:'edge', layerId:layer.id, areaIndex:ai, edgeKey, axis:det.axis, value:det.value}; }
+        }
+      }
+    }
+  }
+  // scan/wall points are a dense, unordered point cloud — only offered as a fallback
+  // when no semantic entity (nav point / reflector / edge) is within the normal threshold,
+  // so they never steal a click clearly meant for something else.
+  if(!best && state.typeVisibility.scan){
+    let bestScanD = Math.min(pxThreshold, 8);
+    for(const layer of state.layers){
+      if(!layer.visible) continue;
+      const scanPts = layer.points;
+      for(let i=0;i<scanPts.length;i+=2){
+        const [wx,wy] = layerToWorld(layer, scanPts[i], scanPts[i+1]);
+        const [ssx,ssy] = worldToScreen(wx,wy);
+        const d = Math.hypot(ssx-sx, ssy-sy);
+        if(d<bestScanD){ bestScanD=d; best={kind:'scanPoint', layerId:layer.id, localX:scanPts[i], localY:scanPts[i+1]}; }
+      }
+    }
+  }
+  return best;
+}
+
+function updateDistHint(){
+  const hintEl = document.getElementById('distHint');
+  if(!hintEl) return;
+  hintEl.textContent = state.distTarget
+    ? 'Click a nav point, reflector, scan point, or parallel edge to reference. Esc cancels.'
+    : 'Click an area edge, a nav point, or a reflector to pin it. Then click a nav point, reflector, scan point, or parallel edge to reference. Esc cancels.';
+}
+
+function findConstrainableTargetAt(sx, sy, pxThreshold){
+  let best=null, bestD=pxThreshold;
+  for(const layer of state.layers){
+    if(!layer.visible) continue;
+    const pts = layer.extra && layer.extra.advancedPointList;
+    if(Array.isArray(pts)){
+      for(const pt of pts){
+        if(!pt || !pt.pos) continue;
+        const [wx,wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
+        const [ssx,ssy] = worldToScreen(wx,wy);
+        const d = Math.hypot(ssx-sx, ssy-sy);
+        if(d<bestD){ bestD=d; best={kind:'navPoint', layerId:layer.id, instanceName:pt.instanceName}; }
+      }
+    }
+    for(let ri=0; ri<layer.reflectors.length; ri++){
+      const r = layer.reflectors[ri];
+      const [wx,wy] = layerToWorld(layer, r.x, r.y);
+      const [ssx,ssy] = worldToScreen(wx,wy);
+      const d = Math.hypot(ssx-sx, ssy-sy);
+      if(d<bestD){ bestD=d; best={kind:'reflector', layerId:layer.id, index:ri}; }
+    }
+    const areas = layer.extra && layer.extra.advancedAreaList;
+    if(Array.isArray(areas)){
+      for(let ai=0; ai<areas.length; ai++){
+        const rect = rectFromPosGroup(areas[ai].posGroup);
+        for(const edgeKey of ['S','E','N','W']){
+          const det = detectEdgeAxis(layer, rect, edgeKey);
+          if(!det) continue;
+          const [wa,wb] = edgeWorldEndpoints(layer, rect, edgeKey);
+          const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
+          const [sb0,sb1] = worldToScreen(wb[0],wb[1]);
+          const d = distToSegmentScreen(sx,sy, sa0,sa1, sb0,sb1);
+          if(d<bestD){ bestD=d; best={kind:'edge', layerId:layer.id, areaIndex:ai, edgeKey, axis:det.axis}; }
+        }
+      }
+    }
+  }
+  return best;
+}
+
+function anchorWorldValue(anchor, axis){
+  const layer = getLayer(anchor.layerId);
+  if(!layer) return null;
+  if(anchor.kind==='navPoint'){
+    const pt = findNavPointByName(layer, anchor.name);
+    if(!pt) return null;
+    const [wx,wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
+    return axis==='x' ? wx : wy;
+  }
+  if(anchor.kind==='reflector'){
+    const r = layer.reflectors[anchor.index];
+    if(!r) return null;
+    const [wx,wy] = layerToWorld(layer, r.x, r.y);
+    return axis==='x' ? wx : wy;
+  }
+  if(anchor.kind==='edge') return anchor.value;
+  if(anchor.kind==='scanPoint'){
+    const [wx,wy] = layerToWorld(layer, anchor.localX, anchor.localY);
+    return axis==='x' ? wx : wy;
+  }
+  return null;
+}
+
+function hasAnyEdgeConstraint(area){
+  return !!(area && area.__edgeConstraints && Object.keys(area.__edgeConstraints).length);
+}
+function hasAnyPtConstraint(pt){
+  return !!(pt && pt.__ptConstraints && Object.keys(pt.__ptConstraints).length);
+}
+
 function hitAny(wx, wy, stamps, radius, shape){
   if(shape==='square'){
     for(const [sx,sy] of stamps){ if(Math.abs(wx-sx)<=radius && Math.abs(wy-sy)<=radius) return true; }
@@ -2152,12 +3496,11 @@ function applyRectSelectDelete(layer, rect){
     layer.rssi = kept;
   }
   if(state.selectTargets.reflector && layer.reflectors.length){
-    const before = layer.reflectors.length;
-    layer.reflectors = layer.reflectors.filter(r=>{
+    const removedIndices = removeReflectorsWithIndexFix(layer, r=>{
       const [wx,wy] = layerToWorld(layer, r.x, r.y);
-      return !inRect(wx,wy);
+      return inRect(wx,wy);
     });
-    removed += before - layer.reflectors.length;
+    removed += removedIndices.length;
   }
   if(state.selectTargets.manualLines && layer.manualLines.length){
     const before = layer.manualLines.length;
@@ -2235,8 +3578,10 @@ canvasEl.addEventListener('pointerdown', (e)=>{
   if(state.tool==='pan'){
     dragging=true; canvasEl.classList.add('dragging'); lastX=e.clientX; lastY=e.clientY;
   } else if(state.tool==='move' && layer){
+    pushUndo(layer);
     dragging=true; lastX=e.clientX; lastY=e.clientY;
   } else if(state.tool==='rotate' && layer){
+    pushUndo(layer);
     const pivotWorld=[layer.pivot.x+layer.transform.tx, layer.pivot.y+layer.transform.ty];
     const [mwx,mwy] = screenToWorld(sx,sy);
     rotateStart = {
@@ -2271,7 +3616,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     const hitIdx = findReflectorAt(layer, sx, sy, 14);
     pushUndo(layer);
     if(hitIdx>=0){
-      layer.reflectors.splice(hitIdx, 1);
+      removeReflectorsWithIndexFix(layer, (r,i)=>i===hitIdx);
       state.hoverReflector = null;
     } else {
       const [wx,wy]=screenToWorld(sx,sy);
@@ -2342,11 +3687,19 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     renderPathPanel();
     scheduleAutosave(); requestDraw();
   } else if(state.tool==='area' && layer){
+    if(startDimensionDrag(sx, sy)){
+      dragging = true;
+      requestDraw();
+      return;
+    }
     const selArea = (state.selectedArea && state.selectedArea.layerId===layer.id) ? state.selectedArea : null;
-    const rotHitIdx = selArea && selArea.areaIndex!=null ? findAreaRotateHandleAt(layer, sx, sy, 10) : -1;
+    const selectedAreaObj = (selArea && selArea.areaIndex!=null && layer.extra && layer.extra.advancedAreaList) ? layer.extra.advancedAreaList[selArea.areaIndex] : null;
+    const locked = hasAnyEdgeConstraint(selectedAreaObj);
+    const rotHitIdx = (!locked && selArea && selArea.areaIndex!=null) ? findAreaRotateHandleAt(layer, sx, sy, 10) : -1;
     const rotHit = (rotHitIdx>=0 && rotHitIdx===selArea.areaIndex) ? rotHitIdx : -1;
-    const vHit = (rotHit<0 && selArea && selArea.areaIndex!=null) ? findAreaVertexAt(layer, sx, sy, 12) : null;
+    const vHit = (!locked && rotHit<0 && selArea && selArea.areaIndex!=null) ? findAreaVertexAt(layer, sx, sy, 12) : null;
     const vHitMatchesSelected = vHit && vHit.areaIndex===selArea.areaIndex;
+    const edgeHit = (rotHit<0 && !vHitMatchesSelected) ? findAreaEdgeAt(layer, sx, sy, 8) : null;
 
     if(rotHit>=0){
       const area = layer.extra.advancedAreaList[rotHit];
@@ -2363,22 +3716,92 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       area.posGroup = posGroupFromRect(r.cx, r.cy, r.w, r.h, r.rot);
       state.areaAction = {type:'resize', layerId:layer.id, areaIndex:vHit.areaIndex, cornerIndex:vHit.vertexIndex};
       dragging = true;
+    } else if(edgeHit){
+      const area = layer.extra.advancedAreaList[edgeHit.areaIndex];
+      state.selectedArea = {layerId:layer.id, groupId:area.__group, areaIndex:edgeHit.areaIndex};
+      state.selectedAreaEdge = {layerId:layer.id, areaIndex:edgeHit.areaIndex, edgeKey:edgeHit.edgeKey};
+      renderAreaPanel();
     } else {
       const areaIdx = findAreaBodyAt(layer, sx, sy);
       if(areaIdx>=0){
         const area = layer.extra.advancedAreaList[areaIdx];
-        pushUndo(layer);
         state.selectedArea = {layerId:layer.id, groupId:area.__group, areaIndex:areaIdx};
-        state.areaAction = {type:'move', layerId:layer.id, groupId:area.__group, lastWorld:screenToWorld(sx,sy)};
-        dragging = true;
+        state.selectedAreaEdge = null;
+        if(!hasAnyEdgeConstraint(area)){
+          pushUndo(layer);
+          state.areaAction = {type:'move', layerId:layer.id, groupId:area.__group, lastWorld:screenToWorld(sx,sy)};
+          dragging = true;
+        }
         renderAreaPanel();
       } else {
         const [wx,wy] = screenToWorld(sx,sy);
         state.areaAction = {type:'draw', layerId:layer.id, x1:wx, y1:wy, x2:wx, y2:wy};
+        state.selectedAreaEdge = null;
         dragging = true;
       }
     }
     requestDraw();
+  } else if(state.tool==='dist'){
+    if(!state.distTarget && startDimensionDrag(sx, sy)){
+      dragging = true;
+      requestDraw();
+      return;
+    }
+    if(!state.distTarget){
+      const target = findConstrainableTargetAt(sx, sy, 14);
+      if(target){
+        if(target.kind!=='edge') target.axis = state.distAxis;
+        state.distTarget = target;
+      }
+      updateDistHint();
+      requestDraw();
+      return;
+    }
+    const target = state.distTarget;
+    let excludeRef = {layerId:target.layerId};
+    if(target.kind==='edge') excludeRef.areaIndex = target.areaIndex;
+    else if(target.kind==='reflector') excludeRef.reflectorIndex = target.index;
+    else excludeRef.instanceName = target.instanceName;
+    const anchor = findPickableAnchorAt(sx, sy, 14, excludeRef, target.axis);
+    let confirmed = false;
+    if(anchor){
+      const currentValue = getTargetWorldValue(target, target.axis);
+      const anchorValue = anchorWorldValue(anchor, target.axis);
+      if(currentValue!=null && anchorValue!=null){
+        const constraint = { axis:target.axis, offset: currentValue-anchorValue };
+        applyAnchorToConstraint(constraint, anchor);
+        const targetRef = targetToRef(target);
+        const selfRef = isSelfAnchorRef(constraint, target);
+        const cycle = !selfRef && constraintChainHitsTarget(constraint, targetRef);
+        if(!selfRef && !cycle){
+          const targetLayer = getTargetLayer(target);
+          pushUndo(targetLayer);
+          storeConstraintOnTarget(target, constraint);
+          resolveAllConstraints();
+          if(target.kind==='edge'){
+            const found = getAreaByRef({layerId:target.layerId, areaIndex:target.areaIndex});
+            state.selectedArea = {layerId:target.layerId, groupId:found.area.__group, areaIndex:target.areaIndex};
+            state.selectedAreaEdge = {layerId:target.layerId, areaIndex:target.areaIndex, edgeKey:target.edgeKey};
+          } else if(target.kind==='navPoint'){
+            state.selectedNavPoint = {layerId:target.layerId, instanceName:target.instanceName};
+            state.selectedPath = null;
+          }
+          scheduleAutosave();
+          state.distTarget = null;
+          state.distPickHover = null;
+          updateDistHint();
+          renderAreaPanel(); renderNavPointPanel(); renderPathPanel(); requestDraw();
+          openDimInlineEdit(targetRef, sx, sy, constraint.offset, true);
+          confirmed = true;
+        }
+      }
+    }
+    if(!confirmed){
+      state.distTarget = null;
+      state.distPickHover = null;
+      updateDistHint();
+      requestDraw();
+    }
   }
 });
 
@@ -2390,6 +3813,12 @@ canvasEl.addEventListener('pointermove', (e)=>{
   document.getElementById('hud').innerHTML = 'x: <b>'+wx.toFixed(2)+'</b> m &nbsp; y: <b>'+wy.toFixed(2)+'</b> m';
   state.mouse = {x:sx, y:sy};
   if(state.tool==='erase') requestDraw();
+
+  if(state.dimDrag){
+    updateDimensionDrag(sx, sy);
+    requestDraw();
+    return;
+  }
 
   if(state.tool==='reflector'){
     const hoverLayer = getEditableActiveLayer();
@@ -2420,11 +3849,28 @@ canvasEl.addEventListener('pointermove', (e)=>{
     state.hoverNavPoint = null;
   }
 
+  if(state.tool==='dist' && state.distTarget){
+    const target = state.distTarget;
+    const excludeRef = {layerId:target.layerId};
+    if(target.kind==='edge') excludeRef.areaIndex = target.areaIndex;
+    else if(target.kind==='reflector') excludeRef.reflectorIndex = target.index;
+    else excludeRef.instanceName = target.instanceName;
+    state.distPickHover = findPickableAnchorAt(sx, sy, 14, excludeRef, target.axis);
+    requestDraw();
+  } else if(state.tool==='dist' && !state.distTarget){
+    const hit = findConstrainableTargetAt(sx, sy, 14);
+    if(JSON.stringify(hit)!==JSON.stringify(state.distHoverTarget)){ state.distHoverTarget = hit; requestDraw(); }
+  } else if(state.tool!=='dist' && (state.distHoverTarget || state.distPickHover)){
+    state.distHoverTarget = null; state.distPickHover = null;
+  }
+
   if(state.tool==='area' && !dragging){
     const hoverLayer = getEditableActiveLayer();
     const selArea = (hoverLayer && state.selectedArea && state.selectedArea.layerId===hoverLayer.id) ? state.selectedArea : null;
+    const selectedAreaObj = (hoverLayer && selArea && selArea.areaIndex!=null && hoverLayer.extra && hoverLayer.extra.advancedAreaList) ? hoverLayer.extra.advancedAreaList[selArea.areaIndex] : null;
+    const locked = hasAnyEdgeConstraint(selectedAreaObj);
     let vHit = null, rotHit = -1;
-    if(hoverLayer && selArea && selArea.areaIndex!=null){
+    if(hoverLayer && !locked && selArea && selArea.areaIndex!=null){
       rotHit = findAreaRotateHandleAt(hoverLayer, sx, sy, 10);
       if(rotHit!==selArea.areaIndex) rotHit = -1;
       if(rotHit<0){
@@ -2432,11 +3878,13 @@ canvasEl.addEventListener('pointermove', (e)=>{
         if(v && v.areaIndex===selArea.areaIndex) vHit = v;
       }
     }
-    if(JSON.stringify(vHit)!==JSON.stringify(state.hoverAreaVertex) || rotHit!==state.hoverAreaRotate){
-      state.hoverAreaVertex = vHit; state.hoverAreaRotate = rotHit; requestDraw();
+    const edgeHit = (hoverLayer && rotHit<0 && !(vHit && vHit.areaIndex===(selArea&&selArea.areaIndex))) ? findAreaEdgeAt(hoverLayer, sx, sy, 8) : null;
+    const edgeHitTagged = edgeHit && hoverLayer ? {layerId:hoverLayer.id, areaIndex:edgeHit.areaIndex, edgeKey:edgeHit.edgeKey} : null;
+    if(JSON.stringify(vHit)!==JSON.stringify(state.hoverAreaVertex) || rotHit!==state.hoverAreaRotate || JSON.stringify(edgeHitTagged)!==JSON.stringify(state.hoverAreaEdge)){
+      state.hoverAreaVertex = vHit; state.hoverAreaRotate = rotHit; state.hoverAreaEdge = edgeHitTagged; requestDraw();
     }
-  } else if(state.tool!=='area' && (state.hoverAreaVertex || state.hoverAreaRotate>=0)){
-    state.hoverAreaVertex = null; state.hoverAreaRotate = -1;
+  } else if(state.tool!=='area' && (state.hoverAreaVertex || state.hoverAreaRotate>=0 || state.hoverAreaEdge)){
+    state.hoverAreaVertex = null; state.hoverAreaRotate = -1; state.hoverAreaEdge = null;
   }
 
   if(activePointers.size===2 && pinchMid){
@@ -2459,12 +3907,12 @@ canvasEl.addEventListener('pointermove', (e)=>{
     const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
     layer.transform.tx += dx/state.view.scale;
     layer.transform.ty -= dy/state.view.scale;
-    renderDetailPanel(); requestDraw();
+    renderDetailPanel(); scheduleAutosave(); requestDraw();
   } else if(state.tool==='rotate' && layer && rotateStart){
     const pivotWorld=[layer.pivot.x+layer.transform.tx, layer.pivot.y+layer.transform.ty];
     const angle = Math.atan2(wy-pivotWorld[1], wx-pivotWorld[0]);
     layer.transform.rot = rotateStart.startRot + (angle-rotateStart.startAngle);
-    renderDetailPanel(); requestDraw();
+    renderDetailPanel(); scheduleAutosave(); requestDraw();
   } else if(state.tool==='erase' && layer){
     queueErase(wx,wy);
   } else if(state.tool==='draw' && state.draggingLineHandle && layer){
@@ -2552,6 +4000,11 @@ function endPointer(e){
   if(e.button===1 && middlePanActive){
     middlePanActive = false;
     setTool(state.prevTool);
+  }
+
+  if(state.dimDrag){
+    state.dimDrag = null;
+    scheduleAutosave();
   }
 
   if(state.tool==='draw'){
@@ -2669,7 +4122,18 @@ canvasEl.addEventListener('wheel', (e)=>{
   requestDraw();
 }, {passive:false});
 
-canvasEl.addEventListener('dblclick', ()=>{ fitView(); requestDraw(); });
+canvasEl.addEventListener('dblclick', (e)=>{
+  if(state.tool==='area' || state.tool==='dist'){
+    const rect = canvasEl.getBoundingClientRect();
+    const sx = e.clientX-rect.left, sy = e.clientY-rect.top;
+    if(openDimensionEditAt(sx, sy)){
+      if(state.dimDrag){ state.dimDrag = null; }
+      requestDraw();
+      return;
+    }
+  }
+  fitView(); requestDraw();
+});
 
 document.addEventListener('keydown', (e)=>{
   const tag = (e.target.tagName||'').toLowerCase();
@@ -2680,7 +4144,9 @@ document.addEventListener('keydown', (e)=>{
   if(tag==='input' || tag==='textarea') return;
   if(e.code==='Space' && state.tool!=='pan'){ state.prevTool=state.tool; setTool('pan'); e.preventDefault(); return; }
   if(e.key==='Escape' && state.measure){ state.measure = null; requestDraw(); return; }
-  const map = {h:'pan', v:'move', r:'rotate', e:'erase', l:'draw', k:'reflector', s:'select', m:'measure', n:'nav', a:'area', g:'align'};
+  if(e.key==='Escape' && state.distTarget){ state.distTarget = null; state.distPickHover = null; updateDistHint(); requestDraw(); return; }
+  if(e.key.toLowerCase()==='f'){ fitView(); requestDraw(); return; }
+  const map = {h:'pan', v:'move', r:'rotate', e:'erase', l:'draw', k:'reflector', s:'select', m:'measure', n:'nav', a:'area', g:'align', d:'dist'};
   if(map[e.key.toLowerCase()]) setTool(map[e.key.toLowerCase()]);
 });
 document.addEventListener('keyup', (e)=>{
@@ -2720,6 +4186,7 @@ function downloadJSON(obj, filename){
 }
 
 function buildSmapFromLayers(layers, mapName){
+  resolveAllConstraints();
   const normalPosList = [], rssiPosList = [], reflectorPosList = [];
   const mergedExtra = {};
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
@@ -2941,6 +4408,21 @@ document.getElementById('btnPrint').addEventListener('click', ()=>{
 });
 
 // ---------------- init ----------------
+
+function initCollapsibleSections(){
+  document.querySelectorAll('.section-title[data-key]').forEach(title=>{
+    const section = title.closest('.section');
+    const key = title.dataset.key;
+    let collapsed = false;
+    try{ collapsed = localStorage.getItem('smapEditorCollapsed:'+key)==='1'; }catch(e){}
+    section.classList.toggle('collapsed', collapsed);
+    title.addEventListener('click', ()=>{
+      const isCollapsed = section.classList.toggle('collapsed');
+      try{ localStorage.setItem('smapEditorCollapsed:'+key, isCollapsed?'1':'0'); }catch(e){}
+    });
+  });
+}
+initCollapsibleSections();
 
 resizeCanvas();
 setTool('pan');
