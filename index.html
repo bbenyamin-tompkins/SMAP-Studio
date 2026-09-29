@@ -347,6 +347,7 @@
         <button class="tool-btn" data-tool="align" title="Draw a line, then align the layer's axis to it (G)"><span class="glyph">↔</span>Align</button>
         <button class="tool-btn" data-tool="dist" title="Pin a horizontal/vertical distance between an area edge, nav point, reflector, or bezier control handle and a reference (D)"><span class="glyph">📐</span>Distance</button>
         <button class="tool-btn" data-tool="constraints" title="Select 2+ points (or one bezier handle) and make them Horizontal/Vertical/Coincident (C)"><span class="glyph">🔗</span>Constrain</button>
+        <button class="tool-btn" data-tool="pattern" title="Linear pattern: click a nav point as seed, set spacing/count, then Create. Drag a generated instance to override its own step (P)"><span class="glyph">🔁</span>Pattern</button>
       </div>
 
       <div class="tool-options" id="opts-erase" hidden>
@@ -419,6 +420,107 @@
         <div class="stat-line" style="margin-top:8px;"><span>Relations in project</span><b id="relCount" class="mono">0</b></div>
         <button class="btn danger" id="btnDeleteAllRelations" style="width:100%; margin-top:6px;">Delete all relations</button>
       </div>
+      <div class="tool-options" id="opts-pattern" hidden>
+        <div class="tool-hint" id="patternHint" style="margin-top:0;">Click a nav point to start a new pattern from it, or click an existing pattern's seed/instance to select it. Drag a linear instance to override its own step. Right-click an instance/cell (including a faded skipped one) to skip/un-skip it.</div>
+        <div id="patDraftBox" hidden>
+          <div class="stat-line" style="margin-top:8px;"><span>Seed</span><b id="patDraftSeed" class="mono"></b></div>
+          <div class="row" style="gap:8px; margin-top:6px;">
+            <span style="width:52px;">Type</span>
+            <div class="shape-toggle">
+              <button type="button" class="shape-btn active" id="patDraftTypeLinear">Linear</button>
+              <button type="button" class="shape-btn" id="patDraftTypeGrid">Grid</button>
+            </div>
+          </div>
+          <div id="patDraftLinearFields">
+            <div class="row" style="gap:8px; margin-top:6px;">
+              <span style="width:52px;">Axis</span>
+              <div class="shape-toggle">
+                <button type="button" class="shape-btn active" id="patDraftAxisX">X</button>
+                <button type="button" class="shape-btn" id="patDraftAxisY">Y</button>
+                <button type="button" class="shape-btn" id="patDraftAxisBoth">Both</button>
+              </div>
+            </div>
+            <div class="field-row" id="patDraftDxRow"><label for="patDraftDx">dx</label><input type="number" id="patDraftDx" step="0.01" value="1"></div>
+            <div class="field-row" id="patDraftDyRow" hidden><label for="patDraftDy">dy</label><input type="number" id="patDraftDy" step="0.01" value="0"></div>
+            <div class="field-row"><label for="patDraftCount">Count</label><input type="number" id="patDraftCount" step="1" min="1" value="3"></div>
+            <label class="check-inline" style="margin-top:4px;"><input type="checkbox" id="patDraftConnected"> Connect nav points with paths</label>
+            <div class="field-row" id="patDraftConnectDirRow" hidden>
+              <label for="patDraftConnectDir">Direction</label>
+              <select id="patDraftConnectDir" style="flex:1; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
+                <option value="both">Bidirectional</option>
+                <option value="forward">Forward only</option>
+                <option value="backward">Backward only</option>
+              </select>
+            </div>
+          </div>
+          <div id="patDraftGridFields" hidden>
+            <div class="field-row"><label for="patDraftGridDx">dx</label><input type="number" id="patDraftGridDx" step="0.01" value="1"></div>
+            <div class="field-row"><label for="patDraftGridDy">dy</label><input type="number" id="patDraftGridDy" step="0.01" value="1"></div>
+            <div class="field-row"><label for="patDraftCountX">Columns</label><input type="number" id="patDraftCountX" step="1" min="1" value="3"></div>
+            <div class="field-row"><label for="patDraftCountY">Rows</label><input type="number" id="patDraftCountY" step="1" min="1" value="3"></div>
+          </div>
+          <button class="btn primary" id="btnPatDraftCreate" style="width:100%; margin-top:8px;">Create pattern</button>
+          <button class="btn" id="btnPatDraftCancel" style="width:100%; margin-top:6px;">Cancel</button>
+        </div>
+        <div id="patSelBox" hidden>
+          <div class="stat-line" style="margin-top:8px;"><span>Seed</span><b id="patSelSeed" class="mono"></b></div>
+          <div class="row" style="gap:8px; margin-top:6px;">
+            <span style="width:52px;">Axis</span>
+            <div class="shape-toggle">
+              <button type="button" class="shape-btn" id="patSelAxisX">X</button>
+              <button type="button" class="shape-btn" id="patSelAxisY">Y</button>
+              <button type="button" class="shape-btn" id="patSelAxisBoth">Both</button>
+            </div>
+          </div>
+          <div class="field-row" id="patSelDxRow"><label for="patSelDx">dx</label><input type="number" id="patSelDx" step="0.01"></div>
+          <div class="field-row" id="patSelDyRow"><label for="patSelDy">dy</label><input type="number" id="patSelDy" step="0.01"></div>
+          <div class="field-row"><label for="patSelCount">Count</label><input type="number" id="patSelCount" step="1" min="0"></div>
+          <label class="check-inline" style="margin-top:4px;"><input type="checkbox" id="patSelConnected"> Connect nav points with paths</label>
+          <div class="field-row" id="patSelConnectDirRow" hidden>
+            <label for="patSelConnectDir">Direction</label>
+            <select id="patSelConnectDir" style="flex:1; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
+              <option value="both">Bidirectional</option>
+              <option value="forward">Forward only</option>
+              <option value="backward">Backward only</option>
+            </select>
+          </div>
+          <div class="stat-line"><span>Overridden instances</span><b id="patSelOverrideCount" class="mono"></b></div>
+          <div class="stat-line"><span>Skipped instances</span><b id="patSelSkipCount" class="mono"></b></div>
+          <button class="btn" id="btnPatSelResetOverrides" style="width:100%; margin-top:8px;">Reset all instance overrides</button>
+          <button class="btn" id="btnPatSelUnskipAll" style="width:100%; margin-top:6px;">Un-skip all instances</button>
+          <button class="btn danger" id="btnPatSelDelete" style="width:100%; margin-top:6px;">Delete pattern</button>
+        </div>
+        <div id="gridSelBox" hidden>
+          <div class="stat-line" style="margin-top:8px;"><span>Seed</span><b id="gridSelSeed" class="mono"></b></div>
+          <div class="field-row"><label for="gridSelDx">dx</label><input type="number" id="gridSelDx" step="0.01"></div>
+          <div class="field-row"><label for="gridSelDy">dy</label><input type="number" id="gridSelDy" step="0.01"></div>
+          <div class="field-row"><label for="gridSelCountX">Columns</label><input type="number" id="gridSelCountX" step="1" min="1"></div>
+          <div class="field-row"><label for="gridSelCountY">Rows</label><input type="number" id="gridSelCountY" step="1" min="1"></div>
+          <div class="stat-line"><span>Skipped cells</span><b id="gridSelSkipCount" class="mono"></b></div>
+          <button class="btn" id="btnGridSelUnskipAll" style="width:100%; margin-top:8px;">Un-skip all cells</button>
+          <button class="btn danger" id="btnGridSelDelete" style="width:100%; margin-top:6px;">Delete grid pattern</button>
+        </div>
+      </div>
+      <div class="tool-options" id="opts-nav" hidden>
+        <div class="tool-hint" style="margin-top:0;">Shift-drag from one nav point to another to add a path with these settings.</div>
+        <div class="row" style="gap:8px; margin-top:8px;">
+          <span style="width:70px;">New path</span>
+          <div class="shape-toggle">
+            <button type="button" class="shape-btn active" id="newPathDirBoth" title="Bidirectional">Bi</button>
+            <button type="button" class="shape-btn" id="newPathDirFwd" title="Forward only">Fwd</button>
+            <button type="button" class="shape-btn" id="newPathDirBwd" title="Backward only">Bwd</button>
+          </div>
+        </div>
+        <div class="field-row"><label for="newPathMovestyle">Movestyle</label>
+          <select id="newPathMovestyle" style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
+            <option value="0">0 — Fixed path</option>
+            <option value="1">1 — Autonomous navigation</option>
+            <option value="2">2 — Shape navigation</option>
+            <option value="3">3 — Infrared guidance</option>
+            <option value="4">4 — Magnetic-stripe guidance</option>
+          </select>
+        </div>
+      </div>
     </div>
 
     <div class="section" id="navPointSection" hidden>
@@ -449,24 +551,42 @@
       <div class="stat-line"><span>Name</span><b id="pathName" class="mono"></b></div>
       <div class="label-sub">Forward <span id="pathFwdLabel" class="mono"></span></div>
       <div class="field-row"><label for="pathFwdDirection">Direction</label>
-        <select id="pathFwdDirection" style="flex:1; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
+        <select id="pathFwdDirection" title="Which way the robot may travel along this curve." style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
           <option value="0">0 — Bidirectional</option>
-          <option value="1">1 — Forward only</option>
-          <option value="2">2 — Backward only</option>
+          <option value="1">1 — Forward</option>
+          <option value="2">2 — Backward</option>
         </select>
       </div>
-      <div class="field-row"><label for="pathFwdMovestyle">Movestyle</label><input type="number" id="pathFwdMovestyle" step="1"></div>
+      <div class="field-row"><label for="pathFwdMovestyle">Movestyle</label>
+        <select id="pathFwdMovestyle" title="Navigation mode for this segment (order per SEER RoboShop manual v1.1.0; exact integer mapping not confirmed by the manual text)." style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
+          <option value="0">0 — Fixed path</option>
+          <option value="1">1 — Autonomous navigation</option>
+          <option value="2">2 — Shape navigation</option>
+          <option value="3">3 — Infrared guidance</option>
+          <option value="4">4 — Magnetic-stripe guidance</option>
+        </select>
+      </div>
       <div class="label-sub" id="pathBwdSection">Backward <span id="pathBwdLabel" class="mono"></span></div>
       <div class="field-row"><label for="pathBwdDirection">Direction</label>
-        <select id="pathBwdDirection" style="flex:1; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
+        <select id="pathBwdDirection" title="Which way the robot may travel along this curve." style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
           <option value="0">0 — Bidirectional</option>
-          <option value="1">1 — Forward only</option>
-          <option value="2">2 — Backward only</option>
+          <option value="1">1 — Forward</option>
+          <option value="2">2 — Backward</option>
         </select>
       </div>
-      <div class="field-row"><label for="pathBwdMovestyle">Movestyle</label><input type="number" id="pathBwdMovestyle" step="1"></div>
+      <div class="field-row"><label for="pathBwdMovestyle">Movestyle</label>
+        <select id="pathBwdMovestyle" title="Navigation mode for this segment (order per SEER RoboShop manual v1.1.0; exact integer mapping not confirmed by the manual text)." style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
+          <option value="0">0 — Fixed path</option>
+          <option value="1">1 — Autonomous navigation</option>
+          <option value="2">2 — Shape navigation</option>
+          <option value="3">3 — Infrared guidance</option>
+          <option value="4">4 — Magnetic-stripe guidance</option>
+        </select>
+      </div>
       <button class="btn" id="btnSplitPath" style="width:100%; margin-top:6px;">Split into two one-way paths</button>
       <button class="btn danger" id="btnDeletePath" style="width:100%; margin-top:6px;">Delete path</button>
+      <button class="btn danger" id="btnDeletePathFwd" style="width:100%; margin-top:6px;">Delete forward only</button>
+      <button class="btn danger" id="btnDeletePathBwd" style="width:100%; margin-top:6px;">Delete backward only</button>
     </div>
 
     <div class="section" id="areaSection" hidden>
@@ -519,6 +639,7 @@
       <label class="legend-row check"><input type="checkbox" id="showAreas" checked><span class="legend-swatch sq" style="background:#ff5500;"></span>Reflector areas</label>
       <label class="legend-row check"><input type="checkbox" id="showAreaDims" checked><span class="legend-swatch sq" style="background:#ffb347;"></span>Area dimensions</label>
       <label class="legend-row check"><input type="checkbox" id="showRelations" checked><span class="legend-swatch sq" style="background:#3fd0ff;"></span>Relations</label>
+      <label class="legend-row check"><input type="checkbox" id="showPatterns" checked><span class="legend-swatch sq" style="background:#3fd0ff;"></span>Patterns</label>
       <label class="legend-row check"><input type="checkbox" id="showExtra" checked><span class="legend-swatch sq" style="background:#9aa39d;"></span>Walls</label>
       <label class="legend-row check"><input type="checkbox" id="showNav" checked><span class="legend-swatch" style="background:#7c6cff;"></span>Nav points / paths</label>
       <label class="legend-row check" style="margin-top:6px;"><input type="checkbox" id="colorizeLayers"><span class="legend-swatch sq" style="background:linear-gradient(90deg,#7fe9c9,#f2c14e,#7ea6ff);"></span>Colorize layers</label>
@@ -533,7 +654,7 @@
         <kbd>H</kbd> pan &nbsp; <kbd>V</kbd> move &nbsp; <kbd>R</kbd> rotate<br>
         <kbd>E</kbd> erase &nbsp; <kbd>L</kbd> draw &nbsp; <kbd>K</kbd> reflector<br>
         <kbd>S</kbd> select &nbsp; <kbd>M</kbd> ruler &nbsp; <kbd>N</kbd> nav pts &nbsp; <kbd>A</kbd> area<br>
-        <kbd>G</kbd> align &nbsp; <kbd>D</kbd> distance &nbsp; <kbd>F</kbd> fit view<br>
+        <kbd>G</kbd> align &nbsp; <kbd>D</kbd> distance &nbsp; <kbd>P</kbd> pattern &nbsp; <kbd>F</kbd> fit view<br>
         <kbd>Esc</kbd> clear ruler<br>
         <kbd>Space</kbd> hold to pan &nbsp; <kbd>Ctrl+Z</kbd> undo edit
       </div>
@@ -558,6 +679,7 @@
       <button type="button" id="relToolbarO" title="Coincident (O)">&#8853;</button>
     </div>
     <div class="rel-menu" id="relMenu" hidden></div>
+    <div class="rel-menu" id="patMenu" hidden></div>
     <div class="restore-banner" id="restoreBanner" hidden>
       <span id="restoreText"></span>
       <button id="btnRestoreYes">Restore</button>
@@ -593,7 +715,7 @@ const state = {
   eraseRadius: 0.5,
   eraseShape: 'circle',
   eraseTargets: { scan:true, rssi:true, extra:true },
-  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true, areaDims:true, relations:true },
+  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true, areaDims:true, relations:true, patterns:true },
   showOrigin: false,
   uniformLayerColor: true,
   mouse: null,
@@ -633,6 +755,15 @@ const state = {
   relHoverHighlight: [],
   relMenuFor: null,
   pendingConflict: null,
+  patterns: [],
+  patDraft: null,
+  selectedPattern: null,
+  draggingPatternInstance: null,
+  gridPatterns: [],
+  selectedGridPattern: null,
+  patMenuFor: null,
+  newPathDirection: 'both',
+  newPathMovestyle: 0,
   selectedDimension: null,
   alignLine: null,
   alignAxis: 'x',
@@ -965,6 +1096,16 @@ function renameNavPoint(layer, oldName, newName){
       }
     }
   }
+  for(const pat of state.patterns){
+    if(pat.layerId!==layer.id) continue;
+    if(pat.seedName===oldName) pat.seedName = newName;
+    for(const inst of pat.instances){ if(inst.name===oldName) inst.name = newName; }
+  }
+  for(const grid of state.gridPatterns){
+    if(grid.layerId!==layer.id) continue;
+    if(grid.seedName===oldName) grid.seedName = newName;
+    for(const key of Object.keys(grid.cells)){ if(grid.cells[key].name===oldName) grid.cells[key].name = newName; }
+  }
   return true;
 }
 
@@ -1071,9 +1212,12 @@ btnDeleteNavPoint.addEventListener('click', ()=>{
   const {layer, pt} = sel;
   pushUndo(layer);
   deleteNavPoint(layer, pt.instanceName);
+  prunePatterns();
+  pruneGridPatterns();
   state.selectedNavPoint = null;
   renderNavPointPanel();
   renderPathPanel();
+  renderPatternPanel();
   scheduleAutosave(); requestDraw();
 });
 
@@ -1130,6 +1274,8 @@ const pathBwdDirection = document.getElementById('pathBwdDirection');
 const pathBwdMovestyle = document.getElementById('pathBwdMovestyle');
 const btnSplitPath = document.getElementById('btnSplitPath');
 const btnDeletePath = document.getElementById('btnDeletePath');
+const btnDeletePathFwd = document.getElementById('btnDeletePathFwd');
+const btnDeletePathBwd = document.getElementById('btnDeletePathBwd');
 
 function normalizeCurvePairs(layer){
   const list = layer.extra && layer.extra.advancedCurveList;
@@ -1182,7 +1328,7 @@ function renderPathPanel(){
   if(forward){
     pathFwdLabel.textContent = forward.startPos.instanceName+' → '+forward.endPos.instanceName;
     populateDirectionSelect(pathFwdDirection, getIntProperty(forward, 'direction', 0));
-    pathFwdMovestyle.value = getIntProperty(forward, 'movestyle', 0);
+    populateDirectionSelect(pathFwdMovestyle, getIntProperty(forward, 'movestyle', 0));
     pathFwdDirection.disabled = pathFwdMovestyle.disabled = disabled;
   }
   pathBwdSection.hidden = !backward;
@@ -1191,12 +1337,18 @@ function renderPathPanel(){
   if(backward){
     pathBwdLabel.textContent = backward.startPos.instanceName+' → '+backward.endPos.instanceName;
     populateDirectionSelect(pathBwdDirection, getIntProperty(backward, 'direction', 0));
-    pathBwdMovestyle.value = getIntProperty(backward, 'movestyle', 0);
+    populateDirectionSelect(pathBwdMovestyle, getIntProperty(backward, 'movestyle', 0));
     pathBwdDirection.disabled = pathBwdMovestyle.disabled = disabled;
   }
   btnSplitPath.hidden = !(forward && backward && linked);
   btnSplitPath.disabled = disabled;
+  const isSplitPair = !!(forward && backward && !linked);
+  btnDeletePath.hidden = isSplitPair;
   btnDeletePath.disabled = disabled;
+  btnDeletePathFwd.hidden = !isSplitPair;
+  btnDeletePathBwd.hidden = !isSplitPair;
+  btnDeletePathFwd.disabled = disabled;
+  btnDeletePathBwd.disabled = disabled;
 }
 
 pathFwdDirection.addEventListener('change', ()=>{
@@ -1205,7 +1357,7 @@ pathFwdDirection.addEventListener('change', ()=>{
   setIntProperty(sel.forward, 'direction', parseInt(pathFwdDirection.value,10));
   scheduleAutosave(); requestDraw();
 });
-pathFwdMovestyle.addEventListener('input', ()=>{
+pathFwdMovestyle.addEventListener('change', ()=>{
   const sel = getSelectedPath();
   if(!sel || !sel.layer.visible || !sel.forward) return;
   setIntProperty(sel.forward, 'movestyle', parseInt(pathFwdMovestyle.value,10)||0);
@@ -1217,7 +1369,7 @@ pathBwdDirection.addEventListener('change', ()=>{
   setIntProperty(sel.backward, 'direction', parseInt(pathBwdDirection.value,10));
   scheduleAutosave(); requestDraw();
 });
-pathBwdMovestyle.addEventListener('input', ()=>{
+pathBwdMovestyle.addEventListener('change', ()=>{
   const sel = getSelectedPath();
   if(!sel || !sel.layer.visible || !sel.backward) return;
   setIntProperty(sel.backward, 'movestyle', parseInt(pathBwdMovestyle.value,10)||0);
@@ -1238,6 +1390,22 @@ btnDeletePath.addEventListener('click', ()=>{
   pushUndo(sel.layer);
   sel.layer.extra.advancedCurveList = sel.layer.extra.advancedCurveList.filter(c=>c!==sel.forward && c!==sel.backward);
   state.selectedPath = null;
+  renderPathPanel();
+  scheduleAutosave(); requestDraw();
+});
+btnDeletePathFwd.addEventListener('click', ()=>{
+  const sel = getSelectedPath();
+  if(!sel || !sel.layer.visible || !sel.forward) return;
+  pushUndo(sel.layer);
+  sel.layer.extra.advancedCurveList = sel.layer.extra.advancedCurveList.filter(c=>c!==sel.forward);
+  renderPathPanel();
+  scheduleAutosave(); requestDraw();
+});
+btnDeletePathBwd.addEventListener('click', ()=>{
+  const sel = getSelectedPath();
+  if(!sel || !sel.layer.visible || !sel.backward) return;
+  pushUndo(sel.layer);
+  sel.layer.extra.advancedCurveList = sel.layer.extra.advancedCurveList.filter(c=>c!==sel.backward);
   renderPathPanel();
   scheduleAutosave(); requestDraw();
 });
@@ -1593,12 +1761,14 @@ const optsSelect = document.getElementById('opts-select');
 const optsAlign = document.getElementById('opts-align');
 const optsDist = document.getElementById('opts-dist');
 const optsConstraints = document.getElementById('opts-constraints');
+const optsPattern = document.getElementById('opts-pattern');
+const optsNav = document.getElementById('opts-nav');
 const toolStatus = document.getElementById('toolStatus');
 const noLayerBanner = document.getElementById('noLayerBanner');
 const canvasEl = document.getElementById('canvas');
 
-const TOOL_LABELS = { pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', select:'Rectangle select', measure:'Ruler', nav:'Nav points', area:'Reflector area', align:'Align to line', dist:'Distance', constraints:'Constrain' };
-const TOOL_NEEDS_LAYER = { move:true, rotate:true, erase:true, draw:true, reflector:true, select:true, pan:false, measure:false, nav:true, area:true, align:true, dist:false, constraints:false };
+const TOOL_LABELS = { pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', select:'Rectangle select', measure:'Ruler', nav:'Nav points', area:'Reflector area', align:'Align to line', dist:'Distance', constraints:'Constrain', pattern:'Linear pattern' };
+const TOOL_NEEDS_LAYER = { move:true, rotate:true, erase:true, draw:true, reflector:true, select:true, pan:false, measure:false, nav:true, area:true, align:true, dist:false, constraints:false, pattern:true };
 
 function updateToolStatus(){
   const tool = state.tool;
@@ -1622,6 +1792,7 @@ function setTool(tool){
   if(tool!=='area' && tool!=='dist' && tool!=='pan'){ state.dimDrag = null; state.selectedDimension = null; }
   if(tool!=='constraints' && tool!=='pan'){ state.relSelection = []; }
   if(tool!=='constraints'){ closeRelToolbar(); }
+  if(tool!=='pattern' && tool!=='pan'){ state.patDraft = null; state.selectedPattern = null; state.selectedGridPattern = null; }
   closeRelMenu();
   state.tool = tool;
   toolButtons.forEach(b=>b.classList.toggle('active', b.dataset.tool===tool));
@@ -1632,6 +1803,8 @@ function setTool(tool){
   optsAlign.hidden = tool!=='align';
   optsDist.hidden = tool!=='dist';
   optsConstraints.hidden = tool!=='constraints';
+  optsPattern.hidden = tool!=='pattern';
+  optsNav.hidden = tool!=='nav';
   canvasEl.className = 'tool-'+tool;
   updateToolStatus();
   renderNavPointPanel();
@@ -1640,9 +1813,21 @@ function setTool(tool){
   renderAlignPanel();
   updateDistHint();
   renderRelPanel();
+  renderPatternPanel();
   requestDraw();
 }
 toolButtons.forEach(b=>b.addEventListener('click', ()=>setTool(b.dataset.tool)));
+
+function setNewPathDirection(dir){
+  state.newPathDirection = dir;
+  document.getElementById('newPathDirBoth').classList.toggle('active', dir==='both');
+  document.getElementById('newPathDirFwd').classList.toggle('active', dir==='forward');
+  document.getElementById('newPathDirBwd').classList.toggle('active', dir==='backward');
+}
+document.getElementById('newPathDirBoth').addEventListener('click', ()=>setNewPathDirection('both'));
+document.getElementById('newPathDirFwd').addEventListener('click', ()=>setNewPathDirection('forward'));
+document.getElementById('newPathDirBwd').addEventListener('click', ()=>setNewPathDirection('backward'));
+document.getElementById('newPathMovestyle').addEventListener('change', e=>{ state.newPathMovestyle = parseInt(e.target.value,10)||0; });
 
 const eraseRadiusEl = document.getElementById('eraseRadius');
 const eraseRadiusVal = document.getElementById('eraseRadiusVal');
@@ -1751,6 +1936,7 @@ document.getElementById('showReflector').addEventListener('change', e=>{ state.t
 document.getElementById('showAreas').addEventListener('change', e=>{ state.typeVisibility.areas = e.target.checked; requestDraw(); });
 document.getElementById('showAreaDims').addEventListener('change', e=>{ state.typeVisibility.areaDims = e.target.checked; requestDraw(); });
 document.getElementById('showRelations').addEventListener('change', e=>{ state.typeVisibility.relations = e.target.checked; requestDraw(); });
+document.getElementById('showPatterns').addEventListener('change', e=>{ state.typeVisibility.patterns = e.target.checked; requestDraw(); });
 document.getElementById('showExtra').addEventListener('change', e=>{ state.typeVisibility.extra = e.target.checked; requestDraw(); });
 document.getElementById('showNav').addEventListener('change', e=>{ state.typeVisibility.nav = e.target.checked; requestDraw(); });
 const showOriginEl = document.getElementById('showOrigin');
@@ -1774,6 +1960,8 @@ function pushUndo(layer){
     extra: JSON.parse(JSON.stringify(layer.extra||{})),
     transform: {...layer.transform},
     relations: JSON.parse(JSON.stringify(state.relations)),
+    patterns: JSON.parse(JSON.stringify(state.patterns)),
+    gridPatterns: JSON.parse(JSON.stringify(state.gridPatterns)),
   });
   if(state.undoStack.length>20) state.undoStack.shift();
 }
@@ -1786,8 +1974,10 @@ function undo(){
   layer.manualLines = entry.manualLines;
   if(entry.transform) layer.transform = entry.transform;
   if(entry.relations) state.relations = entry.relations;
+  if(entry.patterns) state.patterns = entry.patterns;
+  if(entry.gridPatterns) state.gridPatterns = entry.gridPatterns;
   layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
-  renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderRelPanel(); scheduleAutosave(); requestDraw();
+  renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderRelPanel(); renderPatternPanel(); scheduleAutosave(); requestDraw();
 }
 
 // ---------------- canvas / view ----------------
@@ -1994,7 +2184,12 @@ function drawNavPoints(layer, pal){
       ctx.stroke();
       ctx.globalAlpha = 1;
 
-      // direction arrow: travel from startPos toward endPos, drawn at the curve's midpoint
+      // direction arrow: drawn at the curve's midpoint, always along this
+      // curve's own stored geometry (startPos->endPos). A linked bidirectional
+      // pair is two separate curve objects — one each way — so their arrows
+      // must point opposite ways to show both routes exist; the "direction"
+      // property's exact effect on robot motion (forward-facing vs. reverse-
+      // gear) isn't confirmed, so it must not flip which way this shows.
       const p0=[wx1,wy1], p3=[wx2,wy2];
       const p1 = wc1 || p0, p2 = wc2 || p3;
       const t = 0.5;
@@ -2004,15 +2199,15 @@ function drawNavPoints(layer, pal){
       const dX = 3*mt*mt*(p1[0]-p0[0]) + 6*mt*t*(p2[0]-p1[0]) + 3*t*t*(p3[0]-p2[0]);
       const dY = 3*mt*mt*(p1[1]-p0[1]) + 6*mt*t*(p2[1]-p1[1]) + 3*t*t*(p3[1]-p2[1]);
       const dLen = Math.hypot(dX,dY)||1;
-      const armWorld = 10/state.view.scale;
+      const armWorld = 11/state.view.scale;
       const [amx,amy] = worldToScreen(midX,midY);
       const [atx,aty] = worldToScreen(midX+(dX/dLen)*armWorld, midY+(dY/dLen)*armWorld);
       const segAngle = Math.atan2(aty-amy, atx-amx);
       ctx.fillStyle = navColor;
       ctx.beginPath();
       ctx.moveTo(atx,aty);
-      ctx.lineTo(atx-Math.cos(segAngle-0.45)*7, aty-Math.sin(segAngle-0.45)*7);
-      ctx.lineTo(atx-Math.cos(segAngle+0.45)*7, aty-Math.sin(segAngle+0.45)*7);
+      ctx.lineTo(atx-Math.cos(segAngle-0.45)*9, aty-Math.sin(segAngle-0.45)*9);
+      ctx.lineTo(atx-Math.cos(segAngle+0.45)*9, aty-Math.sin(segAngle+0.45)*9);
       ctx.closePath(); ctx.fill();
 
       // control points + tangent handles, only while actively editing nav points on this layer
@@ -2228,6 +2423,7 @@ function matchesSelectedDimension(kind, layerId, extra){
   if(kind==='edge') return s.areaIndex===extra.areaIndex && s.edgeKey===extra.edgeKey;
   if(kind==='reflector') return s.index===extra.index && s.axis===extra.axis;
   if(kind==='controlPoint') return s.nameA===extra.nameA && s.nameB===extra.nameB && s.which===extra.which && s.axis===extra.axis;
+  if(kind==='patternStep') return s.patId===extra.patId && s.index===extra.index && s.axis===extra.axis;
   return s.instanceName===extra.instanceName && s.axis===extra.axis;
 }
 
@@ -2325,6 +2521,34 @@ function drawDimensionAnnotations(){
             }
           }
         }
+      }
+    }
+  }
+  if(state.typeVisibility.patterns || state.tool==='pattern'){
+    for(const pat of state.patterns){
+      const layer = getLayer(pat.layerId);
+      if(!layer || !layer.visible) continue;
+      const seedPt = findNavPointByName(layer, pat.seedName);
+      if(!seedPt) continue;
+      let prevWorld = layerToWorld(layer, seedPt.pos.x, seedPt.pos.y);
+      for(let i=0; i<pat.instances.length; i++){
+        const inst = pat.instances[i];
+        const pt = findNavPointByName(layer, inst.name);
+        if(!pt) continue;
+        const world = layerToWorld(layer, pt.pos.x, pt.pos.y);
+        if(inst.overrideDx!=null && pat.axis!=='y'){
+          const isSel = matchesSelectedDimension('patternStep', layer.id, {patId:pat.id, index:i, axis:'x'});
+          const label = Math.abs(inst.overrideDx).toFixed(2);
+          const {box, lineA, lineB} = drawCadDimension('x', world, prevWorld, 24, label, isSel?selColor:PAT_OVERRIDE_COLOR, 0.5);
+          if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, patId:pat.id, patIndex:i, axis:'x'});
+        }
+        if(inst.overrideDy!=null && pat.axis!=='x'){
+          const isSel = matchesSelectedDimension('patternStep', layer.id, {patId:pat.id, index:i, axis:'y'});
+          const label = Math.abs(inst.overrideDy).toFixed(2);
+          const {box, lineA, lineB} = drawCadDimension('y', world, prevWorld, 24, label, isSel?selColor:PAT_OVERRIDE_COLOR, 0.5);
+          if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, patId:pat.id, patIndex:i, axis:'y'});
+        }
+        prevWorld = world;
       }
     }
   }
@@ -2650,6 +2874,18 @@ function openInlineEditForLabelHit(labelHit, sx, sy){
     openDimInlineEdit(ref, sx, sy, constraint.offset, false);
     return true;
   }
+  if(labelHit.patId!=null){
+    const pat = state.patterns.find(p=>p.id===labelHit.patId);
+    const inst = pat && pat.instances[labelHit.patIndex];
+    if(!inst) return false;
+    const cur = labelHit.axis==='x' ? inst.overrideDx : inst.overrideDy;
+    if(cur==null) return false;
+    const ref = {kind:'patternStep', layerId:labelHit.layerId, patId:labelHit.patId, index:labelHit.patIndex, axis:labelHit.axis};
+    state.selectedPattern = pat.id;
+    renderPatternPanel();
+    openDimInlineEdit(ref, sx, sy, cur, false);
+    return true;
+  }
   return false;
 }
 
@@ -2676,6 +2912,32 @@ function commitDimInlineEdit(){
   const edit = state.dimInlineEdit;
   if(!edit) return;
   const raw = dimInlineInputEl.value.trim();
+  if(edit.targetRef.kind==='patternStep'){
+    const ref = edit.targetRef;
+    const pat = state.patterns.find(p=>p.id===ref.patId);
+    const inst = pat && pat.instances[ref.index];
+    if(pat && inst){
+      const layer = getLayer(pat.layerId);
+      if(layer) pushUndo(layer);
+      if(raw===''){
+        if(ref.axis==='x') inst.overrideDx = null; else inst.overrideDy = null;
+      } else {
+        const v = parseFloat(raw);
+        if(!isNaN(v)){
+          const curEff = ref.axis==='x' ? (inst.overrideDx!=null?inst.overrideDx:pat.dx) : (inst.overrideDy!=null?inst.overrideDy:pat.dy);
+          const sign = curEff<0 ? -1 : 1;
+          if(ref.axis==='x') inst.overrideDx = round3(sign*Math.abs(v));
+          else inst.overrideDy = round3(sign*Math.abs(v));
+        }
+      }
+      resolveAllPatterns();
+      scheduleAutosave();
+      renderPatternPanel();
+    }
+    closeDimInlineEdit();
+    requestDraw();
+    return;
+  }
   const constraint = getConstraintByTargetRef(edit.targetRef);
   const layer = getTargetLayer(edit.targetRef);
   if(constraint && layer && raw===''){
@@ -2729,14 +2991,20 @@ dimInlineInputEl.addEventListener('keydown', (e)=>{
 });
 dimInlineInputEl.addEventListener('blur', ()=>{ if(state.dimInlineEdit) commitDimInlineEdit(); });
 
-function drawRelBadge(sx, sy, type){
+function relTypeGlyph(type){
+  return type==='horizontal' ? 'H' : type==='vertical' ? 'V' : '⊕';
+}
+// types: array of relation-type strings touching this one point. Every
+// relation on a point shares a single badge (glyphs concatenated) instead of
+// each relation drawing its own badge at the same fixed offset and stacking.
+function drawRelBadge(sx, sy, types){
   const haloColor = state.printFriendly ? '#ffffff' : '#000000';
   const color = '#3fd0ff';
   const bx = sx+9, by = sy-9;
   ctx.font = 'bold 11px ui-monospace, monospace';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.lineWidth = 3; ctx.strokeStyle = haloColor;
-  const glyph = type==='horizontal' ? 'H' : type==='vertical' ? 'V' : '⊕';
+  const glyph = types.map(relTypeGlyph).join('');
   ctx.strokeText(glyph, bx, by);
   ctx.fillStyle = color;
   ctx.fillText(glyph, bx, by);
@@ -2745,13 +3013,21 @@ function drawRelBadge(sx, sy, type){
 
 function drawRelations(){
   if(state.typeVisibility.relations){
+    const byPoint = new Map();
     for(const rel of state.relations){
       for(const p of rel.participants){
-        const w = getRelationParticipantWorldPoint(p);
-        if(!w) continue;
-        const [sx,sy] = worldToScreen(w[0], w[1]);
-        drawRelBadge(sx, sy, rel.type);
+        const k = cellKey(p);
+        if(!k) continue;
+        if(!byPoint.has(k)) byPoint.set(k, {ref:p, types:[]});
+        const entry = byPoint.get(k);
+        if(!entry.types.includes(rel.type)) entry.types.push(rel.type);
       }
+    }
+    for(const {ref, types} of byPoint.values()){
+      const w = getRelationParticipantWorldPoint(ref);
+      if(!w) continue;
+      const [sx,sy] = worldToScreen(w[0], w[1]);
+      drawRelBadge(sx, sy, types);
     }
   }
   if(state.tool==='constraints'){
@@ -2774,9 +3050,96 @@ function drawRelations(){
   }
 }
 
+const PAT_COLOR = '#3fd0ff';
+const PAT_OVERRIDE_COLOR = '#ffd23f';
+const PAT_GHOST_COLOR = '#8a9490';
+function drawPatBadge(sx, sy, glyph, color, ghost){
+  const haloColor = state.printFriendly ? '#ffffff' : '#000000';
+  const bx = sx-9, by = sy-9;
+  ctx.font = 'bold 10px ui-monospace, monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3; ctx.strokeStyle = haloColor;
+  ctx.globalAlpha = ghost ? 0.55 : 1;
+  ctx.strokeText(glyph, bx, by);
+  ctx.fillStyle = color;
+  ctx.fillText(glyph, bx, by);
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+}
+function drawPatterns(){
+  if(!(state.typeVisibility.patterns || state.tool==='pattern')) return;
+  for(const pat of state.patterns){
+    const layer = getLayer(pat.layerId);
+    if(!layer || !layer.visible) continue;
+    const seedPt = findNavPointByName(layer, pat.seedName);
+    if(!seedPt) continue;
+    const seedWorld = layerToWorld(layer, seedPt.pos.x, seedPt.pos.y);
+    const positions = computePatternInstanceWorldPositions(pat);
+    let [psx,psy] = worldToScreen(seedWorld[0], seedWorld[1]);
+    ctx.strokeStyle = PAT_COLOR; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(psx,psy,7,0,Math.PI*2); ctx.stroke();
+    for(let i=0;i<pat.instances.length;i++){
+      const inst = pat.instances[i];
+      const [wx,wy] = positions[i];
+      const [sx,sy] = worldToScreen(wx,wy);
+      if(inst.skipped){
+        ctx.strokeStyle = PAT_GHOST_COLOR; ctx.lineWidth = 1.2; ctx.setLineDash([2,2]);
+        ctx.beginPath(); ctx.moveTo(psx,psy); ctx.lineTo(sx,sy); ctx.stroke();
+        ctx.beginPath(); ctx.arc(sx,sy,6,0,Math.PI*2); ctx.stroke();
+        ctx.setLineDash([]);
+        drawPatBadge(sx, sy, 'P'+(i+1), PAT_GHOST_COLOR, true);
+      } else {
+        const overridden = inst.overrideDx!=null || inst.overrideDy!=null;
+        ctx.strokeStyle = overridden ? PAT_OVERRIDE_COLOR : PAT_COLOR;
+        ctx.setLineDash([4,3]);
+        ctx.beginPath(); ctx.moveTo(psx,psy); ctx.lineTo(sx,sy); ctx.stroke();
+        ctx.setLineDash([]);
+        drawPatBadge(sx, sy, 'P'+(i+1), overridden?PAT_OVERRIDE_COLOR:PAT_COLOR, false);
+      }
+      psx = sx; psy = sy;
+    }
+  }
+}
+function drawGridPatterns(){
+  if(!(state.typeVisibility.patterns || state.tool==='pattern')) return;
+  for(const grid of state.gridPatterns){
+    const layer = getLayer(grid.layerId);
+    if(!layer || !layer.visible) continue;
+    const seedPt = findNavPointByName(layer, grid.seedName);
+    if(!seedPt) continue;
+    const seedWorld = layerToWorld(layer, seedPt.pos.x, seedPt.pos.y);
+    const [ssx,ssy] = worldToScreen(seedWorld[0], seedWorld[1]);
+    ctx.strokeStyle = PAT_COLOR; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(ssx,ssy,7,0,Math.PI*2); ctx.stroke();
+    for(let row=0; row<grid.countY; row++){
+      for(let col=0; col<grid.countX; col++){
+        if(row===0 && col===0) continue;
+        const cell = grid.cells[gridCellKey(row,col)];
+        if(!cell) continue;
+        const [wx,wy] = gridCellWorldTarget(grid, seedWorld, row, col);
+        const [sx,sy] = worldToScreen(wx,wy);
+        const color = cell.skipped ? PAT_GHOST_COLOR : PAT_COLOR;
+        const leftPos = col>0 ? gridCellWorldTarget(grid, seedWorld, row, col-1) : null;
+        const topPos = row>0 ? gridCellWorldTarget(grid, seedWorld, row-1, col) : null;
+        ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.setLineDash([3,3]);
+        if(leftPos){ const [lsx,lsy]=worldToScreen(leftPos[0],leftPos[1]); ctx.beginPath(); ctx.moveTo(lsx,lsy); ctx.lineTo(sx,sy); ctx.stroke(); }
+        if(topPos){ const [tsx,tsy]=worldToScreen(topPos[0],topPos[1]); ctx.beginPath(); ctx.moveTo(tsx,tsy); ctx.lineTo(sx,sy); ctx.stroke(); }
+        ctx.setLineDash([]);
+        if(cell.skipped){
+          ctx.strokeStyle = PAT_GHOST_COLOR; ctx.lineWidth = 1.2;
+          ctx.beginPath(); ctx.arc(sx,sy,6,0,Math.PI*2); ctx.stroke();
+        }
+        drawPatBadge(sx, sy, 'G'+row+','+col, color, cell.skipped);
+      }
+    }
+  }
+}
+
 function draw(){
   resolveAllConstraints();
   resolveAllRelations();
+  resolveAllPatterns();
+  resolveAllGridPatterns();
   const pal = currentPalette();
   ctx.fillStyle = pal.bg;
   ctx.fillRect(0,0,cssW,cssH);
@@ -2999,6 +3362,8 @@ function draw(){
   drawDimensionAnnotations();
   drawDistToolHighlights();
   drawRelations();
+  drawPatterns();
+  drawGridPatterns();
 
   if(state.tool==='erase' && state.mouse){
     const r = Math.max(3, state.eraseRadius*state.view.scale);
@@ -3179,6 +3544,28 @@ function createBidirPath(layer, nameA, nameB){
   if(!Array.isArray(layer.extra.advancedCurveList)) layer.extra.advancedCurveList = [];
   layer.extra.advancedCurveList.push(forward, backward);
   return forward;
+}
+// A standalone one-way curve with no mirrored partner (unlike
+// createBidirPath's pair) — same shape as what's left after using
+// "Delete forward/backward only" on a split pair.
+function createOneWayPath(layer, nameA, nameB){
+  const ptA = findNavPointByName(layer, nameA), ptB = findNavPointByName(layer, nameB);
+  if(!ptA || !ptB) return null;
+  const dx = (ptB.pos.x-ptA.pos.x)/3, dy = (ptB.pos.y-ptA.pos.y)/3;
+  const c1 = {x:round3(ptA.pos.x+dx), y:round3(ptA.pos.y+dy)};
+  const c2 = {x:round3(ptA.pos.x+2*dx), y:round3(ptA.pos.y+2*dy)};
+  const curve = {
+    className:'DegenerateBezier', instanceName:nameA+'-'+nameB,
+    startPos:{instanceName:nameA, pos:{x:ptA.pos.x,y:ptA.pos.y}},
+    endPos:{instanceName:nameB, pos:{x:ptB.pos.x,y:ptB.pos.y}},
+    controlPos1:c1, controlPos2:c2,
+    property:[{key:'direction', ...intProp(0)}, {key:'movestyle', ...intProp(0)}],
+    __unsplit:false,
+  };
+  if(!layer.extra) layer.extra = {};
+  if(!Array.isArray(layer.extra.advancedCurveList)) layer.extra.advancedCurveList = [];
+  layer.extra.advancedCurveList.push(curve);
+  return curve;
 }
 function deleteNavPoint(layer, name){
   if(!layer.extra) return;
@@ -3534,6 +3921,426 @@ function pruneInvalidRelations(){
   });
 }
 
+// ---------------- linear patterns (nav points only) ----------------
+// Project-wide-per-layer: state.patterns is a flat list of
+// {id, layerId, seedName, axis:'x'|'y'|'both', dx, dy, count, instances}.
+// instances[i] = {name, overrideDx, overrideDy, skipped}. World position is a
+// running chain: instance i sits at instance (i-1)'s (or the seed's, for i=0)
+// world position plus its own step — the step is the instance's override if
+// set, else the pattern's global (dx,dy), always masked to the pattern's
+// axis. This is why overriding one instance's step cascades to every
+// instance after it: they're all defined relative to their immediate
+// predecessor, not to the seed directly. A skipped instance still occupies
+// its slot in the chain (later instances still step from its theoretical
+// position) but has no physical nav point — it's rendered as a faint ghost
+// instead, purely so it stays clickable to un-skip.
+
+function cloneSeedPropsForInstance(seedPt){
+  return {
+    className: seedPt.className || 'LocationMark',
+    dir: typeof seedPt.dir === 'number' ? seedPt.dir : 0,
+    ignoreDir: !!seedPt.ignoreDir,
+    property: Array.isArray(seedPt.property) ? JSON.parse(JSON.stringify(seedPt.property)) : [],
+  };
+}
+// Shared by every place that materializes a fresh pattern/grid instance point
+// (initial creation, growing count, un-skipping) so they all stay identical.
+function createInstancePointFromSeed(layer, seedName){
+  const seedPt = findNavPointByName(layer, seedName);
+  if(!seedPt) return null;
+  const name = generateNavPointName(layer);
+  const props = cloneSeedPropsForInstance(seedPt);
+  if(!layer.extra) layer.extra = {};
+  if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
+  layer.extra.advancedPointList.push({className:props.className, instanceName:name, pos:{x:0,y:0}, dir:props.dir, ignoreDir:props.ignoreDir, property:props.property});
+  return name;
+}
+function patternStepFor(pat, inst){
+  let dx = inst.overrideDx!=null ? inst.overrideDx : pat.dx;
+  let dy = inst.overrideDy!=null ? inst.overrideDy : pat.dy;
+  if(pat.axis==='x') dy = 0;
+  if(pat.axis==='y') dx = 0;
+  return [dx, dy];
+}
+function getPatternPointWorld(layer, name){
+  const pt = findNavPointByName(layer, name);
+  return pt ? layerToWorld(layer, pt.pos.x, pt.pos.y) : null;
+}
+// Theoretical world position of every instance, skipped or not — the chain
+// keeps advancing through a skipped slot so later instances (and its ghost
+// marker) stay correctly placed.
+function computePatternInstanceWorldPositions(pat){
+  const layer = getLayer(pat.layerId);
+  if(!layer) return [];
+  const seedPt = findNavPointByName(layer, pat.seedName);
+  if(!seedPt) return [];
+  let [px,py] = layerToWorld(layer, seedPt.pos.x, seedPt.pos.y);
+  const out = [];
+  for(const inst of pat.instances){
+    const [dx,dy] = patternStepFor(pat, inst);
+    px += dx; py += dy;
+    out.push([px,py]);
+  }
+  return out;
+}
+function resolveAllPatterns(){
+  for(const pat of state.patterns){
+    const layer = getLayer(pat.layerId);
+    if(!layer) continue;
+    const positions = computePatternInstanceWorldPositions(pat);
+    for(let i=0;i<pat.instances.length;i++){
+      const inst = pat.instances[i];
+      const pt = findNavPointByName(layer, inst.name);
+      if(!pt) continue;
+      const [wx,wy] = positions[i];
+      const [lx,ly] = worldToLayer(layer, wx, wy);
+      const nlx = round3(lx), nly = round3(ly);
+      if(nlx!==pt.pos.x || nly!==pt.pos.y){
+        const oldLX = pt.pos.x, oldLY = pt.pos.y;
+        pt.pos = {x:nlx, y:nly};
+        syncCurvesForPoint(layer, pt.instanceName, oldLX, oldLY);
+      }
+    }
+  }
+}
+function appendPatternInstance(pat, layer){
+  const name = createInstancePointFromSeed(layer, pat.seedName);
+  if(!name) return null;
+  pat.instances.push({name, overrideDx:null, overrideDy:null, skipped:false});
+  pat.count = pat.instances.length;
+  return name;
+}
+// Ordered names of everything in the chain that currently has a real point —
+// the seed plus every non-skipped instance, in order. This is what "connect
+// the nav points" walks when laying down paths.
+function patternMaterializedChain(pat){
+  const chain = [pat.seedName];
+  for(const inst of pat.instances){ if(!inst.skipped) chain.push(inst.name); }
+  return chain;
+}
+// Keeps a connected pattern's auto-generated paths in sync with its current
+// chain and direction (count/skip changes can add, remove, or re-neighbor
+// consecutive pairs; connectDirection can add/drop one side of a pair).
+// Only touches curves this pattern itself created (tagged __patternPathId),
+// and for any adjacency/direction still wanted, only creates what's missing
+// — it never clobbers a path the user made by hand or hand-edited curvature
+// on a pattern-made one that's still valid. A fresh bidirectional pair still
+// goes through createBidirPath so it starts out as a single mirrored curve,
+// not two independently-shaped ones — switching direction later just adds
+// or removes one side without touching whatever the other side already is.
+function syncPatternPaths(pat, layer){
+  layer = layer || getLayer(pat.layerId);
+  if(!layer) return;
+  const chain = pat.connected ? patternMaterializedChain(pat) : [];
+  const dir = pat.connectDirection || 'both';
+  const wantedKeys = new Set();
+  for(let i=1;i<chain.length;i++){
+    const a = chain[i-1], b = chain[i];
+    if(dir!=='backward') wantedKeys.add(a+'\u0000'+b);
+    if(dir!=='forward') wantedKeys.add(b+'\u0000'+a);
+  }
+  const curves = layer.extra && layer.extra.advancedCurveList;
+  if(Array.isArray(curves)){
+    layer.extra.advancedCurveList = curves.filter(c=>{
+      if(c.__patternPathId!==pat.id) return true;
+      const a = c.startPos && c.startPos.instanceName, b = c.endPos && c.endPos.instanceName;
+      return wantedKeys.has(a+'\u0000'+b);
+    });
+  }
+  for(let i=1;i<chain.length;i++){
+    const a = chain[i-1], b = chain[i];
+    const wantFwd = wantedKeys.has(a+'\u0000'+b), wantBwd = wantedKeys.has(b+'\u0000'+a);
+    const hasFwd = !!findCurveByEndpoints(layer,a,b), hasBwd = !!findCurveByEndpoints(layer,b,a);
+    if(wantFwd && wantBwd && !hasFwd && !hasBwd){
+      const forward = createBidirPath(layer, a, b);
+      if(forward){
+        forward.__patternPathId = pat.id;
+        const backward = findCurveByEndpoints(layer, b, a);
+        if(backward) backward.__patternPathId = pat.id;
+      }
+    } else {
+      if(wantFwd && !hasFwd){ const c = createOneWayPath(layer, a, b); if(c) c.__patternPathId = pat.id; }
+      if(wantBwd && !hasBwd){ const c = createOneWayPath(layer, b, a); if(c) c.__patternPathId = pat.id; }
+    }
+  }
+}
+let patIdCounter = 1;
+function createPattern(layer, seedName, axis, dx, dy, count, connected, connectDirection){
+  const pat = {id:'pat'+(patIdCounter++), layerId:layer.id, seedName, axis, dx, dy, count:0, instances:[], connected:!!connected, connectDirection:connectDirection||'both'};
+  state.patterns.push(pat);
+  for(let i=0;i<count;i++) appendPatternInstance(pat, layer);
+  resolveAllPatterns();
+  syncPatternPaths(pat, layer);
+  return pat;
+}
+function setPatternCount(pat, newCount, layer){
+  layer = layer || getLayer(pat.layerId);
+  if(!layer) return;
+  newCount = Math.max(0, newCount);
+  while(pat.instances.length > newCount){
+    const removed = pat.instances.pop();
+    if(!removed.skipped) deleteNavPoint(layer, removed.name);
+  }
+  while(pat.instances.length < newCount){
+    appendPatternInstance(pat, layer);
+  }
+  pat.count = pat.instances.length;
+  resolveAllPatterns();
+  syncPatternPaths(pat, layer);
+}
+function togglePatternInstanceSkip(pat, index){
+  const layer = getLayer(pat.layerId);
+  if(!layer) return;
+  const inst = pat.instances[index];
+  if(!inst) return;
+  if(inst.skipped){
+    const name = createInstancePointFromSeed(layer, pat.seedName);
+    if(!name) return;
+    inst.name = name;
+    inst.skipped = false;
+  } else {
+    deleteNavPoint(layer, inst.name);
+    inst.skipped = true;
+  }
+  resolveAllPatterns();
+  syncPatternPaths(pat, layer);
+}
+function setPatternConnected(pat, connected){
+  const layer = getLayer(pat.layerId);
+  if(!layer) return;
+  pat.connected = !!connected;
+  syncPatternPaths(pat, layer);
+}
+function setPatternConnectDirection(pat, direction){
+  const layer = getLayer(pat.layerId);
+  if(!layer) return;
+  pat.connectDirection = direction;
+  syncPatternPaths(pat, layer);
+}
+function deletePattern(pat){
+  const layer = getLayer(pat.layerId);
+  if(layer){
+    for(const inst of pat.instances.slice()){ if(!inst.skipped) deleteNavPoint(layer, inst.name); }
+  }
+  state.patterns = state.patterns.filter(p=>p!==pat);
+}
+function findPatternByPointName(layer, name){
+  for(const pat of state.patterns){
+    if(pat.layerId!==layer.id) continue;
+    if(pat.seedName===name) return {pat, role:'seed', index:-1};
+    const idx = pat.instances.findIndex(i=>i.name===name);
+    if(idx>=0) return {pat, role:'instance', index:idx};
+  }
+  return null;
+}
+function findPatternInstanceAt(layer, sx, sy, pxThreshold){
+  let best=null, bestD=pxThreshold;
+  for(const pat of state.patterns){
+    if(pat.layerId!==layer.id) continue;
+    for(let i=0;i<pat.instances.length;i++){
+      if(pat.instances[i].skipped) continue;
+      const pt = findNavPointByName(layer, pat.instances[i].name);
+      if(!pt) continue;
+      const [wx,wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
+      const [ssx,ssy] = worldToScreen(wx,wy);
+      const d = Math.hypot(ssx-sx, ssy-sy);
+      if(d<bestD){ bestD=d; best={pat, index:i}; }
+    }
+  }
+  return best;
+}
+// Any skipped (ghosted) linear instance or grid cell near sx,sy — skipped
+// slots have no real nav point, so this is the only way to click one (to
+// un-skip it via the right-click menu).
+function findPatternGhostAt(layer, sx, sy, pxThreshold){
+  let best=null, bestD=pxThreshold;
+  for(const pat of state.patterns){
+    if(pat.layerId!==layer.id) continue;
+    const positions = computePatternInstanceWorldPositions(pat);
+    for(let i=0;i<pat.instances.length;i++){
+      if(!pat.instances[i].skipped) continue;
+      const [wx,wy] = positions[i];
+      const [ssx,ssy] = worldToScreen(wx,wy);
+      const d = Math.hypot(ssx-sx, ssy-sy);
+      if(d<bestD){ bestD=d; best={kind:'linear', pat, index:i}; }
+    }
+  }
+  for(const grid of state.gridPatterns){
+    if(grid.layerId!==layer.id) continue;
+    const seedPt = findNavPointByName(layer, grid.seedName);
+    if(!seedPt) continue;
+    const seedWorld = layerToWorld(layer, seedPt.pos.x, seedPt.pos.y);
+    for(const key of Object.keys(grid.cells)){
+      const cell = grid.cells[key];
+      if(!cell.skipped) continue;
+      const [row,col] = key.split(',').map(Number);
+      const [wx,wy] = gridCellWorldTarget(grid, seedWorld, row, col);
+      const [ssx,ssy] = worldToScreen(wx,wy);
+      const d = Math.hypot(ssx-sx, ssy-sy);
+      if(d<bestD){ bestD=d; best={kind:'grid', grid, row, col}; }
+    }
+  }
+  return best;
+}
+// Called after any bulk nav-point deletion that doesn't go through a
+// pattern-aware path (rect-select delete, the plain Delete-nav-point button).
+// A missing seed takes its whole pattern down (cascade-deletes remaining
+// instances). A missing instance that wasn't already flagged skipped gets
+// flagged skipped now — an externally-deleted point and a deliberately
+// skipped one are indistinguishable, so treat them the same instead of
+// shrinking the chain (which would shift every later instance's index).
+function prunePatterns(){
+  for(const pat of state.patterns.slice()){
+    const layer = getLayer(pat.layerId);
+    if(!layer || !findNavPointByName(layer, pat.seedName)){
+      if(layer){
+        for(const inst of pat.instances){
+          if(!inst.skipped && findNavPointByName(layer, inst.name)) deleteNavPoint(layer, inst.name);
+        }
+      }
+      state.patterns = state.patterns.filter(p=>p!==pat);
+      continue;
+    }
+    let anyNewlySkipped = false;
+    for(const inst of pat.instances){
+      if(!inst.skipped && !findNavPointByName(layer, inst.name)){ inst.skipped = true; anyNewlySkipped = true; }
+    }
+    pat.count = pat.instances.length;
+    if(anyNewlySkipped) syncPatternPaths(pat, layer);
+  }
+}
+
+// ---------------- grid patterns (nav points only, a different object from
+// linear patterns) ----------------
+// state.gridPatterns is a flat list of {id, layerId, seedName, dx, dy,
+// countX, countY, cells}. cells is a sparse map keyed by "row,col" (row 0..
+// countY-1, col 0..countX-1); (0,0) is always the seed itself and never has
+// a cells entry. Unlike a linear pattern's chain, a cell's position depends
+// only on its own (row,col) and the grid's global dx/dy — skipping one cell
+// never shifts any other, since there's no cascade to break.
+function gridCellKey(row, col){ return row+','+col; }
+function gridCellWorldTarget(grid, seedWorld, row, col){
+  return [seedWorld[0] + col*grid.dx, seedWorld[1] + row*grid.dy];
+}
+function appendGridCell(grid, layer, row, col){
+  const name = createInstancePointFromSeed(layer, grid.seedName);
+  if(!name) return null;
+  grid.cells[gridCellKey(row,col)] = {name, skipped:false};
+  return name;
+}
+let gridIdCounter = 1;
+function createGridPattern(layer, seedName, dx, dy, countX, countY){
+  const grid = {id:'grid'+(gridIdCounter++), layerId:layer.id, seedName, dx, dy, countX:0, countY:0, cells:{}};
+  state.gridPatterns.push(grid);
+  setGridPatternSize(grid, countX, countY, layer);
+  return grid;
+}
+function resolveAllGridPatterns(){
+  for(const grid of state.gridPatterns){
+    const layer = getLayer(grid.layerId);
+    if(!layer) continue;
+    const seedPt = findNavPointByName(layer, grid.seedName);
+    if(!seedPt) continue;
+    const seedWorld = layerToWorld(layer, seedPt.pos.x, seedPt.pos.y);
+    for(const key of Object.keys(grid.cells)){
+      const cell = grid.cells[key];
+      if(cell.skipped) continue;
+      const pt = findNavPointByName(layer, cell.name);
+      if(!pt) continue;
+      const [row,col] = key.split(',').map(Number);
+      const [wx,wy] = gridCellWorldTarget(grid, seedWorld, row, col);
+      const [lx,ly] = worldToLayer(layer, wx, wy);
+      const nlx = round3(lx), nly = round3(ly);
+      if(nlx!==pt.pos.x || nly!==pt.pos.y){
+        const oldLX = pt.pos.x, oldLY = pt.pos.y;
+        pt.pos = {x:nlx, y:nly};
+        syncCurvesForPoint(layer, pt.instanceName, oldLX, oldLY);
+      }
+    }
+  }
+}
+function setGridPatternSize(grid, newCountX, newCountY, layer){
+  layer = layer || getLayer(grid.layerId);
+  if(!layer) return;
+  newCountX = Math.max(1, newCountX); newCountY = Math.max(1, newCountY);
+  for(const key of Object.keys(grid.cells)){
+    const [row,col] = key.split(',').map(Number);
+    if(row>=newCountY || col>=newCountX){
+      const cell = grid.cells[key];
+      if(!cell.skipped) deleteNavPoint(layer, cell.name);
+      delete grid.cells[key];
+    }
+  }
+  for(let row=0; row<newCountY; row++){
+    for(let col=0; col<newCountX; col++){
+      if(row===0 && col===0) continue;
+      const key = gridCellKey(row,col);
+      if(!grid.cells[key]) appendGridCell(grid, layer, row, col);
+    }
+  }
+  grid.countX = newCountX; grid.countY = newCountY;
+  resolveAllGridPatterns();
+}
+function toggleGridCellSkip(grid, row, col){
+  const layer = getLayer(grid.layerId);
+  if(!layer) return;
+  const key = gridCellKey(row,col);
+  const cell = grid.cells[key];
+  if(!cell) return;
+  if(cell.skipped){
+    const name = createInstancePointFromSeed(layer, grid.seedName);
+    if(!name) return;
+    cell.name = name;
+    cell.skipped = false;
+  } else {
+    deleteNavPoint(layer, cell.name);
+    cell.skipped = true;
+  }
+  resolveAllGridPatterns();
+}
+function deleteGridPattern(grid){
+  const layer = getLayer(grid.layerId);
+  if(layer){
+    for(const key of Object.keys(grid.cells)){
+      const cell = grid.cells[key];
+      if(!cell.skipped) deleteNavPoint(layer, cell.name);
+    }
+  }
+  state.gridPatterns = state.gridPatterns.filter(g=>g!==grid);
+}
+function findGridPatternByPointName(layer, name){
+  for(const grid of state.gridPatterns){
+    if(grid.layerId!==layer.id) continue;
+    if(grid.seedName===name) return {grid, role:'seed', row:0, col:0};
+    for(const key of Object.keys(grid.cells)){
+      if(grid.cells[key].name===name){
+        const [row,col] = key.split(',').map(Number);
+        return {grid, role:'cell', row, col};
+      }
+    }
+  }
+  return null;
+}
+function pruneGridPatterns(){
+  for(const grid of state.gridPatterns.slice()){
+    const layer = getLayer(grid.layerId);
+    if(!layer || !findNavPointByName(layer, grid.seedName)){
+      if(layer){
+        for(const key of Object.keys(grid.cells)){
+          const cell = grid.cells[key];
+          if(!cell.skipped && findNavPointByName(layer, cell.name)) deleteNavPoint(layer, cell.name);
+        }
+      }
+      state.gridPatterns = state.gridPatterns.filter(g=>g!==grid);
+      continue;
+    }
+    for(const key of Object.keys(grid.cells)){
+      const cell = grid.cells[key];
+      if(!cell.skipped && !findNavPointByName(layer, cell.name)) cell.skipped = true;
+    }
+  }
+}
+
 // ---- grouped resolution (relations that share an axis, plus any Distance
 // constraint that lands on a group member, must all agree on one value) ----
 
@@ -3744,6 +4551,278 @@ function renderRelPanel(){
   updateRelToolbar();
 }
 
+const patDraftBox = document.getElementById('patDraftBox');
+const patSelBox = document.getElementById('patSelBox');
+const gridSelBox = document.getElementById('gridSelBox');
+function renderPatternPanel(){
+  const draft = state.patDraft;
+  const pat = state.selectedPattern!=null ? state.patterns.find(p=>p.id===state.selectedPattern) : null;
+  const grid = state.selectedGridPattern!=null ? state.gridPatterns.find(g=>g.id===state.selectedGridPattern) : null;
+  patDraftBox.hidden = !draft;
+  patSelBox.hidden = !pat;
+  gridSelBox.hidden = !grid;
+  if(draft){
+    document.getElementById('patDraftSeed').textContent = draft.seedName;
+    document.getElementById('patDraftTypeLinear').classList.toggle('active', draft.type==='linear');
+    document.getElementById('patDraftTypeGrid').classList.toggle('active', draft.type==='grid');
+    document.getElementById('patDraftLinearFields').hidden = draft.type!=='linear';
+    document.getElementById('patDraftGridFields').hidden = draft.type!=='grid';
+    document.getElementById('patDraftAxisX').classList.toggle('active', draft.axis==='x');
+    document.getElementById('patDraftAxisY').classList.toggle('active', draft.axis==='y');
+    document.getElementById('patDraftAxisBoth').classList.toggle('active', draft.axis==='both');
+    document.getElementById('patDraftDxRow').hidden = draft.axis==='y';
+    document.getElementById('patDraftDyRow').hidden = draft.axis==='x';
+    const dxEl = document.getElementById('patDraftDx'), dyEl = document.getElementById('patDraftDy'), cntEl = document.getElementById('patDraftCount');
+    if(document.activeElement!==dxEl) dxEl.value = draft.dx;
+    if(document.activeElement!==dyEl) dyEl.value = draft.dy;
+    if(document.activeElement!==cntEl) cntEl.value = draft.count;
+    document.getElementById('patDraftConnected').checked = !!draft.connected;
+    document.getElementById('patDraftConnectDirRow').hidden = !draft.connected;
+    document.getElementById('patDraftConnectDir').value = draft.connectDirection || 'both';
+    const gdxEl = document.getElementById('patDraftGridDx'), gdyEl = document.getElementById('patDraftGridDy');
+    const cxEl = document.getElementById('patDraftCountX'), cyEl = document.getElementById('patDraftCountY');
+    if(document.activeElement!==gdxEl) gdxEl.value = draft.gridDx;
+    if(document.activeElement!==gdyEl) gdyEl.value = draft.gridDy;
+    if(document.activeElement!==cxEl) cxEl.value = draft.countX;
+    if(document.activeElement!==cyEl) cyEl.value = draft.countY;
+  }
+  if(pat){
+    document.getElementById('patSelSeed').textContent = pat.seedName;
+    document.getElementById('patSelAxisX').classList.toggle('active', pat.axis==='x');
+    document.getElementById('patSelAxisY').classList.toggle('active', pat.axis==='y');
+    document.getElementById('patSelAxisBoth').classList.toggle('active', pat.axis==='both');
+    document.getElementById('patSelDxRow').hidden = pat.axis==='y';
+    document.getElementById('patSelDyRow').hidden = pat.axis==='x';
+    const dxEl = document.getElementById('patSelDx'), dyEl = document.getElementById('patSelDy'), cntEl = document.getElementById('patSelCount');
+    if(document.activeElement!==dxEl) dxEl.value = pat.dx;
+    if(document.activeElement!==dyEl) dyEl.value = pat.dy;
+    if(document.activeElement!==cntEl) cntEl.value = pat.count;
+    document.getElementById('patSelConnected').checked = !!pat.connected;
+    document.getElementById('patSelConnectDirRow').hidden = !pat.connected;
+    document.getElementById('patSelConnectDir').value = pat.connectDirection || 'both';
+    const overriddenCount = pat.instances.filter(i=>i.overrideDx!=null || i.overrideDy!=null).length;
+    document.getElementById('patSelOverrideCount').textContent = overriddenCount+' / '+pat.instances.length;
+    const skippedCount = pat.instances.filter(i=>i.skipped).length;
+    document.getElementById('patSelSkipCount').textContent = skippedCount+' / '+pat.instances.length;
+  }
+  if(grid){
+    document.getElementById('gridSelSeed').textContent = grid.seedName;
+    const gdxEl = document.getElementById('gridSelDx'), gdyEl = document.getElementById('gridSelDy');
+    const cxEl = document.getElementById('gridSelCountX'), cyEl = document.getElementById('gridSelCountY');
+    if(document.activeElement!==gdxEl) gdxEl.value = grid.dx;
+    if(document.activeElement!==gdyEl) gdyEl.value = grid.dy;
+    if(document.activeElement!==cxEl) cxEl.value = grid.countX;
+    if(document.activeElement!==cyEl) cyEl.value = grid.countY;
+    const total = grid.countX*grid.countY - 1;
+    const skippedCount = Object.values(grid.cells).filter(c=>c.skipped).length;
+    document.getElementById('gridSelSkipCount').textContent = skippedCount+' / '+total;
+  }
+}
+document.getElementById('patDraftTypeLinear').addEventListener('click', ()=>{ if(state.patDraft){ state.patDraft.type='linear'; renderPatternPanel(); requestDraw(); } });
+document.getElementById('patDraftTypeGrid').addEventListener('click', ()=>{ if(state.patDraft){ state.patDraft.type='grid'; renderPatternPanel(); requestDraw(); } });
+document.getElementById('patDraftAxisX').addEventListener('click', ()=>{ if(state.patDraft){ state.patDraft.axis='x'; renderPatternPanel(); requestDraw(); } });
+document.getElementById('patDraftAxisY').addEventListener('click', ()=>{ if(state.patDraft){ state.patDraft.axis='y'; renderPatternPanel(); requestDraw(); } });
+document.getElementById('patDraftAxisBoth').addEventListener('click', ()=>{ if(state.patDraft){ state.patDraft.axis='both'; renderPatternPanel(); requestDraw(); } });
+document.getElementById('patDraftDx').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.dx = parseFloat(e.target.value)||0; });
+document.getElementById('patDraftDy').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.dy = parseFloat(e.target.value)||0; });
+document.getElementById('patDraftCount').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.count = Math.max(1, parseInt(e.target.value)||1); });
+document.getElementById('patDraftConnected').addEventListener('change', e=>{ if(state.patDraft){ state.patDraft.connected = e.target.checked; renderPatternPanel(); } });
+document.getElementById('patDraftConnectDir').addEventListener('change', e=>{ if(state.patDraft) state.patDraft.connectDirection = e.target.value; });
+document.getElementById('patDraftGridDx').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.gridDx = parseFloat(e.target.value)||0; });
+document.getElementById('patDraftGridDy').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.gridDy = parseFloat(e.target.value)||0; });
+document.getElementById('patDraftCountX').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.countX = Math.max(1, parseInt(e.target.value)||1); });
+document.getElementById('patDraftCountY').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.countY = Math.max(1, parseInt(e.target.value)||1); });
+document.getElementById('btnPatDraftCreate').addEventListener('click', ()=>{
+  const draft = state.patDraft; if(!draft) return;
+  const layer = getLayer(draft.layerId); if(!layer) return;
+  pushUndo(layer);
+  if(draft.type==='grid'){
+    const grid = createGridPattern(layer, draft.seedName, draft.gridDx, draft.gridDy, draft.countX, draft.countY);
+    state.patDraft = null;
+    state.selectedGridPattern = grid.id;
+    state.selectedPattern = null;
+  } else {
+    const pat = createPattern(layer, draft.seedName, draft.axis, draft.dx, draft.dy, draft.count, draft.connected, draft.connectDirection);
+    state.patDraft = null;
+    state.selectedPattern = pat.id;
+    state.selectedGridPattern = null;
+  }
+  renderPatternPanel(); renderNavPointPanel(); renderPathPanel();
+  scheduleAutosave(); requestDraw();
+});
+document.getElementById('btnPatDraftCancel').addEventListener('click', ()=>{
+  state.patDraft = null;
+  renderPatternPanel(); requestDraw();
+});
+function setSelPatAxis(axis){
+  const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
+  const layer = getLayer(pat.layerId); if(layer) pushUndo(layer);
+  pat.axis = axis;
+  resolveAllPatterns();
+  renderPatternPanel(); scheduleAutosave(); requestDraw();
+}
+document.getElementById('patSelAxisX').addEventListener('click', ()=>setSelPatAxis('x'));
+document.getElementById('patSelAxisY').addEventListener('click', ()=>setSelPatAxis('y'));
+document.getElementById('patSelAxisBoth').addEventListener('click', ()=>setSelPatAxis('both'));
+document.getElementById('patSelConnected').addEventListener('change', e=>{
+  const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
+  const layer = getLayer(pat.layerId); if(layer) pushUndo(layer);
+  setPatternConnected(pat, e.target.checked);
+  renderPatternPanel(); renderNavPointPanel(); renderPathPanel(); scheduleAutosave(); requestDraw();
+});
+document.getElementById('patSelConnectDir').addEventListener('change', e=>{
+  const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
+  const layer = getLayer(pat.layerId); if(layer) pushUndo(layer);
+  setPatternConnectDirection(pat, e.target.value);
+  renderNavPointPanel(); renderPathPanel(); scheduleAutosave(); requestDraw();
+});
+let patFieldsUndoPushed = false;
+[document.getElementById('patSelDx'), document.getElementById('patSelDy')].forEach(el=>{
+  el.addEventListener('focus', ()=>{ patFieldsUndoPushed = false; });
+  el.addEventListener('input', ()=>{
+    const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
+    const layer = getLayer(pat.layerId);
+    if(layer && !patFieldsUndoPushed){ pushUndo(layer); patFieldsUndoPushed = true; }
+    pat.dx = parseFloat(document.getElementById('patSelDx').value)||0;
+    pat.dy = parseFloat(document.getElementById('patSelDy').value)||0;
+    resolveAllPatterns(); scheduleAutosave(); requestDraw();
+  });
+});
+document.getElementById('patSelCount').addEventListener('change', ()=>{
+  const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
+  const layer = getLayer(pat.layerId); if(!layer) return;
+  const newCount = Math.max(0, parseInt(document.getElementById('patSelCount').value)||0);
+  pushUndo(layer);
+  setPatternCount(pat, newCount, layer);
+  renderPatternPanel(); renderNavPointPanel(); renderPathPanel(); scheduleAutosave(); requestDraw();
+});
+document.getElementById('btnPatSelResetOverrides').addEventListener('click', ()=>{
+  const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
+  const layer = getLayer(pat.layerId); if(layer) pushUndo(layer);
+  for(const inst of pat.instances){ inst.overrideDx = null; inst.overrideDy = null; }
+  resolveAllPatterns();
+  renderPatternPanel(); scheduleAutosave(); requestDraw();
+});
+document.getElementById('btnPatSelUnskipAll').addEventListener('click', ()=>{
+  const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
+  const layer = getLayer(pat.layerId); if(layer) pushUndo(layer);
+  for(let i=0;i<pat.instances.length;i++){ if(pat.instances[i].skipped) togglePatternInstanceSkip(pat, i); }
+  renderPatternPanel(); scheduleAutosave(); requestDraw();
+});
+document.getElementById('btnPatSelDelete').addEventListener('click', ()=>{
+  const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
+  const layer = getLayer(pat.layerId); if(layer) pushUndo(layer);
+  deletePattern(pat);
+  state.selectedPattern = null;
+  renderPatternPanel(); renderNavPointPanel(); renderPathPanel(); scheduleAutosave(); requestDraw();
+});
+let gridFieldsUndoPushed = false;
+[document.getElementById('gridSelDx'), document.getElementById('gridSelDy')].forEach(el=>{
+  el.addEventListener('focus', ()=>{ gridFieldsUndoPushed = false; });
+  el.addEventListener('input', ()=>{
+    const grid = state.gridPatterns.find(g=>g.id===state.selectedGridPattern); if(!grid) return;
+    const layer = getLayer(grid.layerId);
+    if(layer && !gridFieldsUndoPushed){ pushUndo(layer); gridFieldsUndoPushed = true; }
+    grid.dx = parseFloat(document.getElementById('gridSelDx').value)||0;
+    grid.dy = parseFloat(document.getElementById('gridSelDy').value)||0;
+    resolveAllGridPatterns(); scheduleAutosave(); requestDraw();
+  });
+});
+[document.getElementById('gridSelCountX'), document.getElementById('gridSelCountY')].forEach(el=>{
+  el.addEventListener('change', ()=>{
+    const grid = state.gridPatterns.find(g=>g.id===state.selectedGridPattern); if(!grid) return;
+    const layer = getLayer(grid.layerId); if(!layer) return;
+    const cx = Math.max(1, parseInt(document.getElementById('gridSelCountX').value)||1);
+    const cy = Math.max(1, parseInt(document.getElementById('gridSelCountY').value)||1);
+    pushUndo(layer);
+    setGridPatternSize(grid, cx, cy, layer);
+    renderPatternPanel(); renderNavPointPanel(); scheduleAutosave(); requestDraw();
+  });
+});
+document.getElementById('btnGridSelUnskipAll').addEventListener('click', ()=>{
+  const grid = state.gridPatterns.find(g=>g.id===state.selectedGridPattern); if(!grid) return;
+  const layer = getLayer(grid.layerId); if(layer) pushUndo(layer);
+  for(const key of Object.keys(grid.cells)){
+    if(grid.cells[key].skipped){ const [row,col]=key.split(',').map(Number); toggleGridCellSkip(grid, row, col); }
+  }
+  renderPatternPanel(); scheduleAutosave(); requestDraw();
+});
+document.getElementById('btnGridSelDelete').addEventListener('click', ()=>{
+  const grid = state.gridPatterns.find(g=>g.id===state.selectedGridPattern); if(!grid) return;
+  const layer = getLayer(grid.layerId); if(layer) pushUndo(layer);
+  deleteGridPattern(grid);
+  state.selectedGridPattern = null;
+  renderPatternPanel(); renderNavPointPanel(); renderPathPanel(); scheduleAutosave(); requestDraw();
+});
+
+const patMenuEl = document.getElementById('patMenu');
+function closePatMenu(){ patMenuEl.hidden = true; state.patMenuFor = null; }
+function findPatternMenuTargetAt(layer, sx, sy, pxThreshold){
+  const navHit = findNavPointAt(layer, sx, sy, pxThreshold);
+  if(navHit){
+    const lin = findPatternByPointName(layer, navHit.instanceName);
+    if(lin) return lin.role==='seed' ? {kind:'linearSeed', pat:lin.pat} : {kind:'linearInstance', pat:lin.pat, index:lin.index};
+    const grid = findGridPatternByPointName(layer, navHit.instanceName);
+    if(grid) return grid.role==='seed' ? {kind:'gridSeed', grid:grid.grid} : {kind:'gridCell', grid:grid.grid, row:grid.row, col:grid.col};
+  }
+  const ghost = findPatternGhostAt(layer, sx, sy, pxThreshold);
+  if(ghost) return ghost.kind==='linear' ? {kind:'linearInstance', pat:ghost.pat, index:ghost.index} : {kind:'gridCell', grid:ghost.grid, row:ghost.row, col:ghost.col};
+  return null;
+}
+function openPatMenu(target, sx, sy){
+  state.patMenuFor = target;
+  let title = '', items = [];
+  if(target.kind==='linearSeed'){
+    title = 'Pattern seed ('+target.pat.seedName+')';
+  } else if(target.kind==='linearInstance'){
+    const inst = target.pat.instances[target.index];
+    title = 'Pattern instance #'+(target.index+1);
+    items.push({label: inst.skipped ? 'Un-skip this instance' : 'Skip this instance', action:'toggleSkip'});
+  } else if(target.kind==='gridSeed'){
+    title = 'Grid pattern seed ('+target.grid.seedName+')';
+  } else if(target.kind==='gridCell'){
+    const cell = target.grid.cells[gridCellKey(target.row,target.col)];
+    title = 'Grid cell (row '+(target.row+1)+', col '+(target.col+1)+')';
+    items.push({label: cell.skipped ? 'Un-skip this cell' : 'Skip this cell', action:'toggleSkip'});
+  }
+  let html = '<div class="rel-menu-title">'+title+'</div>';
+  for(const item of items){
+    html += '<div class="rel-menu-item" data-pat-action="'+item.action+'"><span>'+item.label+'</span></div>';
+  }
+  html += '<div class="rel-menu-divider"></div><div class="rel-menu-item" data-pat-action="deletePattern"><span>Delete pattern</span></div>';
+  patMenuEl.innerHTML = html;
+  const mainRect = mainEl.getBoundingClientRect();
+  patMenuEl.style.left = Math.min(sx, mainRect.width-180)+'px';
+  patMenuEl.style.top = Math.min(sy, mainRect.height-80)+'px';
+  patMenuEl.hidden = false;
+  requestDraw();
+}
+patMenuEl.addEventListener('click', (e)=>{
+  const item = e.target.closest('.rel-menu-item[data-pat-action]');
+  const target = state.patMenuFor;
+  if(item && target){
+    const action = item.dataset.patAction;
+    const layer = getLayer(target.pat ? target.pat.layerId : target.grid.layerId);
+    if(action==='toggleSkip'){
+      if(layer) pushUndo(layer);
+      if(target.kind==='linearInstance') togglePatternInstanceSkip(target.pat, target.index);
+      else if(target.kind==='gridCell') toggleGridCellSkip(target.grid, target.row, target.col);
+      scheduleAutosave(); renderPatternPanel(); renderPathPanel(); renderNavPointPanel();
+    } else if(action==='deletePattern'){
+      if(layer) pushUndo(layer);
+      if(target.kind==='linearSeed' || target.kind==='linearInstance'){ deletePattern(target.pat); state.selectedPattern=null; }
+      else { deleteGridPattern(target.grid); state.selectedGridPattern=null; }
+      scheduleAutosave(); renderPatternPanel(); renderNavPointPanel(); renderPathPanel();
+    }
+  }
+  closePatMenu();
+  requestDraw();
+});
+document.addEventListener('pointerdown', (e)=>{
+  if(!state.patMenuFor) return;
+  if(!patMenuEl.contains(e.target)) closePatMenu();
+});
+
 const relMenuEl = document.getElementById('relMenu');
 function closeRelMenu(){
   relMenuEl.hidden = true;
@@ -3817,9 +4896,11 @@ canvasEl.addEventListener('contextmenu', (e)=>{
   const rect = canvasEl.getBoundingClientRect();
   const sx = e.clientX-rect.left, sy = e.clientY-rect.top;
   const hit = findRelationPointAt(sx, sy, 14);
-  if(!hit){ closeRelMenu(); return; }
-  e.preventDefault();
-  openRelMenu(hit, sx, sy);
+  if(hit){ e.preventDefault(); closePatMenu(); openRelMenu(hit, sx, sy); return; }
+  const layer = getEditableActiveLayer();
+  const patTarget = layer ? findPatternMenuTargetAt(layer, sx, sy, 14) : null;
+  if(patTarget){ e.preventDefault(); closeRelMenu(); openPatMenu(patTarget, sx, sy); return; }
+  closeRelMenu(); closePatMenu();
 });
 document.getElementById('relBtnHFixed').addEventListener('click', ()=>applyRelationFromSelection('horizontal'));
 document.getElementById('relBtnVFixed').addEventListener('click', ()=>applyRelationFromSelection('vertical'));
@@ -4434,8 +5515,9 @@ function applyRectSelectDelete(layer, rect){
   }
 
   if(removed===0) state.undoStack.pop(); // nothing actually changed, drop the no-op undo entry
+  else { prunePatterns(); pruneGridPatterns(); }
   layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
-  renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); scheduleAutosave(); requestDraw();
+  renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderPatternPanel(); scheduleAutosave(); requestDraw();
 }
 
 canvasEl.addEventListener('pointerdown', (e)=>{
@@ -4723,6 +5805,41 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     else state.relSelection = [];
     renderRelPanel();
     requestDraw();
+  } else if(state.tool==='pattern' && layer){
+    const instHit = findPatternInstanceAt(layer, sx, sy, 14);
+    if(instHit){
+      pushUndo(layer);
+      state.draggingPatternInstance = {patId:instHit.pat.id, index:instHit.index};
+      state.selectedPattern = instHit.pat.id;
+      state.selectedGridPattern = null;
+      state.patDraft = null;
+      dragging = true;
+    } else {
+      const hit = findNavPointAt(layer, sx, sy, 14);
+      if(hit){
+        const foundLin = findPatternByPointName(layer, hit.instanceName);
+        const foundGrid = !foundLin ? findGridPatternByPointName(layer, hit.instanceName) : null;
+        if(foundLin){
+          state.selectedPattern = foundLin.pat.id;
+          state.selectedGridPattern = null;
+          state.patDraft = null;
+        } else if(foundGrid){
+          state.selectedGridPattern = foundGrid.grid.id;
+          state.selectedPattern = null;
+          state.patDraft = null;
+        } else {
+          state.patDraft = {layerId:layer.id, seedName:hit.instanceName, type:'linear', axis:'x', dx:1, dy:0, count:3, connected:false, connectDirection:'both', gridDx:1, gridDy:1, countX:3, countY:3};
+          state.selectedPattern = null;
+          state.selectedGridPattern = null;
+        }
+      } else {
+        state.selectedPattern = null;
+        state.selectedGridPattern = null;
+        state.patDraft = null;
+      }
+    }
+    renderPatternPanel();
+    requestDraw();
   }
 });
 
@@ -4883,6 +6000,24 @@ canvasEl.addEventListener('pointermove', (e)=>{
       }
       requestDraw();
     }
+  } else if(state.tool==='pattern' && state.draggingPatternInstance && layer){
+    const {patId, index} = state.draggingPatternInstance;
+    const pat = state.patterns.find(p=>p.id===patId);
+    if(pat){
+      const prevName = index===0 ? pat.seedName : pat.instances[index-1].name;
+      const prevWorld = getPatternPointWorld(layer, prevName);
+      if(prevWorld){
+        let stepX = wx - prevWorld[0], stepY = wy - prevWorld[1];
+        if(pat.axis==='x') stepY = 0;
+        if(pat.axis==='y') stepX = 0;
+        const inst = pat.instances[index];
+        if(pat.axis!=='y') inst.overrideDx = round3(stepX);
+        if(pat.axis!=='x') inst.overrideDy = round3(stepY);
+        resolveAllPatterns();
+        renderPatternPanel();
+        requestDraw();
+      }
+    }
   } else if(state.tool==='area' && state.areaAction && layer){
     const action = state.areaAction;
     const areaList = layer.extra && layer.extra.advancedAreaList;
@@ -4976,8 +6111,23 @@ function endPointer(e){
         const existingBwd = findCurveByEndpoints(layer, target.instanceName, state.newPathFrom.instanceName);
         if(!existingFwd && !existingBwd){
           pushUndo(layer);
-          createBidirPath(layer, state.newPathFrom.instanceName, target.instanceName);
-          state.selectedPath = {layerId:layer.id, nameA:state.newPathFrom.instanceName, nameB:target.instanceName};
+          const fromName = state.newPathFrom.instanceName, toName = target.instanceName;
+          const dir = state.newPathDirection, ms = state.newPathMovestyle;
+          if(dir==='forward'){
+            const c = createOneWayPath(layer, fromName, toName);
+            if(c) setIntProperty(c, 'movestyle', ms);
+          } else if(dir==='backward'){
+            const c = createOneWayPath(layer, toName, fromName);
+            if(c) setIntProperty(c, 'movestyle', ms);
+          } else {
+            const forward = createBidirPath(layer, fromName, toName);
+            if(forward){
+              setIntProperty(forward, 'movestyle', ms);
+              const backward = findCurveByEndpoints(layer, toName, fromName);
+              if(backward) setIntProperty(backward, 'movestyle', ms);
+            }
+          }
+          state.selectedPath = {layerId:layer.id, nameA:fromName, nameB:toName};
           state.selectedNavPoint = null;
           renderNavPointPanel(); renderPathPanel();
           scheduleAutosave();
@@ -4993,6 +6143,10 @@ function endPointer(e){
   }
   if(state.tool==='nav' && state.draggingControlPoint){
     state.draggingControlPoint = null;
+    scheduleAutosave();
+  }
+  if(state.tool==='pattern' && state.draggingPatternInstance){
+    state.draggingPatternInstance = null;
     scheduleAutosave();
   }
   if(state.tool==='area' && state.areaAction){
@@ -5048,21 +6202,19 @@ canvasEl.addEventListener('wheel', (e)=>{
 }, {passive:false});
 
 canvasEl.addEventListener('dblclick', (e)=>{
-  if(state.tool==='area' || state.tool==='dist'){
-    const rect = canvasEl.getBoundingClientRect();
-    const sx = e.clientX-rect.left, sy = e.clientY-rect.top;
-    if(openDimensionEditAt(sx, sy)){
-      if(state.dimDrag){ state.dimDrag = null; }
-      requestDraw();
-      return;
-    }
+  const rect = canvasEl.getBoundingClientRect();
+  const sx = e.clientX-rect.left, sy = e.clientY-rect.top;
+  if(openDimensionEditAt(sx, sy)){
+    if(state.dimDrag){ state.dimDrag = null; }
+    requestDraw();
+    return;
   }
   fitView(); requestDraw();
 });
 
 const KEYMAP_DEFAULTS = {
   pan:'h', move:'v', rotate:'r', erase:'e', draw:'l', reflector:'k', select:'s',
-  measure:'m', nav:'n', area:'a', align:'g', dist:'d', constraints:'c',
+  measure:'m', nav:'n', area:'a', align:'g', dist:'d', constraints:'c', pattern:'p',
   fitView:'f', relHorizontal:'h', relVertical:'v', relCoincident:'o',
 };
 const KEYMAP_STORAGE_KEY = 'smapEditorKeymap';
@@ -5076,7 +6228,7 @@ function loadKeymap(){
 // Remappable action->key lookup; a future settings UI can write to KEYMAP and
 // persist via localStorage[KEYMAP_STORAGE_KEY] without touching dispatch code.
 const KEYMAP = loadKeymap();
-const TOOL_KEY_ACTIONS = ['pan','move','rotate','erase','draw','reflector','select','measure','nav','area','align','dist','constraints'];
+const TOOL_KEY_ACTIONS = ['pan','move','rotate','erase','draw','reflector','select','measure','nav','area','align','dist','constraints','pattern'];
 
 document.addEventListener('keydown', (e)=>{
   const tag = (e.target.tagName||'').toLowerCase();
@@ -5140,6 +6292,8 @@ function downloadJSON(obj, filename){
 function buildSmapFromLayers(layers, mapName){
   resolveAllConstraints();
   resolveAllRelations();
+  resolveAllPatterns();
+  resolveAllGridPatterns();
   const normalPosList = [], rssiPosList = [], reflectorPosList = [];
   const mergedExtra = {};
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
@@ -5255,6 +6409,8 @@ function serializeProject(){
     nextId: state.nextId, colorIdx: state.colorIdx,
     view: state.view, fitted: state.fitted,
     relations: state.relations,
+    patterns: state.patterns,
+    gridPatterns: state.gridPatterns,
   };
 }
 function loadProjectData(data){
@@ -5273,9 +6429,16 @@ function loadProjectData(data){
   state.selectedArea = null;
   state.relations = Array.isArray(data.relations) ? data.relations : [];
   state.relSelection = [];
+  state.patterns = Array.isArray(data.patterns) ? data.patterns : [];
+  state.selectedPattern = null;
+  state.patDraft = null;
+  state.gridPatterns = Array.isArray(data.gridPatterns) ? data.gridPatterns : [];
+  state.selectedGridPattern = null;
   for(const layer of state.layers){ normalizeCurvePairs(layer); normalizeAreaRects(layer); }
   pruneInvalidRelations();
-  renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderRelPanel();
+  prunePatterns();
+  pruneGridPatterns();
+  renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderRelPanel(); renderPatternPanel();
   if(!state.fitted){ fitView(); state.fitted=true; }
   requestDraw();
 }
