@@ -549,7 +549,15 @@
         </div>
       </div>
       <div class="tool-options" id="opts-nav" hidden>
-        <div class="tool-hint" style="margin-top:0;">Shift-drag from one nav point to another to add a path with these settings.</div>
+        <div class="row" style="gap:8px;">
+          <span style="width:70px;">New point</span>
+          <div class="shape-toggle">
+            <button type="button" class="shape-btn active" id="newPointTypeLM" title="Location Mark">Mark</button>
+            <button type="button" class="shape-btn" id="newPointTypeCP" title="Charge Point">Charge</button>
+            <button type="button" class="shape-btn" id="newPointTypeAP" title="Action Point">Action</button>
+          </div>
+        </div>
+        <div class="tool-hint" style="margin-top:8px;">Shift-drag from one nav point to another to add a path with these settings.</div>
         <div class="row" style="gap:8px; margin-top:8px;">
           <span style="width:70px;">New path</span>
           <div class="shape-toggle">
@@ -573,10 +581,27 @@
     <div class="section" id="navPointSection" hidden>
       <div class="section-title" data-key="navpoint"><span>Selected nav point</span><span class="chev">▾</span></div>
       <div class="field-row"><label for="navPtName">Name</label><input type="text" id="navPtName" class="mono"></div>
+      <div class="field-row"><label for="navPtType">Type</label>
+        <select id="navPtType" style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:13px;">
+          <option value="LocationMark">Location Mark</option>
+          <option value="ChargePoint">Charge Point</option>
+          <option value="ActionPoint">Action Point</option>
+        </select>
+      </div>
       <div class="field-row"><label for="navX">X (m)</label><input type="number" id="navX" step="0.01"></div>
       <div class="field-row"><label for="navY">Y (m)</label><input type="number" id="navY" step="0.01"></div>
       <label class="check-inline" style="margin-bottom:6px;"><input type="checkbox" id="navHasDir"> Has orientation</label>
       <div class="field-row"><label for="navRot">Rot (°)</label><input type="number" id="navRot" step="0.5"></div>
+      <label class="check-inline" style="margin-bottom:10px;"><input type="checkbox" id="navPtSpin"> Spin in place</label>
+
+      <div id="navPtChargeFields" class="field-card" hidden>
+        <div class="label-sub" style="margin-top:0;">Charge point settings</div>
+        <div class="field-row"><label for="navPtPrepoint">Prepoint</label>
+          <select id="navPtPrepoint" style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:13px;"></select>
+        </div>
+        <div class="field-row" style="margin-bottom:0;"><label for="navPtRecfile">Rec. file</label><input type="text" id="navPtRecfile" class="mono"></div>
+      </div>
+
       <button class="btn danger" id="btnDeleteNavPoint" style="width:100%;">Delete nav point</button>
 
       <div class="label-sub" style="margin-top:10px;">Dimension constraints</div>
@@ -888,6 +913,7 @@ const state = {
   patMenuFor: null,
   newPathDirection: 'both',
   newPathMovestyle: 0,
+  newPointType: 'LocationMark',
   selectedDimension: null,
   alignLine: null,
   alignAxis: 'x',
@@ -1146,6 +1172,11 @@ btnResetTransform.addEventListener('click', ()=>{
 
 const navPointSection = document.getElementById('navPointSection');
 const navPtName = document.getElementById('navPtName');
+const navPtType = document.getElementById('navPtType');
+const navPtSpin = document.getElementById('navPtSpin');
+const navPtChargeFields = document.getElementById('navPtChargeFields');
+const navPtPrepoint = document.getElementById('navPtPrepoint');
+const navPtRecfile = document.getElementById('navPtRecfile');
 const navX = document.getElementById('navX'), navY = document.getElementById('navY'), navRot = document.getElementById('navRot');
 const navHasDir = document.getElementById('navHasDir');
 const btnDeleteNavPoint = document.getElementById('btnDeleteNavPoint');
@@ -1164,6 +1195,14 @@ function renameNavPoint(layer, oldName, newName){
   const pt = findNavPointByName(layer, oldName);
   if(!pt) return false;
   pt.instanceName = newName;
+  const points = layer.extra && layer.extra.advancedPointList;
+  if(Array.isArray(points)){
+    for(const otherPt of points){
+      if(otherPt.className==='ChargePoint' && getPointPropString(otherPt, 'prepoint', null)===oldName){
+        setPointProp(otherPt, 'prepoint', stringProp('prepoint', newName));
+      }
+    }
+  }
   const curves = layer.extra && layer.extra.advancedCurveList;
   if(Array.isArray(curves)){
     for(const c of curves){
@@ -1251,6 +1290,41 @@ function renderNavPointPanel(){
   const disabled = !layer.visible;
   navPtName.disabled = navX.disabled = navY.disabled = navHasDir.disabled = btnDeleteNavPoint.disabled = disabled;
   navRot.disabled = disabled || !hasDir;
+
+  const className = pt.className || 'LocationMark';
+  let unknownOpt = navPtType.querySelector('option[data-unknown]');
+  if(!NAV_POINT_TYPES.includes(className)){
+    if(!unknownOpt){ unknownOpt = document.createElement('option'); unknownOpt.setAttribute('data-unknown',''); navPtType.appendChild(unknownOpt); }
+    unknownOpt.value = className;
+    unknownOpt.textContent = className+' (unrecognized)';
+  } else if(unknownOpt){
+    unknownOpt.remove();
+  }
+  navPtType.value = className;
+  navPtType.disabled = disabled;
+
+  navPtSpin.checked = getPointPropBool(pt, 'spin', false);
+  navPtSpin.disabled = disabled;
+
+  const isCharge = className==='ChargePoint';
+  navPtChargeFields.hidden = !isCharge;
+  if(isCharge){
+    const otherMarks = ((layer.extra && layer.extra.advancedPointList) || [])
+      .filter(p=>p.className!=='ChargePoint' && p.instanceName!==pt.instanceName);
+    const currentPrepoint = getPointPropString(pt, 'prepoint', '');
+    navPtPrepoint.innerHTML = '<option value="">(none)</option>' + otherMarks.map(p=>
+      '<option value="'+p.instanceName+'">'+p.instanceName+'</option>').join('');
+    navPtPrepoint.value = currentPrepoint;
+    if(navPtPrepoint.value !== currentPrepoint){
+      const opt = document.createElement('option');
+      opt.value = currentPrepoint; opt.textContent = currentPrepoint+' (missing)';
+      navPtPrepoint.appendChild(opt); navPtPrepoint.value = currentPrepoint;
+    }
+    navPtPrepoint.disabled = disabled;
+    if(document.activeElement !== navPtRecfile) navPtRecfile.value = getPointPropString(pt, 'recfile', '');
+    navPtRecfile.disabled = disabled;
+  }
+
   renderNavPointDimPanel(layer, pt);
 }
 
@@ -1282,6 +1356,42 @@ navHasDir.addEventListener('change', ()=>{
   pt.ignoreDir = !navHasDir.checked;
   if(typeof pt.dir !== 'number') pt.dir = 0;
   scheduleAutosave(); renderNavPointPanel(); requestDraw();
+});
+
+navPtType.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(!sel || !sel.layer.visible) return;
+  const {layer, pt} = sel;
+  pushUndo(layer);
+  pt.className = navPtType.value;
+  scheduleAutosave(); renderNavPointPanel(); requestDraw();
+});
+
+navPtSpin.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(!sel || !sel.layer.visible) return;
+  const {layer, pt} = sel;
+  pushUndo(layer);
+  setPointProp(pt, 'spin', boolProp('spin', navPtSpin.checked));
+  scheduleAutosave(); renderNavPointPanel();
+});
+
+navPtPrepoint.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(!sel || !sel.layer.visible) return;
+  const {layer, pt} = sel;
+  pushUndo(layer);
+  setPointProp(pt, 'prepoint', stringProp('prepoint', navPtPrepoint.value));
+  scheduleAutosave(); renderNavPointPanel();
+});
+
+navPtRecfile.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(!sel || !sel.layer.visible) return;
+  const {layer, pt} = sel;
+  pushUndo(layer);
+  setPointProp(pt, 'recfile', stringProp('recfile', navPtRecfile.value.trim()));
+  scheduleAutosave(); renderNavPointPanel();
 });
 
 navPtName.addEventListener('change', ()=>{
@@ -1953,6 +2063,17 @@ document.getElementById('newPathDirFwd').addEventListener('click', ()=>setNewPat
 document.getElementById('newPathDirBwd').addEventListener('click', ()=>setNewPathDirection('backward'));
 document.getElementById('newPathMovestyle').addEventListener('change', e=>{ state.newPathMovestyle = parseInt(e.target.value,10)||0; });
 
+const NAV_POINT_TYPE_PREFIX = { LocationMark:'LM', ChargePoint:'CP', ActionPoint:'AP' };
+function setNewPointType(type){
+  state.newPointType = type;
+  document.getElementById('newPointTypeLM').classList.toggle('active', type==='LocationMark');
+  document.getElementById('newPointTypeCP').classList.toggle('active', type==='ChargePoint');
+  document.getElementById('newPointTypeAP').classList.toggle('active', type==='ActionPoint');
+}
+document.getElementById('newPointTypeLM').addEventListener('click', ()=>setNewPointType('LocationMark'));
+document.getElementById('newPointTypeCP').addEventListener('click', ()=>setNewPointType('ChargePoint'));
+document.getElementById('newPointTypeAP').addEventListener('click', ()=>setNewPointType('ActionPoint'));
+
 const eraseRadiusEl = document.getElementById('eraseRadius');
 const eraseRadiusVal = document.getElementById('eraseRadiusVal');
 state.eraseRadius = parseFloat(eraseRadiusEl.value);
@@ -2277,6 +2398,18 @@ const NAV_COLOR = '#7c6cff';
 const NAV_COLOR_PRINT = '#5b3fd6';
 const NAV_ARROW_COLOR = '#ff2f92';
 const NAV_ARROW_COLOR_PRINT = '#c2185b';
+const NAV_COLOR_CHARGE = '#16a34a';
+const NAV_COLOR_CHARGE_PRINT = '#0d7a34';
+const NAV_COLOR_ACTION = '#d97706';
+const NAV_COLOR_ACTION_PRINT = '#b45309';
+const NAV_POINT_TYPES = ['LocationMark', 'ChargePoint', 'ActionPoint'];
+const NAV_POINT_TYPE_LABELS = { LocationMark:'Location Mark', ChargePoint:'Charge Point', ActionPoint:'Action Point' };
+
+function navColorForClassName(className){
+  if(className==='ChargePoint') return state.printFriendly ? NAV_COLOR_CHARGE_PRINT : NAV_COLOR_CHARGE;
+  if(className==='ActionPoint') return state.printFriendly ? NAV_COLOR_ACTION_PRINT : NAV_COLOR_ACTION;
+  return state.printFriendly ? NAV_COLOR_PRINT : NAV_COLOR;
+}
 
 function drawNavPoints(layer, pal){
   const extra = layer.extra;
@@ -2362,15 +2495,31 @@ function drawNavPoints(layer, pal){
       const hasDir = typeof item.dir === 'number' && !item.ignoreDir;
       const worldDir = hasDir ? (item.dir + layer.transform.rot) : 0;
 
+      const pointColor = navColorForClassName(item.className);
+
       ctx.save();
       ctx.translate(sx,sy);
       if(hasDir) ctx.rotate(-worldDir);
       ctx.beginPath(); ctx.rect(-boxW/2,-boxH/2,boxW,boxH);
       ctx.fillStyle = fillColor; ctx.globalAlpha = (isHover||isSelected) ? 0.95 : 0.88; ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.strokeStyle = isSelected ? '#ffffff' : navColor;
+      ctx.strokeStyle = isSelected ? '#ffffff' : pointColor;
       ctx.lineWidth = isSelected ? 3.4 : 2.8;
       ctx.stroke();
+
+      // type glyph: distinguishes Charge/Action points from a plain Location Mark
+      if(item.className==='ChargePoint' || item.className==='ActionPoint'){
+        const glyphColor = state.printFriendly ? '#ffffff' : '#000000';
+        ctx.fillStyle = glyphColor;
+        if(item.className==='ChargePoint'){
+          ctx.beginPath();
+          ctx.moveTo(-2,-6); ctx.lineTo(2,-6); ctx.lineTo(-1,0); ctx.lineTo(2,0); ctx.lineTo(-2,6); ctx.lineTo(0,1); ctx.lineTo(-3,1);
+          ctx.closePath(); ctx.fill();
+        } else {
+          ctx.fillRect(-1,-6,2,7);
+          ctx.beginPath(); ctx.arc(0,4,1.4,0,Math.PI*2); ctx.fill();
+        }
+      }
 
       if(hasDir){
         // forward is now the box's local +X axis, since the whole box is rotated to face worldDir
@@ -2416,6 +2565,8 @@ function drawManualLines(layer, pal){
   if(!layer.manualLines || !layer.manualLines.length) return;
   const isActiveLayer = layer.id===state.activeLayerId;
   const showHandles = state.tool==='draw' && state.lineMode==='edit' && isActiveLayer;
+  const dotColor = state.uniformLayerColor ? pal.ink : (layer.color||PALETTE[0]);
+  const dot = Math.max(1, Math.min(2.6, state.view.scale*0.02));
   for(let li=0; li<layer.manualLines.length; li++){
     const ln = layer.manualLines[li];
     const [wx1,wy1] = layerToWorld(layer, ln.x1, ln.y1);
@@ -2423,10 +2574,36 @@ function drawManualLines(layer, pal){
     const [sx1,sy1] = worldToScreen(wx1,wy1);
     const [sx2,sy2] = worldToScreen(wx2,wy2);
     const isBodyHover = showHandles && state.hoverLineBody===li;
-    const widthPx = Math.max(2, (ln.thickness||0)*state.view.scale);
-    ctx.strokeStyle = isBodyHover ? '#ff5a45' : (state.uniformLayerColor ? pal.ink : (layer.color||PALETTE[0]));
-    ctx.lineWidth = isBodyHover ? Math.max(widthPx, 3) : widthPx;
+
+    // faint guide stroke only, so the line stays easy to spot/click while editing
+    ctx.strokeStyle = isBodyHover ? '#ff5a45' : dotColor;
+    ctx.globalAlpha = isBodyHover ? 0.5 : 0.22;
+    ctx.lineWidth = isBodyHover ? 3 : 1;
     ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // dot grid: mirrors exactly how this line is rasterized into scan points on save/export,
+    // so the preview shows the real point spacing/density instead of a misleading solid stroke
+    const spacing = ln.spacing || 0.05;
+    const thickness = ln.thickness || 0;
+    const dist = Math.hypot(wx2-wx1, wy2-wy1);
+    const steps = Math.max(1, Math.round(dist/spacing));
+    const dirX=(wx2-wx1)/(dist||1), dirY=(wy2-wy1)/(dist||1);
+    const perpX=-dirY, perpY=dirX;
+    const crossSteps = thickness>0 ? Math.max(1, Math.round(thickness/spacing)) : 0;
+    ctx.fillStyle = isBodyHover ? '#ff5a45' : dotColor;
+    ctx.globalAlpha = pal.dotAlpha;
+    for(let s=0;s<=steps;s++){
+      const t=s/steps;
+      const cx=wx1+(wx2-wx1)*t, cy=wy1+(wy2-wy1)*t;
+      const offsets = crossSteps===0 ? [0] : Array.from({length:crossSteps+1}, (_,c)=>-thickness/2+(c/crossSteps)*thickness);
+      for(const off of offsets){
+        const px=cx+perpX*off, py=cy+perpY*off;
+        const [spx,spy] = worldToScreen(px,py);
+        ctx.fillRect(spx-dot/2, spy-dot/2, dot, dot);
+      }
+    }
+    ctx.globalAlpha = 1;
 
     if(showHandles){
       for(const [hx,hy,which] of [[sx1,sy1,'start'],[sx2,sy2,'end']]){
@@ -3632,16 +3809,39 @@ function syncCurvesForPoint(layer, name, oldLocalX, oldLocalY){
     }
   }
 }
-function generateNavPointName(layer){
+function generateNavPointName(layer, prefix){
+  prefix = prefix || 'LM';
   const list = (layer.extra && layer.extra.advancedPointList) || [];
   let max = 0;
+  const re = new RegExp('^'+prefix+'(\\d+)$');
   for(const p of list){
-    const m = /^LM(\d+)$/.exec(p.instanceName||'');
+    const m = re.exec(p.instanceName||'');
     if(m) max = Math.max(max, parseInt(m[1],10));
   }
-  return 'LM'+(max+1);
+  return prefix+(max+1);
 }
 function intProp(val){ let value=''; try{ value=btoa(String(val)); }catch(e){} return {type:'int', int32Value:val, value}; }
+function boolProp(key, val){ let value=''; try{ value=btoa(String(!!val)); }catch(e){} return {key, type:'bool', boolValue:!!val, value}; }
+function stringProp(key, str){ return {key, type:'string', stringValue:str, value:b64EncodeUtf8(str)}; }
+function findPointProp(pt, key){
+  return Array.isArray(pt && pt.property) ? pt.property.find(p=>p && p.key===key) : null;
+}
+function getPointPropBool(pt, key, fallback){
+  const p = findPointProp(pt, key);
+  return p && typeof p.boolValue==='boolean' ? p.boolValue : fallback;
+}
+function getPointPropString(pt, key, fallback){
+  const p = findPointProp(pt, key);
+  if(!p) return fallback;
+  if(typeof p.stringValue==='string') return p.stringValue;
+  if(typeof p.value==='string'){ try{ return b64DecodeUtf8(p.value); }catch(e){} }
+  return fallback;
+}
+function setPointProp(pt, key, newProp){
+  if(!Array.isArray(pt.property)) pt.property = [];
+  const idx = pt.property.findIndex(p=>p && p.key===key);
+  if(idx>=0) pt.property[idx] = newProp; else pt.property.push(newProp);
+}
 function createBidirPath(layer, nameA, nameB){
   const ptA = findNavPointByName(layer, nameA), ptB = findNavPointByName(layer, nameB);
   if(!ptA || !ptB) return null;
@@ -4072,8 +4272,8 @@ function cloneSeedPropsForInstance(seedPt){
 function createInstancePointFromSeed(layer, seedName){
   const seedPt = findNavPointByName(layer, seedName);
   if(!seedPt) return null;
-  const name = generateNavPointName(layer);
   const props = cloneSeedPropsForInstance(seedPt);
+  const name = generateNavPointName(layer, NAV_POINT_TYPE_PREFIX[props.className] || 'LM');
   if(!layer.extra) layer.extra = {};
   if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
   layer.extra.advancedPointList.push({className:props.className, instanceName:name, pos:{x:0,y:0}, dir:props.dir, ignoreDir:props.ignoreDir, property:props.property});
@@ -5774,8 +5974,9 @@ canvasEl.addEventListener('pointerdown', (e)=>{
         pushUndo(layer);
         if(!layer.extra) layer.extra = {};
         if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
-        const name = generateNavPointName(layer);
-        layer.extra.advancedPointList.push({className:'LocationMark', instanceName:name, pos:{x:round3(lx), y:round3(ly)}, dir:0, ignoreDir:true, property:[]});
+        const newType = state.newPointType || 'LocationMark';
+        const name = generateNavPointName(layer, NAV_POINT_TYPE_PREFIX[newType] || 'LM');
+        layer.extra.advancedPointList.push({className:newType, instanceName:name, pos:{x:round3(lx), y:round3(ly)}, dir:0, ignoreDir:true, property:[]});
         state.selectedNavPoint = {layerId:layer.id, instanceName:name};
         state.selectedPath = null;
         renderPathPanel();
