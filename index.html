@@ -240,10 +240,10 @@
   .show-row:has(input:checked) .show-swatch{background:var(--sw, var(--accent)); border-color:var(--sw, var(--accent)); color:#ffffff;}
   .show-row:has(input:checked) .show-row-label{color:var(--ink); font-weight:500;}
   .label-sub{font-size:11px; font-weight:600; color:var(--ink-dim); text-transform:uppercase; letter-spacing:0.06em; margin:4px 0 2px;}
-  .shape-toggle{display:flex; gap:6px; flex:1;}
+  .shape-toggle{display:flex; flex-wrap:wrap; gap:6px; flex:1;}
   .shape-btn{
-    flex:1; font-size:11.5px; padding:5px 6px; border-radius:5px; border:1px solid var(--line);
-    background:var(--bg); color:var(--ink); cursor:pointer;
+    flex:1 1 auto; min-width:64px; font-size:11.5px; padding:5px 6px; border-radius:5px; border:1px solid var(--line);
+    background:var(--bg); color:var(--ink); cursor:pointer; text-align:center; white-space:nowrap;
   }
   .shape-btn.active{background:var(--accent); border-color:var(--accent); color:var(--accent-ink);}
 
@@ -450,9 +450,9 @@
         <div class="row">
           <span style="width:52px;">Axis</span>
           <div class="shape-toggle">
-            <button type="button" class="shape-btn active" id="distAxisH" title="Always horizontal distance (dx) — used when the first click is a nav point">↔ dx</button>
+            <button type="button" class="shape-btn" id="distAxisH" title="Always horizontal distance (dx) — used when the first click is a nav point">↔ dx</button>
             <button type="button" class="shape-btn" id="distAxisV" title="Always vertical distance (dy) — used when the first click is a nav point">↕ dy</button>
-            <button type="button" class="shape-btn" id="distAxisSmart" title="Smart: dx or dy is picked from whichever way your mouse has moved more while referencing">Smart</button>
+            <button type="button" class="shape-btn active" id="distAxisSmart" title="Smart: dx or dy is picked from whichever way your mouse has moved more while referencing">Smart</button>
           </div>
         </div>
         <div class="tool-hint" id="distHint" style="margin-top:8px;">Click an area edge, a nav point, or a reflector to pin it. Then click a nav point, reflector, scan point, or parallel edge to reference. Esc cancels.</div>
@@ -579,8 +579,8 @@
       <div class="field-row"><label for="navRot">Rot (°)</label><input type="number" id="navRot" step="0.5"></div>
       <button class="btn danger" id="btnDeleteNavPoint" style="width:100%;">Delete nav point</button>
 
-      <div class="label-sub" style="margin-top:10px;">Distance constraints</div>
-      <div id="navPtDimHint" class="tool-hint" style="margin-top:0;">Use the Distance tool (D) to pin this point's X or Y position.</div>
+      <div class="label-sub" style="margin-top:10px;">Dimension constraints</div>
+      <div id="navPtDimHint" class="tool-hint" style="margin-top:0;">Use the Dimension tool (D) to pin this point's X or Y position.</div>
       <div id="navPtDimX" hidden>
         <div class="stat-line"><span>X pinned to</span><b id="navPtDimXAnchor" class="mono"></b></div>
         <div class="field-row"><label for="navPtDimXOffset">dx</label><input type="number" id="navPtDimXOffset" step="0.01"></div>
@@ -671,7 +671,7 @@
       <button class="btn danger" id="btnDeleteArea" style="width:100%;">Delete area</button>
 
       <div class="label-sub" style="margin-top:10px;">Selected edge <span id="areaEdgeName" class="mono"></span></div>
-      <div id="areaEdgeNone" class="tool-hint" style="margin-top:0;">Click an edge, then use the Distance tool (D) to pin it to a point or another edge.</div>
+      <div id="areaEdgeNone" class="tool-hint" style="margin-top:0;">Click an edge, then use the Dimension tool (D) to pin it to a point or another edge.</div>
       <div id="areaEdgeConstrained" hidden>
         <div class="stat-line"><span>Pinned to</span><b id="areaEdgeAnchorLabel" class="mono"></b></div>
         <div class="field-row"><label id="areaEdgeOffsetLabel" for="areaEdgeOffset">dx</label><input type="number" id="areaEdgeOffset" step="0.01"></div>
@@ -718,7 +718,7 @@
   <div class="tgroup">
     <div class="tgroup-label">Relations</div>
     <div class="tgroup-row">
-      <button class="tool-btn" data-tool="dist" title="Pin a horizontal/vertical distance between an area edge, nav point, reflector, or bezier control handle and a reference (D)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7v10M20 7v10M4 12h16M7 12l-2-2M7 12l-2 2M17 12l2-2M17 12l2 2"></path></svg><span class="tool-btn-label">Distance (D)</span></button>
+      <button class="tool-btn" data-tool="dist" title="Pin a horizontal/vertical distance between an area edge, nav point, reflector, or bezier control handle and a reference (D)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7v10M20 7v10M4 12h16M7 12l-2-2M7 12l-2 2M17 12l2-2M17 12l2 2"></path></svg><span class="tool-btn-label">Dimension (D)</span></button>
       <button class="tool-btn" data-tool="constraints" title="Select 2+ points (or one bezier handle) and make them Horizontal/Vertical/Coincident (C)"><svg viewBox="0 0 24 24" fill="currentColor" fill-opacity="0.35" stroke="currentColor" stroke-width="2"><rect x="2.5" y="8.5" width="10" height="7" rx="3.5" transform="rotate(-25 7.5 12)"></rect><rect x="11.5" y="8.5" width="10" height="7" rx="3.5" transform="rotate(-25 16.5 12)"></rect></svg><span class="tool-btn-label">Constrain (C)</span></button>
       <button class="tool-btn" data-tool="pattern" title="Linear pattern: click a nav point as seed, set spacing/count, then Create. Drag a generated instance to override its own step (P)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="2.5" y="2.5" width="6" height="6" rx="1"></rect><rect x="9" y="9" width="6" height="6" rx="1" fill-opacity="0.55"></rect><rect x="15.5" y="15.5" width="6" height="6" rx="1" fill-opacity="0.3"></rect></svg><span class="tool-btn-label">Pattern (P)</span></button>
     </div>
@@ -869,7 +869,7 @@ const state = {
   selectedAreaEdge: null,
   dimInlineEdit: null,
   dimLabelHitboxes: [],
-  distAxis: 'x',
+  distAxis: 'smart',
   distTarget: null,
   distHoverTarget: null,
   distPickHover: null,
@@ -1891,7 +1891,7 @@ const toolStatus = document.getElementById('toolStatus');
 const noLayerBanner = document.getElementById('noLayerBanner');
 const canvasEl = document.getElementById('canvas');
 
-const TOOL_LABELS = { pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', select:'Rectangle select', measure:'Ruler', nav:'Nav points', area:'Reflector area', align:'Align to line', dist:'Distance', constraints:'Constrain', pattern:'Linear pattern' };
+const TOOL_LABELS = { pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', select:'Rectangle select', measure:'Ruler', nav:'Nav points', area:'Reflector area', align:'Align to line', dist:'Dimension', constraints:'Constrain', pattern:'Linear pattern' };
 const TOOL_NEEDS_LAYER = { move:true, rotate:true, erase:true, draw:true, reflector:true, select:true, pan:false, measure:false, nav:true, area:true, align:true, dist:false, constraints:false, pattern:true };
 
 function updateToolStatus(){
@@ -6386,7 +6386,7 @@ document.addEventListener('keyup', (e)=>{
 const ACTION_LABELS = {
   pan:'Pan', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line',
   reflector:'Add reflector', select:'Rectangle select', measure:'Ruler', nav:'Nav points',
-  area:'Reflector area', align:'Align to line', dist:'Distance', constraints:'Constrain',
+  area:'Reflector area', align:'Align to line', dist:'Dimension', constraints:'Constrain',
   pattern:'Linear pattern', fitView:'Fit view',
   relHorizontal:'Relation: Horizontal (in Constrain)',
   relVertical:'Relation: Vertical (in Constrain)',
