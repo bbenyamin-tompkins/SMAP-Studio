@@ -464,6 +464,10 @@
           <button type="button" class="shape-btn" id="relBtnVFixed" disabled title="Make selection Vertical (V)">| Vertical</button>
           <button type="button" class="shape-btn" id="relBtnOFixed" disabled title="Make selection Coincident (O)">&#8853; Coincident</button>
         </div>
+        <div class="row" style="gap:8px; margin-top:8px;">
+          <button type="button" class="shape-btn" id="relBtnLock" disabled title="Lock the selected point(s) in place — click again on a locked point to unlock">🔒 Fixed</button>
+        </div>
+        <div class="tool-hint" style="margin-top:8px;">A fixed point can't be dragged or pulled by other relations. Right-click a fixed point (or its 🔒 badge) to unlock it, or select it and click Fixed again.</div>
         <div class="stat-line" style="margin-top:8px;"><span>Relations in project</span><b id="relCount" class="mono">0</b></div>
         <button class="btn danger" id="btnDeleteAllRelations" style="width:100%; margin-top:6px;">Delete all relations</button>
       </div>
@@ -555,8 +559,13 @@
             <button type="button" class="shape-btn active" id="newPointTypeLM" title="Location Mark">Mark</button>
             <button type="button" class="shape-btn" id="newPointTypeCP" title="Charge Point">Charge</button>
             <button type="button" class="shape-btn" id="newPointTypeAP" title="Action Point">Action</button>
+            <button type="button" class="shape-btn" id="newPointTypeStation" title="Station: an Action Point with a Location Mark fixed ahead of it, linked by one-way paths">Station</button>
           </div>
         </div>
+        <div class="field-row" id="newStationDistanceRow" hidden><label for="newStationDistance">LM distance (m)</label>
+          <input type="number" id="newStationDistance" class="mono" step="0.01" min="0.02" value="2.200">
+        </div>
+        <div id="newPathSection" hidden>
         <div class="tool-hint" style="margin-top:8px;">Shift-drag from one nav point to another to add a path with these settings.</div>
         <div class="row" style="gap:8px; margin-top:8px;">
           <span style="width:70px;">New path</span>
@@ -575,6 +584,7 @@
             <option value="4">4 — Magnetic-stripe guidance</option>
           </select>
         </div>
+        </div>
       </div>
     </div>
 
@@ -586,6 +596,7 @@
           <option value="LocationMark">Location Mark</option>
           <option value="ChargePoint">Charge Point</option>
           <option value="ActionPoint">Action Point</option>
+          <option value="Station">Station</option>
         </select>
       </div>
       <div class="field-row"><label for="navX">X (m)</label><input type="number" id="navX" step="0.01"></div>
@@ -602,6 +613,16 @@
         <div class="field-row" style="margin-bottom:0;"><label for="navPtRecfile">Rec. file</label><input type="text" id="navPtRecfile" class="mono"></div>
       </div>
 
+      <div id="navPtStationFields" class="field-card" hidden>
+        <div class="label-sub" style="margin-top:0;">Station</div>
+        <div class="stat-line"><span>Paired with</span><b id="navPtStationPartner" class="mono"></b></div>
+        <div class="field-row" id="navPtStationDistanceRow"><label for="navPtStationDistance">LM distance (m)</label>
+          <input type="number" id="navPtStationDistance" class="mono" step="0.01" min="0.02">
+        </div>
+        <button class="btn" id="btnUnpairStation" style="width:100%; margin-top:4px;">Unpair</button>
+      </div>
+
+      <button class="btn" id="btnSkipNavPoint" style="width:100%; margin-bottom:6px;" hidden>Skip this instance</button>
       <button class="btn danger" id="btnDeleteNavPoint" style="width:100%;">Delete nav point</button>
 
       <div class="label-sub" style="margin-top:10px;">Dimension constraints</div>
@@ -624,10 +645,9 @@
       <div class="field-card">
       <div class="label-sub" style="color:var(--accent);">Forward <span id="pathFwdLabel" class="mono"></span></div>
       <div class="field-row"><label for="pathFwdDirection">Direction</label>
-        <select id="pathFwdDirection" title="Which way the robot may travel along this curve." style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:13px;">
-          <option value="0">0 — Bidirectional</option>
-          <option value="1">1 — Forward</option>
-          <option value="2">2 — Backward</option>
+        <select id="pathFwdDirection" title="Robot orientation while following this curve (0=nose-first, 1=reversing). A path is two-way because both curve objects exist, not because of this value." style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:13px;">
+          <option value="0">0 — Forward</option>
+          <option value="1">1 — Backward</option>
         </select>
       </div>
       <div class="field-row" style="margin-bottom:0;"><label for="pathFwdMovestyle">Movestyle</label>
@@ -643,10 +663,9 @@
       <div class="field-card" id="pathBwdSection">
       <div class="label-sub" style="color:var(--accent);">Backward <span id="pathBwdLabel" class="mono"></span></div>
       <div class="field-row"><label for="pathBwdDirection">Direction</label>
-        <select id="pathBwdDirection" title="Which way the robot may travel along this curve." style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:13px;">
-          <option value="0">0 — Bidirectional</option>
-          <option value="1">1 — Forward</option>
-          <option value="2">2 — Backward</option>
+        <select id="pathBwdDirection" title="Robot orientation while following this curve (0=nose-first, 1=reversing). A path is two-way because both curve objects exist, not because of this value." style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:13px;">
+          <option value="0">0 — Forward</option>
+          <option value="1">1 — Backward</option>
         </select>
       </div>
       <div class="field-row" style="margin-bottom:0;"><label for="pathBwdMovestyle">Movestyle</label>
@@ -670,6 +689,8 @@
       <div class="stat-line"><span>Group</span><b id="areaGroupLabel" class="mono"></b></div>
       <div class="stat-line"><span>Rectangles</span><b id="areaCount" class="mono"></b></div>
       <div class="field-row"><label for="areaName">Name</label><input type="text" id="areaName" class="mono"></div>
+      <div class="field-row"><label for="areaX">X (m)</label><input type="number" id="areaX" step="0.01"></div>
+      <div class="field-row"><label for="areaY">Y (m)</label><input type="number" id="areaY" step="0.01"></div>
       <div class="field-row">
         <span class="dim-label">↔</span>
         <input type="number" id="areaWidth" step="0.01">
@@ -680,6 +701,7 @@
         <input type="number" id="areaHeight" step="0.01">
         <span id="areaHeightDerived" class="mono" hidden></span>
       </div>
+      <label class="check-inline" style="margin-bottom:10px;" title="Prevents dragging the body, corners, or rotate handle. X/Y/Width/Height fields and the Dimension tool still work."><input type="checkbox" id="areaLocked"> Lock position</label>
       <div class="field-row">
         <label for="areaColorStroke">Colors</label>
         <input type="color" id="areaColorStroke" class="layer-color-input" title="Outline color">
@@ -821,6 +843,8 @@
     <div class="no-layer-banner" id="noLayerBanner" hidden>No layer selected — this tool needs an active layer</div>
     <input type="number" id="dimInlineInput" class="dim-inline-input mono" step="0.01" hidden>
     <div class="dim-inline-hint" id="dimInlineHint" hidden>Enter to set &nbsp; clear + Enter to unpin &nbsp; Esc to cancel</div>
+    <input type="number" id="areaSizeInlineInput" class="dim-inline-input mono" step="0.01" min="0.02" hidden>
+    <div class="dim-inline-hint" id="areaSizeInlineHint" hidden>Enter to set size &nbsp; Esc to cancel</div>
     <div class="rel-toolbar" id="relToolbar" hidden>
       <button type="button" id="relToolbarH" title="Horizontal (H)">—</button>
       <button type="button" id="relToolbarV" title="Vertical (V)">|</button>
@@ -893,6 +917,7 @@ const state = {
   newAreaRect: null,
   selectedAreaEdge: null,
   dimInlineEdit: null,
+  areaSizeInlineEdit: null,
   dimLabelHitboxes: [],
   distAxis: 'smart',
   distTarget: null,
@@ -914,6 +939,7 @@ const state = {
   newPathDirection: 'both',
   newPathMovestyle: 0,
   newPointType: 'LocationMark',
+  stationDistance: 2.2,
   selectedDimension: null,
   alignLine: null,
   alignAxis: 'x',
@@ -1177,9 +1203,30 @@ const navPtSpin = document.getElementById('navPtSpin');
 const navPtChargeFields = document.getElementById('navPtChargeFields');
 const navPtPrepoint = document.getElementById('navPtPrepoint');
 const navPtRecfile = document.getElementById('navPtRecfile');
+const navPtStationFields = document.getElementById('navPtStationFields');
+const navPtStationPartner = document.getElementById('navPtStationPartner');
+const navPtStationDistanceRow = document.getElementById('navPtStationDistanceRow');
+const navPtStationDistance = document.getElementById('navPtStationDistance');
+const btnUnpairStation = document.getElementById('btnUnpairStation');
 const navX = document.getElementById('navX'), navY = document.getElementById('navY'), navRot = document.getElementById('navRot');
 const navHasDir = document.getElementById('navHasDir');
 const btnDeleteNavPoint = document.getElementById('btnDeleteNavPoint');
+const btnSkipNavPoint = document.getElementById('btnSkipNavPoint');
+
+// Looks up whether a nav point is a pattern/grid instance (never the seed —
+// the seed anchors the whole pattern and can't itself be skipped), returning
+// enough info to toggle its skipped flag the same way the Pattern tool's
+// right-click menu does.
+function findSkippableInstance(layer, name){
+  const lin = findPatternByPointName(layer, name);
+  if(lin && lin.role==='instance') return {kind:'linear', pat:lin.pat, index:lin.index, skipped: lin.pat.instances[lin.index].skipped};
+  const grid = findGridPatternByPointName(layer, name);
+  if(grid && grid.role==='cell'){
+    const cell = grid.grid.cells[gridCellKey(grid.row, grid.col)];
+    return {kind:'grid', grid:grid.grid, row:grid.row, col:grid.col, skipped: cell.skipped};
+  }
+  return null;
+}
 
 function getSelectedNavPoint(){
   if(!state.selectedNavPoint) return null;
@@ -1201,6 +1248,8 @@ function renameNavPoint(layer, oldName, newName){
       if(otherPt.className==='ChargePoint' && getPointPropString(otherPt, 'prepoint', null)===oldName){
         setPointProp(otherPt, 'prepoint', stringProp('prepoint', newName));
       }
+      if(otherPt.__pairedLM && otherPt.__pairedLM.name===oldName) otherPt.__pairedLM.name = newName;
+      if(otherPt.__pairedAP===oldName) otherPt.__pairedAP = newName;
     }
   }
   const curves = layer.extra && layer.extra.advancedCurveList;
@@ -1288,7 +1337,10 @@ function renderNavPointPanel(){
   const localDir = typeof pt.dir === 'number' ? pt.dir : 0;
   navRot.value = round3((localDir + layer.transform.rot) * 180/Math.PI);
   const disabled = !layer.visible;
-  navPtName.disabled = navX.disabled = navY.disabled = navHasDir.disabled = btnDeleteNavPoint.disabled = disabled;
+  const isFollower = isStationFollower(pt);
+  const isDriver = isStationDriver(pt);
+  navPtName.disabled = navHasDir.disabled = btnDeleteNavPoint.disabled = disabled;
+  navX.disabled = navY.disabled = disabled || isFollower;
   navRot.disabled = disabled || !hasDir;
 
   const className = pt.className || 'LocationMark';
@@ -1300,8 +1352,8 @@ function renderNavPointPanel(){
   } else if(unknownOpt){
     unknownOpt.remove();
   }
-  navPtType.value = className;
-  navPtType.disabled = disabled;
+  navPtType.value = (isDriver || isFollower) ? 'Station' : className;
+  navPtType.disabled = disabled || isFollower;
 
   navPtSpin.checked = getPointPropBool(pt, 'spin', false);
   navPtSpin.disabled = disabled;
@@ -1325,6 +1377,25 @@ function renderNavPointPanel(){
     navPtRecfile.disabled = disabled;
   }
 
+  const skippable = findSkippableInstance(layer, pt.instanceName);
+  btnSkipNavPoint.hidden = !skippable;
+  if(skippable){
+    btnSkipNavPoint.textContent = skippable.skipped ? 'Un-skip this instance' : 'Skip this instance';
+    btnSkipNavPoint.disabled = disabled;
+  }
+
+  navPtStationFields.hidden = !(isDriver || isFollower);
+  if(isDriver || isFollower){
+    const partner = getStationPartner(layer, pt);
+    navPtStationPartner.textContent = partner ? partner.instanceName : '(missing)';
+    const distance = isDriver ? pt.__pairedLM.distance : (partner && partner.__pairedLM ? partner.__pairedLM.distance : 0);
+    if(document.activeElement !== navPtStationDistance) navPtStationDistance.value = distance.toFixed(3);
+    navPtStationDistance.disabled = disabled || isFollower;
+    navPtStationDistanceRow.title = isFollower ? "Set from the Action Point's side." : '';
+    btnUnpairStation.disabled = disabled;
+  }
+  btnDeleteNavPoint.textContent = (isDriver || isFollower) ? 'Delete station' : 'Delete nav point';
+
   renderNavPointDimPanel(layer, pt);
 }
 
@@ -1340,12 +1411,12 @@ function renderNavPointDimPanel(layer, pt){
   if(cx){
     document.getElementById('navPtDimXAnchor').textContent = formatEdgeAnchorLabel(cx);
     const input = document.getElementById('navPtDimXOffset');
-    if(document.activeElement !== input) input.value = Math.abs(cx.offset).toFixed(2);
+    if(document.activeElement !== input) input.value = Math.abs(cx.offset).toFixed(3);
   }
   if(cy){
     document.getElementById('navPtDimYAnchor').textContent = formatEdgeAnchorLabel(cy);
     const input = document.getElementById('navPtDimYOffset');
-    if(document.activeElement !== input) input.value = Math.abs(cy.offset).toFixed(2);
+    if(document.activeElement !== input) input.value = Math.abs(cy.offset).toFixed(3);
   }
 }
 
@@ -1363,8 +1434,12 @@ navPtType.addEventListener('change', ()=>{
   if(!sel || !sel.layer.visible) return;
   const {layer, pt} = sel;
   pushUndo(layer);
-  pt.className = navPtType.value;
-  scheduleAutosave(); renderNavPointPanel(); requestDraw();
+  const newType = navPtType.value;
+  applyPointTypeChange(layer, pt, newType);
+  propagateTypeToPatternMembers(layer, pt, newType);
+  prunePatterns();
+  pruneGridPatterns();
+  scheduleAutosave(); renderNavPointPanel(); renderPathPanel(); renderPatternPanel(); requestDraw();
 });
 
 navPtSpin.addEventListener('change', ()=>{
@@ -1453,6 +1528,40 @@ btnDeleteNavPoint.addEventListener('click', ()=>{
   renderPathPanel();
   renderPatternPanel();
   scheduleAutosave(); requestDraw();
+});
+
+navPtStationDistance.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(!sel || !sel.layer.visible) return;
+  const {layer, pt} = sel;
+  if(!isStationDriver(pt)) return;
+  const v = parseFloat(navPtStationDistance.value);
+  if(isNaN(v) || v<=0.02) return;
+  pushUndo(layer);
+  pt.__pairedLM.distance = v;
+  scheduleAutosave(); requestDraw(); renderNavPointPanel();
+});
+
+btnUnpairStation.addEventListener('click', ()=>{
+  const sel = getSelectedNavPoint();
+  if(!sel || !sel.layer.visible) return;
+  const {layer, pt} = sel;
+  pushUndo(layer);
+  unpairStation(layer, pt.instanceName);
+  scheduleAutosave(); requestDraw(); renderNavPointPanel();
+});
+
+btnSkipNavPoint.addEventListener('click', ()=>{
+  const sel = getSelectedNavPoint();
+  if(!sel || !sel.layer.visible) return;
+  const {layer, pt} = sel;
+  const skippable = findSkippableInstance(layer, pt.instanceName);
+  if(!skippable) return;
+  pushUndo(layer);
+  if(skippable.kind==='linear') togglePatternInstanceSkip(skippable.pat, skippable.index);
+  else toggleGridCellSkip(skippable.grid, skippable.row, skippable.col);
+  scheduleAutosave();
+  renderNavPointPanel(); renderPatternPanel(); renderPathPanel(); requestDraw();
 });
 
 function unpinNavPointAxis(axis){
@@ -1697,6 +1806,12 @@ function setRectWidthHeight(area, newW, newH){
   area.posGroup = posGroupFromRect(cx, cy, w, h, rot);
 }
 
+function setAreaPosition(layer, area, newWx, newWy){
+  const rect = rectFromPosGroup(area.posGroup);
+  const [lx, ly] = worldToLayer(layer, newWx, newWy);
+  area.posGroup = posGroupFromRect(lx, ly, rect.w, rect.h, rect.rot);
+}
+
 function renderAreaWidthHeight(layer, area){
   const rect = rectFromPosGroup(area.posGroup);
   const constraints = area.__edgeConstraints || {};
@@ -1706,10 +1821,19 @@ function renderAreaWidthHeight(layer, area){
   const hDerivedFlag = !!(constraints.S && constraints.N);
   wInput.hidden = wDerivedFlag; wDerived.hidden = !wDerivedFlag;
   hInput.hidden = hDerivedFlag; hDerived.hidden = !hDerivedFlag;
-  if(wDerivedFlag) wDerived.textContent = '('+rect.w.toFixed(2)+' m)';
-  else if(document.activeElement !== wInput) wInput.value = rect.w.toFixed(2);
-  if(hDerivedFlag) hDerived.textContent = '('+rect.h.toFixed(2)+' m)';
-  else if(document.activeElement !== hInput) hInput.value = rect.h.toFixed(2);
+  if(wDerivedFlag) wDerived.textContent = '('+rect.w.toFixed(3)+' m)';
+  else if(document.activeElement !== wInput) wInput.value = rect.w.toFixed(3);
+  if(hDerivedFlag) hDerived.textContent = '('+rect.h.toFixed(3)+' m)';
+  else if(document.activeElement !== hInput) hInput.value = rect.h.toFixed(3);
+
+  const [wx, wy] = layerToWorld(layer, rect.cx, rect.cy);
+  const xInput = document.getElementById('areaX'), yInput = document.getElementById('areaY');
+  if(document.activeElement !== xInput) xInput.value = wx.toFixed(3);
+  if(document.activeElement !== yInput) yInput.value = wy.toFixed(3);
+
+  const lockedCheckbox = document.getElementById('areaLocked');
+  lockedCheckbox.checked = !!area.__locked;
+  lockedCheckbox.disabled = hasAnyEdgeConstraint(area);
 }
 
 function renderAreaEdgePanel(layer, area){
@@ -1734,7 +1858,7 @@ function renderAreaEdgePanel(layer, area){
     document.getElementById('areaEdgeAnchorLabel').textContent = formatEdgeAnchorLabel(constraint);
     document.getElementById('areaEdgeOffsetLabel').textContent = constraint.axis==='x' ? 'dx' : 'dy';
     const offsetInput = document.getElementById('areaEdgeOffset');
-    if(document.activeElement !== offsetInput) offsetInput.value = Math.abs(constraint.offset).toFixed(2);
+    if(document.activeElement !== offsetInput) offsetInput.value = Math.abs(constraint.offset).toFixed(3);
   } else {
     areaEdgeConstrainedEl.hidden = true;
     const rect = rectFromPosGroup(area.posGroup);
@@ -1956,6 +2080,40 @@ document.getElementById('areaHeight').addEventListener('change', (e)=>{
   resolveAllConstraints();
   scheduleAutosave(); requestDraw(); renderAreaPanel();
 });
+document.getElementById('areaX').addEventListener('change', (e)=>{
+  const layer = state.selectedArea && getLayer(state.selectedArea.layerId);
+  const area = layer && state.selectedArea.areaIndex!=null ? layer.extra.advancedAreaList[state.selectedArea.areaIndex] : null;
+  if(!layer || !area || !layer.visible) return;
+  const v = parseFloat(e.target.value);
+  if(isNaN(v)) { renderAreaPanel(); return; }
+  const rect = rectFromPosGroup(area.posGroup);
+  const [, wy] = layerToWorld(layer, rect.cx, rect.cy);
+  pushUndo(layer);
+  setAreaPosition(layer, area, v, wy);
+  resolveAllConstraints();
+  scheduleAutosave(); requestDraw(); renderAreaPanel();
+});
+document.getElementById('areaY').addEventListener('change', (e)=>{
+  const layer = state.selectedArea && getLayer(state.selectedArea.layerId);
+  const area = layer && state.selectedArea.areaIndex!=null ? layer.extra.advancedAreaList[state.selectedArea.areaIndex] : null;
+  if(!layer || !area || !layer.visible) return;
+  const v = parseFloat(e.target.value);
+  if(isNaN(v)) { renderAreaPanel(); return; }
+  const rect = rectFromPosGroup(area.posGroup);
+  const [wx] = layerToWorld(layer, rect.cx, rect.cy);
+  pushUndo(layer);
+  setAreaPosition(layer, area, wx, v);
+  resolveAllConstraints();
+  scheduleAutosave(); requestDraw(); renderAreaPanel();
+});
+document.getElementById('areaLocked').addEventListener('change', (e)=>{
+  const layer = state.selectedArea && getLayer(state.selectedArea.layerId);
+  const area = layer && state.selectedArea.areaIndex!=null ? layer.extra.advancedAreaList[state.selectedArea.areaIndex] : null;
+  if(!layer || !area || !layer.visible) return;
+  pushUndo(layer);
+  if(e.target.checked) area.__locked = true; else delete area.__locked;
+  scheduleAutosave(); requestDraw(); renderAreaPanel();
+});
 
 document.getElementById('btnAreaEdgeUnpin').addEventListener('click', ()=>{
   const sel = state.selectedAreaEdge;
@@ -2022,6 +2180,7 @@ function setTool(tool){
   if(tool!=='dist'){
     state.distTarget = null; state.distHoverTarget = null; state.distPickHover = null;
     if(state.dimInlineEdit) closeDimInlineEdit();
+    if(state.areaSizeInlineEdit) closeAreaSizeInlineEdit();
   }
   if(tool!=='area' && tool!=='dist' && tool!=='pan'){ state.dimDrag = null; state.selectedDimension = null; }
   if(tool!=='constraints' && tool!=='pan'){ state.relSelection = []; }
@@ -2064,23 +2223,34 @@ document.getElementById('newPathDirBwd').addEventListener('click', ()=>setNewPat
 document.getElementById('newPathMovestyle').addEventListener('change', e=>{ state.newPathMovestyle = parseInt(e.target.value,10)||0; });
 
 const NAV_POINT_TYPE_PREFIX = { LocationMark:'LM', ChargePoint:'CP', ActionPoint:'AP' };
+const newStationDistanceRow = document.getElementById('newStationDistanceRow');
+const newStationDistanceInput = document.getElementById('newStationDistance');
 function setNewPointType(type){
   state.newPointType = type;
   document.getElementById('newPointTypeLM').classList.toggle('active', type==='LocationMark');
   document.getElementById('newPointTypeCP').classList.toggle('active', type==='ChargePoint');
   document.getElementById('newPointTypeAP').classList.toggle('active', type==='ActionPoint');
+  document.getElementById('newPointTypeStation').classList.toggle('active', type==='Station');
+  newStationDistanceRow.hidden = type!=='Station';
+  document.getElementById('newPathSection').hidden = type!=='Station';
 }
 document.getElementById('newPointTypeLM').addEventListener('click', ()=>setNewPointType('LocationMark'));
 document.getElementById('newPointTypeCP').addEventListener('click', ()=>setNewPointType('ChargePoint'));
 document.getElementById('newPointTypeAP').addEventListener('click', ()=>setNewPointType('ActionPoint'));
+document.getElementById('newPointTypeStation').addEventListener('click', ()=>setNewPointType('Station'));
+newStationDistanceInput.addEventListener('change', ()=>{
+  const v = parseFloat(newStationDistanceInput.value);
+  state.stationDistance = (!isNaN(v) && v>0.02) ? v : state.stationDistance;
+  newStationDistanceInput.value = state.stationDistance.toFixed(3);
+});
 
 const eraseRadiusEl = document.getElementById('eraseRadius');
 const eraseRadiusVal = document.getElementById('eraseRadiusVal');
 state.eraseRadius = parseFloat(eraseRadiusEl.value);
-eraseRadiusVal.textContent = state.eraseRadius.toFixed(2)+' m';
+eraseRadiusVal.textContent = state.eraseRadius.toFixed(3)+' m';
 eraseRadiusEl.addEventListener('input', ()=>{
   state.eraseRadius = parseFloat(eraseRadiusEl.value);
-  eraseRadiusVal.textContent = state.eraseRadius.toFixed(2)+' m';
+  eraseRadiusVal.textContent = state.eraseRadius.toFixed(3)+' m';
   requestDraw();
 });
 document.getElementById('eraseScan').addEventListener('change', e=>state.eraseTargets.scan = e.target.checked);
@@ -2135,7 +2305,7 @@ function renderAlignPanel(){
   if(hasLine){
     const {x1,y1,x2,y2} = state.alignLine;
     const angle = Math.atan2(y2-y1, x2-x1);
-    alignAngleEl.textContent = (angle*180/Math.PI).toFixed(2)+'°';
+    alignAngleEl.textContent = (angle*180/Math.PI).toFixed(3)+'°';
   } else {
     alignAngleEl.textContent = '–';
   }
@@ -2507,7 +2677,7 @@ function drawNavPoints(layer, pal){
       ctx.lineWidth = isSelected ? 3.4 : 2.8;
       ctx.stroke();
 
-      // type glyph: distinguishes Charge/Action points from a plain Location Mark
+      // type glyph: distinguishes Charge/Action points (and Action-Point Stations) from a plain Location Mark
       if(item.className==='ChargePoint' || item.className==='ActionPoint'){
         const glyphColor = state.printFriendly ? '#ffffff' : '#000000';
         ctx.fillStyle = glyphColor;
@@ -2515,6 +2685,12 @@ function drawNavPoints(layer, pal){
           ctx.beginPath();
           ctx.moveTo(-2,-6); ctx.lineTo(2,-6); ctx.lineTo(-1,0); ctx.lineTo(2,0); ctx.lineTo(-2,6); ctx.lineTo(0,1); ctx.lineTo(-3,1);
           ctx.closePath(); ctx.fill();
+        } else if(item.__pairedLM){
+          // pallet glyph (side view: top deck + three blocks) for a Station's Action Point
+          ctx.fillRect(-6,-6,12,2);
+          ctx.fillRect(-6,-4,3,9);
+          ctx.fillRect(-1.5,-4,3,9);
+          ctx.fillRect(3,-4,3,9);
         } else {
           ctx.fillRect(-1,-6,2,7);
           ctx.beginPath(); ctx.arc(0,4,1.4,0,Math.PI*2); ctx.fill();
@@ -2749,7 +2925,7 @@ function drawDimensionAnnotations(){
             const anchorWorldPos = resolveConstraintAnchorPoint(constraint);
             if(!anchorWorldPos) continue;
             const edgeWorldPos = det.axis==='x' ? [det.value, det.mid[1]] : [det.mid[0], det.value];
-            const label = Math.abs(constraint.offset).toFixed(2);
+            const label = Math.abs(constraint.offset).toFixed(3);
             const isSel = matchesSelectedDimension('edge', layer.id, {areaIndex:ai, edgeKey});
             const {box, lineA, lineB} = drawCadDimension(det.axis, edgeWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, isSel?selColor:dimColor, dimConstraintLabelT(constraint));
             if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, areaIndex:ai, edgeKey});
@@ -2770,7 +2946,7 @@ function drawDimensionAnnotations(){
             const anchorWorldPos = resolveConstraintAnchorPoint(constraint);
             if(!anchorWorldPos) continue;
             const ptWorldPos = axis==='x' ? [pwx, pwy] : [pwx, pwy];
-            const label = Math.abs(constraint.offset).toFixed(2);
+            const label = Math.abs(constraint.offset).toFixed(3);
             const isSel = matchesSelectedDimension('navPoint', layer.id, {instanceName:pt.instanceName, axis});
             const {box, lineA, lineB} = drawCadDimension(axis, ptWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, isSel?selColor:dimColor, dimConstraintLabelT(constraint));
             if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, instanceName:pt.instanceName, axis});
@@ -2790,7 +2966,7 @@ function drawDimensionAnnotations(){
             const anchorWorldPos = resolveConstraintAnchorPoint(constraint);
             if(!anchorWorldPos) continue;
             const rWorldPos = [rwx, rwy];
-            const label = Math.abs(constraint.offset).toFixed(2);
+            const label = Math.abs(constraint.offset).toFixed(3);
             const isSel = matchesSelectedDimension('reflector', layer.id, {index:ri, axis});
             const {box, lineA, lineB} = drawCadDimension(axis, rWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, isSel?selColor:dimColor, dimConstraintLabelT(constraint));
             if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, reflIndex:ri, axis});
@@ -2815,7 +2991,7 @@ function drawDimensionAnnotations(){
               const constraint = bucket[axis];
               const anchorWorldPos = resolveConstraintAnchorPoint(constraint);
               if(!anchorWorldPos) continue;
-              const label = Math.abs(constraint.offset).toFixed(2);
+              const label = Math.abs(constraint.offset).toFixed(3);
               const isSel = matchesSelectedDimension('controlPoint', layer.id, {nameA:cpRef.nameA, nameB:cpRef.nameB, which, axis});
               const {box, lineA, lineB} = drawCadDimension(axis, cpWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, isSel?selColor:dimColor, dimConstraintLabelT(constraint));
               if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, cpNameA:cpRef.nameA, cpNameB:cpRef.nameB, cpWhich:which, axis});
@@ -2839,13 +3015,13 @@ function drawDimensionAnnotations(){
         const world = layerToWorld(layer, pt.pos.x, pt.pos.y);
         if(inst.overrideDx!=null && pat.axis!=='y'){
           const isSel = matchesSelectedDimension('patternStep', layer.id, {patId:pat.id, index:i, axis:'x'});
-          const label = Math.abs(inst.overrideDx).toFixed(2);
+          const label = Math.abs(inst.overrideDx).toFixed(3);
           const {box, lineA, lineB} = drawCadDimension('x', world, prevWorld, 24, label, isSel?selColor:PAT_OVERRIDE_COLOR, 0.5);
           if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, patId:pat.id, patIndex:i, axis:'x'});
         }
         if(inst.overrideDy!=null && pat.axis!=='x'){
           const isSel = matchesSelectedDimension('patternStep', layer.id, {patId:pat.id, index:i, axis:'y'});
-          const label = Math.abs(inst.overrideDy).toFixed(2);
+          const label = Math.abs(inst.overrideDy).toFixed(3);
           const {box, lineA, lineB} = drawCadDimension('y', world, prevWorld, 24, label, isSel?selColor:PAT_OVERRIDE_COLOR, 0.5);
           if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, patId:pat.id, patIndex:i, axis:'y'});
         }
@@ -2877,7 +3053,7 @@ function drawDimensionAnnotations(){
         const curValue = axis==='x' ? anchorPoint[0] : anchorPoint[1];
         const sourceWorldPos = axis==='x' ? [curValue, anchorPoint[1]] : [anchorPoint[0], curValue];
         const targetWorldPos = axis==='x' ? [targetVal, anchorPoint[1]] : [anchorPoint[0], targetVal];
-        const label = Math.abs(curValue-targetVal).toFixed(2);
+        const label = Math.abs(curValue-targetVal).toFixed(3);
         drawCadDimension(axis, sourceWorldPos, targetWorldPos, 24, label, DIM_LIVE_COLOR);
       }
     }
@@ -3192,6 +3368,8 @@ function openInlineEditForLabelHit(labelHit, sx, sy){
 
 const dimInlineInputEl = document.getElementById('dimInlineInput');
 const dimInlineHintEl = document.getElementById('dimInlineHint');
+const areaSizeInlineInputEl = document.getElementById('areaSizeInlineInput');
+const areaSizeInlineHintEl = document.getElementById('areaSizeInlineHint');
 
 function openDimInlineEdit(targetRef, screenX, screenY, currentValue, isNew){
   state.dimInlineEdit = {targetRef, isNew};
@@ -3199,7 +3377,7 @@ function openDimInlineEdit(targetRef, screenX, screenY, currentValue, isNew){
   dimInlineInputEl.style.top = screenY+'px';
   dimInlineHintEl.style.left = screenX+'px';
   dimInlineHintEl.style.top = (screenY+22)+'px';
-  dimInlineInputEl.value = Math.abs(currentValue).toFixed(2);
+  dimInlineInputEl.value = Math.abs(currentValue).toFixed(3);
   dimInlineInputEl.hidden = false;
   dimInlineHintEl.hidden = false;
   requestAnimationFrame(()=>{ dimInlineInputEl.focus(); dimInlineInputEl.select(); });
@@ -3292,8 +3470,60 @@ dimInlineInputEl.addEventListener('keydown', (e)=>{
 });
 dimInlineInputEl.addEventListener('blur', ()=>{ if(state.dimInlineEdit) commitDimInlineEdit(); });
 
+// ---------------- area size inline edit (Dimension tool, no reference needed) ----------------
+// Deliberately independent of the offset/constraint system above: typing a
+// size here is a one-time move (setRectWidthHeight), never a stored relation
+// — so there's no self-reference/cycle risk, unlike pinning an edge to the
+// opposite edge of the same area.
+function openAreaSizeInlineEdit(layerId, areaIndex, axis, screenX, screenY, currentValue){
+  state.areaSizeInlineEdit = {layerId, areaIndex, axis};
+  // the edge clicked can extend far beyond the current pan/zoom (e.g. a long
+  // area edge whose midpoint sits off-screen) — clamp into the visible
+  // canvas so the popup always lands somewhere the user can actually see
+  const sx = Math.max(20, Math.min(screenX, cssW-150));
+  const sy = Math.max(20, Math.min(screenY, cssH-90));
+  areaSizeInlineInputEl.style.left = sx+'px';
+  areaSizeInlineInputEl.style.top = sy+'px';
+  areaSizeInlineHintEl.style.left = sx+'px';
+  areaSizeInlineHintEl.style.top = (sy+22)+'px';
+  areaSizeInlineInputEl.value = Math.abs(currentValue).toFixed(3);
+  areaSizeInlineInputEl.hidden = false;
+  areaSizeInlineHintEl.hidden = false;
+  requestAnimationFrame(()=>{ areaSizeInlineInputEl.focus(); areaSizeInlineInputEl.select(); });
+}
+function closeAreaSizeInlineEdit(){
+  state.areaSizeInlineEdit = null;
+  areaSizeInlineInputEl.hidden = true;
+  areaSizeInlineHintEl.hidden = true;
+}
+function commitAreaSizeInlineEdit(){
+  const edit = state.areaSizeInlineEdit;
+  if(!edit) return;
+  const found = getAreaByRef({layerId:edit.layerId, areaIndex:edit.areaIndex});
+  const v = parseFloat(areaSizeInlineInputEl.value.trim());
+  if(found && !isNaN(v) && v>0.02){
+    pushUndo(found.layer);
+    if(edit.axis==='x') setRectWidthHeight(found.area, v, null);
+    else setRectWidthHeight(found.area, null, v);
+    resolveAllConstraints();
+    scheduleAutosave();
+  }
+  closeAreaSizeInlineEdit();
+  renderAreaPanel(); requestDraw();
+}
+function cancelAreaSizeInlineEdit(){
+  closeAreaSizeInlineEdit();
+  requestDraw();
+}
+areaSizeInlineInputEl.addEventListener('keydown', (e)=>{
+  if(e.key==='Enter'){ e.preventDefault(); commitAreaSizeInlineEdit(); }
+  else if(e.key==='Escape'){ e.preventDefault(); cancelAreaSizeInlineEdit(); }
+  e.stopPropagation();
+});
+areaSizeInlineInputEl.addEventListener('blur', ()=>{ if(state.areaSizeInlineEdit) commitAreaSizeInlineEdit(); });
+
 function relTypeGlyph(type){
-  return type==='horizontal' ? 'H' : type==='vertical' ? 'V' : '⊕';
+  return type==='horizontal' ? 'H' : type==='vertical' ? 'V' : type==='fixed' ? '🔒' : '⊕';
 }
 // types: array of relation-type strings touching this one point. Every
 // relation on a point shares a single badge (glyphs concatenated) instead of
@@ -3324,6 +3554,13 @@ function drawRelations(){
         if(!entry.types.includes(rel.type)) entry.types.push(rel.type);
       }
     }
+    forEachFixedRef(ref=>{
+      const k = cellKey(ref);
+      if(!k) return;
+      if(!byPoint.has(k)) byPoint.set(k, {ref, types:[]});
+      const entry = byPoint.get(k);
+      if(!entry.types.includes('fixed')) entry.types.push('fixed');
+    });
     for(const {ref, types} of byPoint.values()){
       const w = getRelationParticipantWorldPoint(ref);
       if(!w) continue;
@@ -3441,6 +3678,8 @@ function draw(){
   resolveAllRelations();
   resolveAllPatterns();
   resolveAllGridPatterns();
+  resolveFixedPositions();
+  resolvePairOffsets();
   const pal = currentPalette();
   ctx.fillStyle = pal.bg;
   ctx.fillRect(0,0,cssW,cssH);
@@ -3627,7 +3866,7 @@ function draw(){
     ctx.beginPath(); ctx.arc(sx1,sy1,3,0,Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.arc(sx2,sy2,3,0,Math.PI*2); ctx.fill();
 
-    const label = 'dx '+dx.toFixed(2)+' m   dy '+dy.toFixed(2)+' m   dist '+dist.toFixed(2)+' m';
+    const label = 'dx '+dx.toFixed(3)+' m   dy '+dy.toFixed(3)+' m   dist '+dist.toFixed(3)+' m';
     ctx.font = '12px "IBM Plex Mono", ui-monospace, monospace';
     const textW = ctx.measureText(label).width;
     const padX = 8, boxW = textW+padX*2, boxH = 22;
@@ -3893,6 +4132,12 @@ function createOneWayPath(layer, nameA, nameB){
 }
 function deleteNavPoint(layer, name){
   if(!layer.extra) return;
+  const pt = findNavPointByName(layer, name);
+  // Deleting either half of a Station takes the other half with it — every
+  // deletion path (pattern/grid shrink, skip, rect-select erase, the Del key,
+  // the single delete button, pruning) funnels through here, so this is the
+  // one place that needs to know about pairing instead of each call site.
+  const partnerName = pt && isStationDriver(pt) ? pt.__pairedLM.name : (pt && isStationFollower(pt) ? pt.__pairedAP : null);
   if(Array.isArray(layer.extra.advancedPointList)){
     layer.extra.advancedPointList = layer.extra.advancedPointList.filter(p=>p.instanceName!==name);
   }
@@ -3902,6 +4147,7 @@ function deleteNavPoint(layer, name){
     );
   }
   pruneInvalidRelations();
+  if(partnerName) deleteNavPoint(layer, partnerName);
 }
 
 function worldDeltaToLocal(layer, dx, dy){
@@ -4276,7 +4522,13 @@ function createInstancePointFromSeed(layer, seedName){
   const name = generateNavPointName(layer, NAV_POINT_TYPE_PREFIX[props.className] || 'LM');
   if(!layer.extra) layer.extra = {};
   if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
-  layer.extra.advancedPointList.push({className:props.className, instanceName:name, pos:{x:0,y:0}, dir:props.dir, ignoreDir:props.ignoreDir, property:props.property});
+  const newPt = {className:props.className, instanceName:name, pos:{x:0,y:0}, dir:props.dir, ignoreDir:props.ignoreDir, property:props.property};
+  layer.extra.advancedPointList.push(newPt);
+  // A pattern/grid built from a Station seed gives every instance its own
+  // Location Mark too — cloneSeedPropsForInstance only copies plain point
+  // fields, since __pairedLM is a relationship each instance must get fresh,
+  // not a value to duplicate.
+  if(isStationDriver(seedPt)) promoteToStation(layer, newPt, seedPt.__pairedLM.distance);
   return name;
 }
 function patternStepFor(pat, inst){
@@ -4848,6 +5100,312 @@ function applyRelationFromSelection(type){
   requestDraw();
 }
 
+// ---------------- fixed points (cannot move) ----------------
+// A "fixed" point/reflector/control-handle is locked to its own current
+// local position. Independent of state.relations (which always needs 2+
+// participants) — it's a flag on the object itself, same convention as
+// __ptConstraints/__cpConstraints, and stripped from export automatically
+// since transformDeepClone drops every __-prefixed key. resolveFixedPositions()
+// re-asserts the locked position every frame, after constraints/relations/
+// patterns have all resolved, so a fixed point always wins regardless of
+// what tried to move it (drag, H/V/O relation, pattern cascade, ...).
+function isRefFixed(ref){
+  if(ref.kind==='navPoint'){ const f=getPointByRef(ref); return !!(f && f.pt.__fixed); }
+  if(ref.kind==='reflector'){ const f=getReflectorByRef(ref); return !!(f && f.r.__fixed); }
+  if(ref.kind==='controlPoint'){ const f=getCurveByRef(ref); return !!(f && f.curve.__fixedCP && f.curve.__fixedCP[ref.which]); }
+  return false;
+}
+// Is this thing already "spoken for" — fixed, part of an H/V/O relation, or
+// already pinned by an earlier Dimension-tool constraint? Used so that when
+// dimensioning two things where only one is already authoritative, the new
+// pin always lands on the free one, regardless of which was clicked first.
+function isRefEncumbered(ref){
+  if(ref.kind==='navPoint'){
+    const f = getPointByRef(ref); if(!f) return false;
+    return !!f.pt.__fixed || hasAnyPtConstraint(f.pt) || relationsForParticipant(ref).length>0;
+  }
+  if(ref.kind==='reflector'){
+    const f = getReflectorByRef(ref); if(!f) return false;
+    return !!f.r.__fixed || hasAnyPtConstraint(f.r) || relationsForParticipant(ref).length>0;
+  }
+  if(ref.kind==='controlPoint'){
+    const f = getCurveByRef(ref); if(!f) return false;
+    const fixedCP = !!(f.curve.__fixedCP && f.curve.__fixedCP[ref.which]);
+    const bucket = f.curve.__cpConstraints && f.curve.__cpConstraints[ref.which];
+    const dimPinned = !!(bucket && Object.keys(bucket).length);
+    return fixedCP || dimPinned || relationsForParticipant(ref).length>0;
+  }
+  if(ref.kind==='edge'){
+    const f = getAreaByRef({layerId:ref.layerId, areaIndex:ref.areaIndex});
+    return !!f && isAreaLocked(f.area);
+  }
+  return false;
+}
+// Converts a findPickableAnchorAt() result into the shape findConstrainableTargetAt()
+// would have produced for the same entity (navPoint uses `name` as an anchor but
+// `instanceName` as a target) — lets an anchor become the new target when swapping.
+function targetShapeFromAnchor(anchor, axis){
+  if(anchor.kind==='navPoint') return {kind:'navPoint', layerId:anchor.layerId, instanceName:anchor.name, axis};
+  if(anchor.kind==='reflector') return {kind:'reflector', layerId:anchor.layerId, index:anchor.index, axis};
+  if(anchor.kind==='controlPoint') return {kind:'controlPoint', layerId:anchor.layerId, nameA:anchor.nameA, nameB:anchor.nameB, which:anchor.which, axis};
+  if(anchor.kind==='edge') return {kind:'edge', layerId:anchor.layerId, areaIndex:anchor.areaIndex, edgeKey:anchor.edgeKey, axis};
+  return null; // a raw scan point can't become a pinned target
+}
+// The reverse: lets a target become the new anchor (reference) when swapping.
+function anchorShapeFromTarget(target){
+  if(target.kind==='navPoint') return {kind:'navPoint', layerId:target.layerId, name:target.instanceName};
+  if(target.kind==='reflector') return {kind:'reflector', layerId:target.layerId, index:target.index};
+  if(target.kind==='controlPoint') return {kind:'controlPoint', layerId:target.layerId, nameA:target.nameA, nameB:target.nameB, which:target.which};
+  if(target.kind==='edge') return {kind:'edge', layerId:target.layerId, areaIndex:target.areaIndex, edgeKey:target.edgeKey};
+  return null;
+}
+function setRefFixed(ref, fixed){
+  if(ref.kind==='navPoint'){
+    const f = getPointByRef(ref); if(!f) return;
+    if(fixed) f.pt.__fixed = {x:f.pt.pos.x, y:f.pt.pos.y}; else delete f.pt.__fixed;
+  } else if(ref.kind==='reflector'){
+    const f = getReflectorByRef(ref); if(!f) return;
+    if(fixed) f.r.__fixed = {x:f.r.x, y:f.r.y}; else delete f.r.__fixed;
+  } else if(ref.kind==='controlPoint'){
+    const f = getCurveByRef(ref); if(!f) return;
+    const cp = f.curve[ref.which]; if(!cp) return;
+    if(fixed){
+      if(!f.curve.__fixedCP) f.curve.__fixedCP = {};
+      f.curve.__fixedCP[ref.which] = {x:cp.x, y:cp.y};
+    } else if(f.curve.__fixedCP){
+      delete f.curve.__fixedCP[ref.which];
+    }
+  }
+}
+function toggleFixedFromSelection(){
+  if(!state.relSelection.length) return;
+  const layerForUndo = getLayer(state.relSelection[0].layerId);
+  if(layerForUndo) pushUndo(layerForUndo);
+  for(const ref of state.relSelection) setRefFixed(ref, !isRefFixed(ref));
+  state.relSelection = [];
+  closeRelToolbar();
+  resolveFixedPositions();
+  scheduleAutosave();
+  renderRelPanel();
+  requestDraw();
+}
+function unfixRef(ref){
+  const layer = getLayer(ref.layerId);
+  if(layer) pushUndo(layer);
+  setRefFixed(ref, false);
+  scheduleAutosave();
+  renderRelPanel();
+  closeRelMenu();
+  requestDraw();
+}
+// Visits every point/reflector/control-handle across all layers that's
+// currently fixed. Used by the relation badge/menu so fixed items show up
+// there even though they aren't state.relations entries.
+function forEachFixedRef(cb){
+  for(const layer of state.layers){
+    const pts = layer.extra && layer.extra.advancedPointList;
+    if(Array.isArray(pts)){
+      for(const pt of pts){
+        if(pt.__fixed) cb({kind:'navPoint', layerId:layer.id, instanceName:pt.instanceName});
+      }
+    }
+    for(let ri=0; ri<layer.reflectors.length; ri++){
+      if(layer.reflectors[ri].__fixed) cb({kind:'reflector', layerId:layer.id, index:ri});
+    }
+    const curves = layer.extra && layer.extra.advancedCurveList;
+    if(Array.isArray(curves)){
+      for(const curve of curves){
+        if(!curve.__fixedCP || !curve.startPos || !curve.endPos) continue;
+        for(const which of ['controlPos1','controlPos2']){
+          if(curve.__fixedCP[which]) cb({kind:'controlPoint', layerId:layer.id, nameA:curve.startPos.instanceName, nameB:curve.endPos.instanceName, which});
+        }
+      }
+    }
+  }
+}
+function countFixed(){
+  let n = 0; forEachFixedRef(()=>{ n++; }); return n;
+}
+function resolveFixedPositions(){
+  for(const layer of state.layers){
+    const pts = layer.extra && layer.extra.advancedPointList;
+    if(Array.isArray(pts)){
+      for(const pt of pts){
+        if(!pt.__fixed) continue;
+        if(pt.pos.x===pt.__fixed.x && pt.pos.y===pt.__fixed.y) continue;
+        const oldLX = pt.pos.x, oldLY = pt.pos.y;
+        pt.pos = {x:pt.__fixed.x, y:pt.__fixed.y};
+        syncCurvesForPoint(layer, pt.instanceName, oldLX, oldLY);
+      }
+    }
+    for(const r of layer.reflectors){
+      if(!r.__fixed) continue;
+      r.x = r.__fixed.x; r.y = r.__fixed.y;
+    }
+    const curves = layer.extra && layer.extra.advancedCurveList;
+    if(Array.isArray(curves)){
+      for(const curve of curves){
+        if(!curve.__fixedCP) continue;
+        for(const which of ['controlPos1','controlPos2']){
+          const locked = curve.__fixedCP[which];
+          if(!locked || !curve[which]) continue;
+          curve[which] = {x:locked.x, y:locked.y};
+        }
+      }
+    }
+  }
+}
+
+// A "Station" is an ActionPoint (__pairedLM) with a LocationMark (__pairedAP)
+// held a fixed distance dead ahead of it (along the AP's own heading), so
+// rotating or moving the AP carries the LM with it. The LM itself cannot be
+// dragged independently; its position is fully derived here every frame.
+function isStationDriver(pt){ return !!(pt && pt.__pairedLM); }
+function isStationFollower(pt){ return !!(pt && pt.__pairedAP); }
+function getStationPartner(layer, pt){
+  if(!layer || !pt) return null;
+  if(isStationDriver(pt)) return findNavPointByName(layer, pt.__pairedLM.name);
+  if(isStationFollower(pt)) return findNavPointByName(layer, pt.__pairedAP);
+  return null;
+}
+function resolvePairOffsets(){
+  for(const layer of state.layers){
+    const pts = layer.extra && layer.extra.advancedPointList;
+    if(!Array.isArray(pts)) continue;
+    for(const ap of pts){
+      if(!ap.__pairedLM) continue;
+      const lm = findNavPointByName(layer, ap.__pairedLM.name);
+      if(!lm) continue;
+      const distance = ap.__pairedLM.distance;
+      const worldDir = (ap.dir||0) + layer.transform.rot;
+      const [apWx, apWy] = layerToWorld(layer, ap.pos.x, ap.pos.y);
+      const targetWx = apWx + distance*Math.cos(worldDir);
+      const targetWy = apWy + distance*Math.sin(worldDir);
+      const [targetLx, targetLy] = worldToLayer(layer, targetWx, targetWy);
+      const nx = round3(targetLx), ny = round3(targetLy);
+      if(lm.pos.x===nx && lm.pos.y===ny) continue;
+      const oldLX = lm.pos.x, oldLY = lm.pos.y;
+      lm.pos = {x:nx, y:ny};
+      syncCurvesForPoint(layer, lm.instanceName, oldLX, oldLY);
+    }
+  }
+}
+function generateStationNames(layer){
+  const apName = generateNavPointName(layer, 'AP');
+  const lmName = generateNavPointName(layer, 'LM');
+  const n = Math.max(parseInt(apName.slice(2),10), parseInt(lmName.slice(2),10));
+  return {apName:'AP'+n, lmName:'LM'+n};
+}
+function createStationPaths(layer, apName, lmName){
+  const ptA = findNavPointByName(layer, apName), ptB = findNavPointByName(layer, lmName);
+  if(!ptA || !ptB) return;
+  const dx = (ptB.pos.x-ptA.pos.x)/3, dy = (ptB.pos.y-ptA.pos.y)/3;
+  const c1 = {x:round3(ptA.pos.x+dx), y:round3(ptA.pos.y+dy)};
+  const c2 = {x:round3(ptA.pos.x+2*dx), y:round3(ptA.pos.y+2*dy)};
+  const forward = { // AP -> LM : Direction 0 = Forward
+    className:'DegenerateBezier', instanceName:apName+'-'+lmName,
+    startPos:{instanceName:apName, pos:{x:ptA.pos.x,y:ptA.pos.y}},
+    endPos:{instanceName:lmName, pos:{x:ptB.pos.x,y:ptB.pos.y}},
+    controlPos1:c1, controlPos2:c2,
+    property:[{key:'direction', ...intProp(0)}, {key:'movestyle', ...intProp(0)}],
+    __unsplit:true,
+  };
+  const backward = { // LM -> AP : Direction 1 = Backward
+    className:'DegenerateBezier', instanceName:lmName+'-'+apName,
+    startPos:{instanceName:lmName, pos:{x:ptB.pos.x,y:ptB.pos.y}},
+    endPos:{instanceName:apName, pos:{x:ptA.pos.x,y:ptA.pos.y}},
+    controlPos1:c2, controlPos2:c1,
+    property:[{key:'direction', ...intProp(1)}, {key:'movestyle', ...intProp(0)}],
+    __unsplit:true,
+  };
+  if(!layer.extra) layer.extra = {};
+  if(!Array.isArray(layer.extra.advancedCurveList)) layer.extra.advancedCurveList = [];
+  layer.extra.advancedCurveList.push(forward, backward);
+}
+function createStationPair(layer, lx, ly){
+  if(!layer.extra) layer.extra = {};
+  if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
+  const {apName, lmName} = generateStationNames(layer);
+  const distance = state.stationDistance || 2.2;
+  const apDir = 0;
+  const worldDir = apDir + layer.transform.rot;
+  const [apWx, apWy] = layerToWorld(layer, lx, ly);
+  const lmWx = apWx + distance*Math.cos(worldDir);
+  const lmWy = apWy + distance*Math.sin(worldDir);
+  const [lmLx, lmLy] = worldToLayer(layer, lmWx, lmWy);
+  const ap = {className:'ActionPoint', instanceName:apName, pos:{x:round3(lx), y:round3(ly)}, dir:apDir, ignoreDir:false, property:[], __pairedLM:{name:lmName, distance}};
+  const lm = {className:'LocationMark', instanceName:lmName, pos:{x:round3(lmLx), y:round3(lmLy)}, dir:0, ignoreDir:true, property:[], __pairedAP:apName};
+  layer.extra.advancedPointList.push(ap, lm);
+  createStationPaths(layer, apName, lmName);
+  return {apName, lmName};
+}
+function unpairStation(layer, anyName){
+  const pt = findNavPointByName(layer, anyName);
+  if(!pt) return;
+  const partner = getStationPartner(layer, pt);
+  if(isStationDriver(pt)) delete pt.__pairedLM;
+  if(isStationFollower(pt)) delete pt.__pairedAP;
+  if(partner){
+    if(isStationDriver(partner)) delete partner.__pairedLM;
+    if(isStationFollower(partner)) delete partner.__pairedAP;
+  }
+}
+// Converts an existing, unpaired point into a Station in place: it becomes
+// the Action Point and gains a freshly-created Location Mark out ahead of it
+// (along its current heading), linked by the same two one-way curves a
+// from-scratch Station gets. No-op on a point that's already a follower.
+function promoteToStation(layer, pt, distanceOverride){
+  if(isStationFollower(pt)) return;
+  pt.className = 'ActionPoint';
+  pt.ignoreDir = false;
+  if(typeof pt.dir !== 'number') pt.dir = 0;
+  const distance = distanceOverride!=null ? distanceOverride : (state.stationDistance || 2.2);
+  const worldDir = pt.dir + layer.transform.rot;
+  const [apWx, apWy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
+  const lmWx = apWx + distance*Math.cos(worldDir);
+  const lmWy = apWy + distance*Math.sin(worldDir);
+  const [lmLx, lmLy] = worldToLayer(layer, lmWx, lmWy);
+  const lmName = generateNavPointName(layer, 'LM');
+  if(!layer.extra) layer.extra = {};
+  if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
+  layer.extra.advancedPointList.push({className:'LocationMark', instanceName:lmName, pos:{x:round3(lmLx), y:round3(lmLy)}, dir:0, ignoreDir:true, property:[], __pairedAP:pt.instanceName});
+  pt.__pairedLM = {name:lmName, distance};
+  createStationPaths(layer, pt.instanceName, lmName);
+}
+// Single entry point for changing a point's "type" from the UI, where type
+// is one of the three real classNames or the synthetic 'Station' value.
+// Handles promoting into / unpairing out of a Station as needed.
+function applyPointTypeChange(layer, pt, newType){
+  const wasStation = isStationDriver(pt) || isStationFollower(pt);
+  if(newType==='Station'){
+    if(!wasStation) promoteToStation(layer, pt);
+  } else {
+    if(wasStation) unpairStation(layer, pt.instanceName);
+    pt.className = newType;
+  }
+}
+// A pattern/grid seed's type is treated as part of its cloned seed data, but
+// changing it only affected instances created afterward. This brings every
+// existing (non-skipped) instance/cell in step with the seed's new type too.
+function propagateTypeToPatternMembers(layer, seedPt, newType){
+  const memberNames = [];
+  const linPat = findPatternByPointName(layer, seedPt.instanceName);
+  if(linPat && linPat.role==='seed'){
+    for(const inst of linPat.pat.instances){ if(!inst.skipped) memberNames.push(inst.name); }
+  }
+  const gridInfo = findGridPatternByPointName(layer, seedPt.instanceName);
+  if(gridInfo && gridInfo.role==='seed'){
+    for(const key of Object.keys(gridInfo.grid.cells)){
+      const cell = gridInfo.grid.cells[key];
+      if(!cell.skipped) memberNames.push(cell.name);
+    }
+  }
+  for(const name of memberNames){
+    const memberPt = findNavPointByName(layer, name);
+    if(memberPt) applyPointTypeChange(layer, memberPt, newType);
+  }
+}
+
 const relToolbarEl = document.getElementById('relToolbar');
 function relToolbarAnchorScreenPos(){
   const sel = state.relSelection;
@@ -4871,7 +5429,10 @@ function renderRelPanel(){
   document.getElementById('relBtnHFixed').disabled = !valid;
   document.getElementById('relBtnVFixed').disabled = !valid;
   document.getElementById('relBtnOFixed').disabled = !valid;
-  document.getElementById('relCount').textContent = String(state.relations.length);
+  const lockBtn = document.getElementById('relBtnLock');
+  lockBtn.disabled = !state.relSelection.length;
+  lockBtn.classList.toggle('active', state.relSelection.length>0 && state.relSelection.every(isRefFixed));
+  document.getElementById('relCount').textContent = String(state.relations.length + countFixed());
   updateRelToolbar();
 }
 
@@ -5157,10 +5718,14 @@ function openRelMenu(ref, sx, sy){
   state.relMenuFor = ref;
   state.relHoverHighlight = [];
   const rels = relationsForParticipant(ref);
+  const fixed = isRefFixed(ref);
   let html = '<div class="rel-menu-title">'+relationParticipantLabel(ref)+'</div>';
-  if(rels.length===0){
+  if(rels.length===0 && !fixed){
     html += '<div class="rel-menu-empty">No relations on this object</div>';
   } else {
+    if(fixed){
+      html += '<div class="rel-menu-item" data-unfix="1"><span>🔒 Fixed (can\'t move)</span><span class="rel-del" data-unfix-del="1" title="Unlock this point">×</span></div>';
+    }
     for(const rel of rels){
       const others = rel.participants.filter(p=>!relationParticipantEquals(p, ref));
       const typeLabel = rel.type==='horizontal' ? '— Horizontal' : rel.type==='vertical' ? '| Vertical' : '⊕ Coincident';
@@ -5186,10 +5751,13 @@ function deleteRelationWithUndo(id){
   requestDraw();
 }
 function deleteAllRelations(){
-  if(!state.relations.length) return;
+  const fixedRefs = [];
+  forEachFixedRef(ref=>fixedRefs.push(ref));
+  if(!state.relations.length && !fixedRefs.length) return;
   const layer = getActiveLayer() || state.layers[0];
   if(layer) pushUndo(layer);
   state.relations = [];
+  for(const ref of fixedRefs) setRefFixed(ref, false);
   scheduleAutosave();
   renderRelPanel();
   closeRelMenu();
@@ -5206,6 +5774,7 @@ relMenuEl.addEventListener('mouseout', (e)=>{
   if(!relMenuEl.contains(e.relatedTarget)){ state.relHoverHighlight = []; requestDraw(); }
 });
 relMenuEl.addEventListener('click', (e)=>{
+  if(e.target.closest('[data-unfix-del]')){ if(state.relMenuFor) unfixRef(state.relMenuFor); return; }
   const delEl = e.target.closest('.rel-del');
   if(delEl){ deleteRelationWithUndo(delEl.dataset.delId); return; }
   if(e.target.closest('#relMenuDeleteAll')){ deleteAllRelations(); return; }
@@ -5219,16 +5788,22 @@ document.addEventListener('pointerdown', (e)=>{
 canvasEl.addEventListener('contextmenu', (e)=>{
   const rect = canvasEl.getBoundingClientRect();
   const sx = e.clientX-rect.left, sy = e.clientY-rect.top;
-  const hit = findRelationPointAt(sx, sy, 14);
-  if(hit){ e.preventDefault(); closePatMenu(); openRelMenu(hit, sx, sy); return; }
   const layer = getEditableActiveLayer();
   const patTarget = layer ? findPatternMenuTargetAt(layer, sx, sy, 14) : null;
+  // While actively working the Pattern tool, right-click should skip/un-skip
+  // the instance under the cursor — findRelationPointAt matches ANY nearby
+  // nav point (not just ones with a relation), so it would otherwise always
+  // win here and the pattern menu would be unreachable.
+  if(state.tool==='pattern' && patTarget){ e.preventDefault(); closeRelMenu(); openPatMenu(patTarget, sx, sy); return; }
+  const hit = findRelationPointAt(sx, sy, 14);
+  if(hit){ e.preventDefault(); closePatMenu(); openRelMenu(hit, sx, sy); return; }
   if(patTarget){ e.preventDefault(); closeRelMenu(); openPatMenu(patTarget, sx, sy); return; }
   closeRelMenu(); closePatMenu();
 });
 document.getElementById('relBtnHFixed').addEventListener('click', ()=>applyRelationFromSelection('horizontal'));
 document.getElementById('relBtnVFixed').addEventListener('click', ()=>applyRelationFromSelection('vertical'));
 document.getElementById('relBtnOFixed').addEventListener('click', ()=>applyRelationFromSelection('coincident'));
+document.getElementById('relBtnLock').addEventListener('click', toggleFixedFromSelection);
 document.getElementById('relToolbarH').addEventListener('click', ()=>applyRelationFromSelection('horizontal'));
 document.getElementById('relToolbarV').addEventListener('click', ()=>applyRelationFromSelection('vertical'));
 document.getElementById('relToolbarO').addEventListener('click', ()=>applyRelationFromSelection('coincident'));
@@ -5238,7 +5813,7 @@ function showConflictBanner(info){
   state.pendingConflict = info;
   const axisLabel = info.axis==='x' ? 'X' : 'Y';
   document.getElementById('conflictBannerText').textContent =
-    'Conflict: this group already has a different '+axisLabel+' ('+info.oldEntry.value.toFixed(2)+' vs '+info.newEntry.value.toFixed(2)+'). Keep the old one, or use the new one?';
+    'Conflict: this group already has a different '+axisLabel+' ('+info.oldEntry.value.toFixed(3)+' vs '+info.newEntry.value.toFixed(3)+'). Keep the old one, or use the new one?';
   document.getElementById('conflictBanner').hidden = false;
 }
 function closeConflictBanner(){
@@ -5544,7 +6119,9 @@ function updateDistHint(){
   const hintEl = document.getElementById('distHint');
   if(!hintEl) return;
   hintEl.textContent = state.distTarget
-    ? 'Click a nav point, reflector, control handle, scan point, or parallel edge to reference. Esc cancels.'
+    ? (state.distTarget.kind==='edge'
+        ? 'Click a nav point, reflector, control handle, scan point, or parallel edge to reference its position — or press Enter to type this area\'s width/height directly. Esc cancels.'
+        : 'Click a nav point, reflector, control handle, scan point, or parallel edge to reference. Esc cancels.')
     : 'Click an area edge, a nav point, a reflector, or a bezier control handle to pin it. Then click a nav point, reflector, control handle, scan point, or parallel edge to reference. Esc cancels.';
 }
 
@@ -5700,6 +6277,12 @@ function computeSmartAxisFromPair(target, anchor){
 
 function hasAnyEdgeConstraint(area){
   return !!(area && area.__edgeConstraints && Object.keys(area.__edgeConstraints).length);
+}
+// An area is drag-locked either because it has a Dimension-tool edge pin
+// (which already made it undraggable) or because the user explicitly locked
+// it from the sidebar — either way, body/corner/rotate dragging is disabled.
+function isAreaLocked(area){
+  return hasAnyEdgeConstraint(area) || !!(area && area.__locked);
 }
 function hasAnyPtConstraint(pt){
   return !!(pt && pt.__ptConstraints && Object.keys(pt.__ptConstraints).length);
@@ -5956,12 +6539,16 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       state.tempLine = {x1:wx,y1:wy,x2:wx,y2:wy};
       dragging = true;
     } else if(hit){
-      pushUndo(layer);
-      state.draggingNavPoint = {layerId:layer.id, instanceName:hit.instanceName};
+      const hitPt = findNavPointByName(layer, hit.instanceName);
+      const isFollower = isStationFollower(hitPt);
+      if(!isFollower) pushUndo(layer);
+      if(!isFollower){
+        state.draggingNavPoint = {layerId:layer.id, instanceName:hit.instanceName};
+        dragging = true;
+      }
       state.selectedNavPoint = {layerId:layer.id, instanceName:hit.instanceName};
       state.selectedPath = null;
       renderPathPanel();
-      dragging = true;
     } else {
       const curveHit = findCurveAt(layer, sx, sy, 14);
       if(curveHit){
@@ -5975,8 +6562,14 @@ canvasEl.addEventListener('pointerdown', (e)=>{
         if(!layer.extra) layer.extra = {};
         if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
         const newType = state.newPointType || 'LocationMark';
-        const name = generateNavPointName(layer, NAV_POINT_TYPE_PREFIX[newType] || 'LM');
-        layer.extra.advancedPointList.push({className:newType, instanceName:name, pos:{x:round3(lx), y:round3(ly)}, dir:0, ignoreDir:true, property:[]});
+        let name;
+        if(newType==='Station'){
+          const created = createStationPair(layer, round3(lx), round3(ly));
+          name = created.apName;
+        } else {
+          name = generateNavPointName(layer, NAV_POINT_TYPE_PREFIX[newType] || 'LM');
+          layer.extra.advancedPointList.push({className:newType, instanceName:name, pos:{x:round3(lx), y:round3(ly)}, dir:0, ignoreDir:true, property:[]});
+        }
         state.selectedNavPoint = {layerId:layer.id, instanceName:name};
         state.selectedPath = null;
         renderPathPanel();
@@ -5994,7 +6587,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     if(state.selectedDimension){ state.selectedDimension = null; requestDraw(); }
     const selArea = (state.selectedArea && state.selectedArea.layerId===layer.id) ? state.selectedArea : null;
     const selectedAreaObj = (selArea && selArea.areaIndex!=null && layer.extra && layer.extra.advancedAreaList) ? layer.extra.advancedAreaList[selArea.areaIndex] : null;
-    const locked = hasAnyEdgeConstraint(selectedAreaObj);
+    const locked = isAreaLocked(selectedAreaObj);
     const rotHitIdx = (!locked && selArea && selArea.areaIndex!=null) ? findAreaRotateHandleAt(layer, sx, sy, 10) : -1;
     const rotHit = (rotHitIdx>=0 && rotHitIdx===selArea.areaIndex) ? rotHitIdx : -1;
     const vHit = (!locked && rotHit<0 && selArea && selArea.areaIndex!=null) ? findAreaVertexAt(layer, sx, sy, 12) : null;
@@ -6027,7 +6620,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
         const area = layer.extra.advancedAreaList[areaIdx];
         state.selectedArea = {layerId:layer.id, groupId:area.__group, areaIndex:areaIdx};
         state.selectedAreaEdge = null;
-        if(!hasAnyEdgeConstraint(area)){
+        if(!isAreaLocked(area)){
           pushUndo(layer);
           state.areaAction = {type:'move', layerId:layer.id, groupId:area.__group, lastWorld:screenToWorld(sx,sy)};
           dragging = true;
@@ -6061,14 +6654,28 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       requestDraw();
       return;
     }
-    const target = state.distTarget;
+    let target = state.distTarget;
     let excludeRef = {layerId:target.layerId};
     if(target.kind==='edge') excludeRef.areaIndex = target.areaIndex;
     else if(target.kind==='reflector') excludeRef.reflectorIndex = target.index;
     else if(target.kind==='controlPoint'){ excludeRef.cpNameA = target.nameA; excludeRef.cpNameB = target.nameB; excludeRef.cpWhich = target.which; }
     else excludeRef.instanceName = target.instanceName;
-    const anchor = findPickableAnchorAt(sx, sy, 14, excludeRef, target.smart ? null : target.axis);
+    let anchor = findPickableAnchorAt(sx, sy, 14, excludeRef, target.smart ? null : target.axis);
     if(anchor && target.smart) target.axis = computeSmartAxisFromPair(target, anchor);
+    if(anchor && target.axis){
+      // If the thing clicked FIRST is already fixed/related/dimensioned and the thing
+      // clicked SECOND is free, swap roles so the new pin always lands on the free one —
+      // pinning an already-authoritative point to something else either silently does
+      // nothing (if it's Fixed) or fights its existing pin, regardless of click order.
+      const targetEncumbered = isRefEncumbered(targetToRef(target));
+      const anchorAsRef = targetShapeFromAnchor(anchor, null);
+      const anchorEncumbered = !!anchorAsRef && isRefEncumbered(anchorAsRef);
+      if(targetEncumbered && !anchorEncumbered){
+        const swappedTarget = targetShapeFromAnchor(anchor, target.axis);
+        const swappedAnchor = anchorShapeFromTarget(target);
+        if(swappedTarget && swappedAnchor){ target = swappedTarget; anchor = swappedAnchor; }
+      }
+    }
     let confirmed = false;
     if(anchor && target.axis){
       const currentValue = getTargetWorldValue(target, target.axis);
@@ -6173,7 +6780,7 @@ canvasEl.addEventListener('pointermove', (e)=>{
   const rect = canvasEl.getBoundingClientRect();
   const sx = e.clientX-rect.left, sy = e.clientY-rect.top;
   const [wx,wy] = screenToWorld(sx,sy);
-  document.getElementById('hud').innerHTML = 'x: <b>'+wx.toFixed(2)+'</b> m &nbsp; y: <b>'+wy.toFixed(2)+'</b> m';
+  document.getElementById('hud').innerHTML = 'x: <b>'+wx.toFixed(3)+'</b> m &nbsp; y: <b>'+wy.toFixed(3)+'</b> m';
   state.mouse = {x:sx, y:sy};
   if(state.tool==='erase') requestDraw();
 
@@ -6234,7 +6841,7 @@ canvasEl.addEventListener('pointermove', (e)=>{
     const hoverLayer = getEditableActiveLayer();
     const selArea = (hoverLayer && state.selectedArea && state.selectedArea.layerId===hoverLayer.id) ? state.selectedArea : null;
     const selectedAreaObj = (hoverLayer && selArea && selArea.areaIndex!=null && hoverLayer.extra && hoverLayer.extra.advancedAreaList) ? hoverLayer.extra.advancedAreaList[selArea.areaIndex] : null;
-    const locked = hasAnyEdgeConstraint(selectedAreaObj);
+    const locked = isAreaLocked(selectedAreaObj);
     let vHit = null, rotHit = -1;
     if(hoverLayer && !locked && selArea && selArea.areaIndex!=null){
       rotHit = findAreaRotateHandleAt(hoverLayer, sx, sy, 10);
@@ -6565,10 +7172,43 @@ document.addEventListener('keydown', (e)=>{
   if(e.code==='Space' && state.tool!=='pan'){ state.prevTool=state.tool; setTool('pan'); e.preventDefault(); return; }
   if(e.key==='Escape' && state.measure){ state.measure = null; requestDraw(); return; }
   if(e.key==='Escape' && state.distTarget){ state.distTarget = null; state.distPickHover = null; updateDistHint(); requestDraw(); return; }
+  if(e.key==='Enter' && state.distTarget && state.distTarget.kind==='edge'){
+    const target = state.distTarget;
+    const found = getAreaByRef({layerId:target.layerId, areaIndex:target.areaIndex});
+    if(found){
+      const rect = rectFromPosGroup(found.area.posGroup);
+      const det = detectEdgeAxis(found.layer, rect, target.edgeKey);
+      if(det){
+        const currentSize = det.axis==='x' ? rect.w : rect.h;
+        const [wa,wb] = edgeWorldEndpoints(found.layer, rect, target.edgeKey);
+        const [sx,sy] = worldToScreen((wa[0]+wb[0])/2, (wa[1]+wb[1])/2);
+        state.distTarget = null; state.distPickHover = null; updateDistHint();
+        openAreaSizeInlineEdit(target.layerId, target.areaIndex, det.axis, sx, sy, currentSize);
+        e.preventDefault(); requestDraw(); return;
+      }
+    }
+  }
   if(e.key==='Escape' && state.relMenuFor){ closeRelMenu(); requestDraw(); return; }
   if(e.key==='Escape' && state.tool==='constraints' && state.relSelection.length){ state.relSelection = []; renderRelPanel(); requestDraw(); return; }
   if(e.key==='Escape' && state.selectedDimension){ state.selectedDimension = null; requestDraw(); return; }
-  if((e.key==='Delete' || e.key==='Backspace') && state.selectedDimension){ deleteSelectedDimension(); e.preventDefault(); return; }
+  if(e.key==='Delete' || e.key==='Backspace'){
+    if(state.selectedDimension){ deleteSelectedDimension(); e.preventDefault(); return; }
+    if(state.tool==='nav' && state.selectedNavPoint){ btnDeleteNavPoint.click(); e.preventDefault(); return; }
+    if(state.tool==='nav' && state.selectedPath){
+      const sel = getSelectedPath();
+      if(sel && sel.layer.visible){
+        pushUndo(sel.layer);
+        sel.layer.extra.advancedCurveList = sel.layer.extra.advancedCurveList.filter(c=>c!==sel.forward && c!==sel.backward);
+        state.selectedPath = null;
+        renderPathPanel();
+        scheduleAutosave(); requestDraw();
+      }
+      e.preventDefault(); return;
+    }
+    if(state.tool==='area' && state.selectedArea){ btnDeleteArea.click(); e.preventDefault(); return; }
+    if(state.tool==='pattern' && state.selectedPattern){ document.getElementById('btnPatSelDelete').click(); e.preventDefault(); return; }
+    if(state.tool==='pattern' && state.selectedGridPattern){ document.getElementById('btnGridSelDelete').click(); e.preventDefault(); return; }
+  }
   const key = e.key.toLowerCase();
   if(key===KEYMAP.fitView){ fitView(); requestDraw(); return; }
   if(state.tool==='constraints'){
