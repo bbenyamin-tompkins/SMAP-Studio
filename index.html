@@ -1423,9 +1423,24 @@ function renderNavPointDimPanel(layer, pt){
 navHasDir.addEventListener('change', ()=>{
   const sel = getSelectedNavPoint();
   if(!sel || !sel.layer.visible) return;
-  const {pt} = sel;
-  pt.ignoreDir = !navHasDir.checked;
-  if(typeof pt.dir !== 'number') pt.dir = 0;
+  const {layer, pt} = sel;
+  if(isStationFollower(pt)){
+    // The LM mirrors its Action Point's heading by default; ticking "Has
+    // orientation" here opts it into its own independent heading instead,
+    // un-ticking hands it back to auto-following the AP.
+    if(navHasDir.checked){
+      pt.__customDir = true;
+      if(typeof pt.dir !== 'number') pt.dir = 0;
+      pt.ignoreDir = false;
+    } else {
+      delete pt.__customDir;
+    }
+    propagateLmOverrideToPatternMembers(layer, pt);
+  } else {
+    pt.ignoreDir = !navHasDir.checked;
+    if(typeof pt.dir !== 'number') pt.dir = 0;
+    propagateHeadingToPatternMembers(layer, pt);
+  }
   scheduleAutosave(); renderNavPointPanel(); requestDraw();
 });
 
@@ -1506,6 +1521,8 @@ function applyNavPointFields(){
   if(navHasDir.checked){
     const worldDirDeg = parseFloat(navRot.value)||0;
     pt.dir = (worldDirDeg*Math.PI/180) - layer.transform.rot;
+    if(isStationFollower(pt)) propagateLmOverrideToPatternMembers(layer, pt);
+    else propagateHeadingToPatternMembers(layer, pt);
   }
   syncCurvesForPoint(layer, pt.instanceName, oldLX, oldLY);
   scheduleAutosave(); requestDraw();
@@ -1539,6 +1556,7 @@ navPtStationDistance.addEventListener('change', ()=>{
   if(isNaN(v) || v<=0.02) return;
   pushUndo(layer);
   pt.__pairedLM.distance = v;
+  propagateStationDistanceToPatternMembers(layer, pt, v);
   scheduleAutosave(); requestDraw(); renderNavPointPanel();
 });
 
@@ -1547,7 +1565,12 @@ btnUnpairStation.addEventListener('click', ()=>{
   if(!sel || !sel.layer.visible) return;
   const {layer, pt} = sel;
   pushUndo(layer);
+  const memberNames = patternSeedMemberNames(layer, pt);
   unpairStation(layer, pt.instanceName);
+  for(const name of memberNames){
+    const memberPt = findNavPointByName(layer, name);
+    if(memberPt && (isStationDriver(memberPt) || isStationFollower(memberPt))) unpairStation(layer, memberPt.instanceName);
+  }
   scheduleAutosave(); requestDraw(); renderNavPointPanel();
 });
 
@@ -5276,6 +5299,10 @@ function resolvePairOffsets(){
       if(!ap.__pairedLM) continue;
       const lm = findNavPointByName(layer, ap.__pairedLM.name);
       if(!lm) continue;
+      // The LM faces the same way as its AP by default; ticking "Has
+      // orientation" on the LM itself (__customDir) opts it out of that and
+      // lets it keep its own independent heading from then on.
+      if(!lm.__customDir){ lm.dir = ap.dir; lm.ignoreDir = ap.ignoreDir; }
       const distance = ap.__pairedLM.distance;
       const worldDir = (ap.dir||0) + layer.transform.rot;
       const [apWx, apWy] = layerToWorld(layer, ap.pos.x, ap.pos.y);
@@ -5334,7 +5361,7 @@ function createStationPair(layer, lx, ly){
   const lmWy = apWy + distance*Math.sin(worldDir);
   const [lmLx, lmLy] = worldToLayer(layer, lmWx, lmWy);
   const ap = {className:'ActionPoint', instanceName:apName, pos:{x:round3(lx), y:round3(ly)}, dir:apDir, ignoreDir:false, property:[], __pairedLM:{name:lmName, distance}};
-  const lm = {className:'LocationMark', instanceName:lmName, pos:{x:round3(lmLx), y:round3(lmLy)}, dir:0, ignoreDir:true, property:[], __pairedAP:apName};
+  const lm = {className:'LocationMark', instanceName:lmName, pos:{x:round3(lmLx), y:round3(lmLy)}, dir:apDir, ignoreDir:false, property:[], __pairedAP:apName};
   layer.extra.advancedPointList.push(ap, lm);
   createStationPaths(layer, apName, lmName);
   return {apName, lmName};
@@ -5368,7 +5395,7 @@ function promoteToStation(layer, pt, distanceOverride){
   const lmName = generateNavPointName(layer, 'LM');
   if(!layer.extra) layer.extra = {};
   if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
-  layer.extra.advancedPointList.push({className:'LocationMark', instanceName:lmName, pos:{x:round3(lmLx), y:round3(lmLy)}, dir:0, ignoreDir:true, property:[], __pairedAP:pt.instanceName});
+  layer.extra.advancedPointList.push({className:'LocationMark', instanceName:lmName, pos:{x:round3(lmLx), y:round3(lmLy)}, dir:pt.dir, ignoreDir:pt.ignoreDir, property:[], __pairedAP:pt.instanceName});
   pt.__pairedLM = {name:lmName, distance};
   createStationPaths(layer, pt.instanceName, lmName);
 }
@@ -5384,10 +5411,10 @@ function applyPointTypeChange(layer, pt, newType){
     pt.className = newType;
   }
 }
-// A pattern/grid seed's type is treated as part of its cloned seed data, but
-// changing it only affected instances created afterward. This brings every
-// existing (non-skipped) instance/cell in step with the seed's new type too.
-function propagateTypeToPatternMembers(layer, seedPt, newType){
+// Names of every other (non-skipped) instance/cell in whatever Linear or
+// Grid pattern this point is the SEED of — empty if it isn't a seed at all.
+// Shared by every "edit the seed, fan it out to the pattern" action below.
+function patternSeedMemberNames(layer, seedPt){
   const memberNames = [];
   const linPat = findPatternByPointName(layer, seedPt.instanceName);
   if(linPat && linPat.role==='seed'){
@@ -5400,9 +5427,53 @@ function propagateTypeToPatternMembers(layer, seedPt, newType){
       if(!cell.skipped) memberNames.push(cell.name);
     }
   }
-  for(const name of memberNames){
+  return memberNames;
+}
+// A pattern/grid seed's type is treated as part of its cloned seed data, but
+// changing it only affected instances created afterward. This brings every
+// existing (non-skipped) instance/cell in step with the seed's new type too.
+function propagateTypeToPatternMembers(layer, seedPt, newType){
+  for(const name of patternSeedMemberNames(layer, seedPt)){
     const memberPt = findNavPointByName(layer, name);
     if(memberPt) applyPointTypeChange(layer, memberPt, newType);
+  }
+}
+// Same idea for a Station seed's LM distance: editing it on the seed is
+// retroactive across the whole pattern, not just future instances.
+function propagateStationDistanceToPatternMembers(layer, seedPt, newDistance){
+  for(const name of patternSeedMemberNames(layer, seedPt)){
+    const memberPt = findNavPointByName(layer, name);
+    if(memberPt && isStationDriver(memberPt)) memberPt.__pairedLM.distance = newDistance;
+  }
+}
+// A seed's heading was only ever cloned once at instance-creation time, same
+// gap distance had — rotating the seed afterward (which, for a Station,
+// swings its own LM around) left every other instance facing its old,
+// stale direction instead of following along.
+function propagateHeadingToPatternMembers(layer, seedPt){
+  for(const name of patternSeedMemberNames(layer, seedPt)){
+    const memberPt = findNavPointByName(layer, name);
+    if(memberPt){ memberPt.dir = seedPt.dir; memberPt.ignoreDir = seedPt.ignoreDir; }
+  }
+}
+// A Location Mark is never itself a pattern seed (only its Action Point can
+// be), so a custom-orientation edit made on a seed's LM has to be routed
+// through that AP to reach the other instances' own LMs.
+function propagateLmOverrideToPatternMembers(layer, lmPt){
+  const apPt = getStationPartner(layer, lmPt);
+  if(!apPt || !isStationDriver(apPt)) return;
+  for(const name of patternSeedMemberNames(layer, apPt)){
+    const memberAp = findNavPointByName(layer, name);
+    if(!memberAp || !isStationDriver(memberAp)) continue;
+    const memberLm = findNavPointByName(layer, memberAp.__pairedLM.name);
+    if(!memberLm) continue;
+    if(lmPt.__customDir){
+      memberLm.__customDir = true;
+      memberLm.dir = lmPt.dir;
+      memberLm.ignoreDir = lmPt.ignoreDir;
+    } else {
+      delete memberLm.__customDir;
+    }
   }
 }
 
