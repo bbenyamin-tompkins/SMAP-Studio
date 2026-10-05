@@ -178,6 +178,8 @@
   }
   .field-row input[type="number"]:focus-visible{outline:none; box-shadow:var(--focus);}
   .field-row input[type="number"]:disabled{opacity:0.4; cursor:not-allowed;}
+  .field-row input[type="checkbox"]{accent-color:var(--accent); width:14px; height:14px; cursor:pointer; flex:0 0 auto;}
+  .new-point-fields .field-row label{width:122px;}
   .stat-line{font-size:12px; color:var(--ink-dim); display:flex; justify-content:space-between; margin-bottom:4px;}
   .stat-line b{color:var(--ink); font-weight:500;}
   .field-card{background:var(--bg); border:1px solid var(--panel-2); border-radius:8px; padding:10px; margin-bottom:10px;}
@@ -307,6 +309,20 @@
     padding:14px; box-shadow:0 12px 32px rgba(0,0,0,0.28);
   }
   .shortcuts-popover-head{display:flex; align-items:flex-start; justify-content:space-between; gap:8px;}
+  .footprint-modal-backdrop{
+    position:fixed; inset:0; z-index:40; background:rgba(0,0,0,0.45);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .footprint-modal{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px;
+    max-width:calc(100vw - 32px); max-height:calc(100vh - 32px); overflow:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,0.4);
+  }
+  .footprint-modal-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px;}
+  .footprint-modal-body{display:flex; gap:20px; flex-wrap:wrap;}
+  .footprint-drawing{flex:0 0 auto; background:var(--bg); border:1px solid var(--line); border-radius:8px;}
+  .footprint-fields{width:190px; flex:0 0 auto; display:flex; flex-direction:column; gap:2px; padding-top:8px;}
+  .footprint-fields .field-row label{width:108px; flex:0 0 auto;}
   .restore-banner{
     position:absolute; top:10px; left:50%; transform:translateX(-50%);
     background:var(--accent); color:var(--accent-ink); font-size:12.5px; padding:8px 12px;
@@ -322,6 +338,7 @@
     transform:translate(-50%,-50%); box-shadow:0 2px 10px rgba(0,0,0,0.25);
   }
   .dim-inline-input:focus{outline:none; box-shadow:0 0 0 3px rgba(31,111,235,0.3);}
+  .dim-diagram-wrap{margin:8px 0;}
   .dim-inline-hint{
     position:absolute; z-index:9; font-size:10.5px; color:var(--overlay-ink);
     background:var(--overlay-bg); padding:3px 7px; border-radius:5px; pointer-events:none; white-space:nowrap;
@@ -355,7 +372,7 @@
 
   /* ---------- print ---------- */
   @media print{
-    header, aside, .hud, .scalebar, .tool-status, .no-layer-banner, .restore-banner, .dim-inline-input, .dim-inline-hint, .rel-toolbar, .rel-menu, .shortcuts-popover, .show-anchor-btn, .show-popover{display:none !important;}
+    header, aside, .hud, .scalebar, .tool-status, .no-layer-banner, .restore-banner, .dim-inline-input, .dim-inline-hint, .rel-toolbar, .rel-menu, .shortcuts-popover, .show-anchor-btn, .show-popover, .footprint-modal-backdrop{display:none !important;}
     body, .layout, .main-col, main{position:static; height:auto; overflow:visible;}
     main{position:fixed; inset:0;}
     canvas{width:100%; height:100%;}
@@ -560,10 +577,26 @@
             <button type="button" class="shape-btn" id="newPointTypeCP" title="Charge Point">Charge</button>
             <button type="button" class="shape-btn" id="newPointTypeAP" title="Action Point">Action</button>
             <button type="button" class="shape-btn" id="newPointTypeStation" title="Station: an Action Point with a Location Mark fixed ahead of it, linked by one-way paths">Station</button>
+            <button type="button" class="shape-btn" id="newPointTypePickup" title="Pickup: a Station with a second, farther Location Mark attached to the first one">Pickup</button>
           </div>
         </div>
-        <div class="field-row" id="newStationDistanceRow" hidden><label for="newStationDistance">LM distance (m)</label>
-          <input type="number" id="newStationDistance" class="mono" step="0.01" min="0.02" value="2.200">
+        <div id="stationPickupFields" class="field-card new-point-fields" hidden>
+          <div class="label-sub" id="stationPickupLabel" style="margin-top:0;">Station</div>
+          <div class="stat-line" id="stationPickupPartnerStat"><span>Paired with</span><b id="navPtStationPartner" class="mono"></b></div>
+          <div class="stat-line" id="navPtPickupFarStat" hidden><span>Far LM</span><b id="navPtPickupFar" class="mono"></b></div>
+          <div class="dim-diagram-wrap" style="margin:8px 0; display:flex; justify-content:center;">
+            <svg id="stationPickupSvg"></svg>
+          </div>
+          <div class="field-row"><label>LM distance (m)</label><input type="checkbox" id="stationDistFree" title="Via Dimension tool instead"><input type="number" id="navPtStationDistance" class="mono" step="0.01" min="0.02"></div>
+          <div id="navPtPickupFieldsGroup">
+            <div class="field-row"><label>Far LM along (m)</label><input type="checkbox" id="pickupAlongFree" title="Via Dimension tool instead"><input type="number" id="navPtPickupAlong" class="mono" step="0.01"></div>
+            <div class="field-row"><label>Far LM perp (m)</label><input type="checkbox" id="pickupPerpFree" title="Via Dimension tool instead"><input type="number" id="navPtPickupPerp" class="mono" step="0.01"></div>
+            <div class="field-row"><label>Near handle (m)</label><input type="checkbox" id="pickupNearUseDim" title="Via Dimension tool instead"><input type="number" id="navPtPickupNearHandle" class="mono" step="0.01"></div>
+            <div class="field-row"><label>Far handle (m)</label><input type="checkbox" id="pickupFarUseDim" title="Via Dimension tool instead"><input type="number" id="navPtPickupFarHandle" class="mono" step="0.01"></div>
+            <div class="field-row"><label>Far heading (°)</label><input type="number" id="navPtPickupHeading" class="mono" step="1"></div>
+          </div>
+          <button class="btn" id="btnRemovePickupFar" style="width:100%; margin-top:4px;">Remove far LM</button>
+          <button class="btn" id="btnUnpairStation" style="width:100%; margin-top:4px;">Unpair</button>
         </div>
         <div id="newPathSection" hidden>
         <div class="tool-hint" style="margin-top:8px;">Shift-drag from one nav point to another to add a path with these settings.</div>
@@ -597,6 +630,7 @@
           <option value="ChargePoint">Charge Point</option>
           <option value="ActionPoint">Action Point</option>
           <option value="Station">Station</option>
+          <option value="Pickup">Pickup</option>
         </select>
       </div>
       <div class="field-row"><label for="navX">X (m)</label><input type="number" id="navX" step="0.01"></div>
@@ -611,15 +645,6 @@
           <select id="navPtPrepoint" style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:13px;"></select>
         </div>
         <div class="field-row" style="margin-bottom:0;"><label for="navPtRecfile">Rec. file</label><input type="text" id="navPtRecfile" class="mono"></div>
-      </div>
-
-      <div id="navPtStationFields" class="field-card" hidden>
-        <div class="label-sub" style="margin-top:0;">Station</div>
-        <div class="stat-line"><span>Paired with</span><b id="navPtStationPartner" class="mono"></b></div>
-        <div class="field-row" id="navPtStationDistanceRow"><label for="navPtStationDistance">LM distance (m)</label>
-          <input type="number" id="navPtStationDistance" class="mono" step="0.01" min="0.02">
-        </div>
-        <button class="btn" id="btnUnpairStation" style="width:100%; margin-top:4px;">Unpair</button>
       </div>
 
       <button class="btn" id="btnSkipNavPoint" style="width:100%; margin-bottom:6px;" hidden>Skip this instance</button>
@@ -812,10 +837,38 @@
         <label class="show-row" title="Patterns"><input type="checkbox" id="showPatterns" checked><span class="show-swatch" style="--sw:#3fd0ff;"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="6" height="6" rx="1"></rect><rect x="15" y="15" width="6" height="6" rx="1"></rect></svg></span><span class="show-row-label">Patterns</span></label>
         <label class="show-row" title="Walls"><input type="checkbox" id="showExtra" checked><span class="show-swatch" style="--sw:#9aa39d;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20L20 4"></path></svg></span><span class="show-row-label">Walls</span></label>
         <label class="show-row" title="Nav points / paths"><input type="checkbox" id="showNav" checked><span class="show-swatch" style="--sw:#7c6cff;"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s6-6.3 6-11a6 6 0 1 0-12 0c0 4.7 6 11 6 11z"></path></svg></span><span class="show-row-label">Nav points / paths</span></label>
+        <div class="show-row" style="justify-content:space-between;" title="Robot footprint">
+          <label style="display:flex; align-items:center; gap:9px; flex:1; min-width:0; cursor:pointer;">
+            <input type="checkbox" id="showFootprint">
+            <span class="show-swatch" style="--sw:#ff8a3d;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="3" width="10" height="18" rx="1.3"></rect></svg></span>
+            <span class="show-row-label">Robot footprint</span>
+          </label>
+          <button type="button" class="layer-mini-btn" id="btnEditFootprint" title="Define robot footprint…" style="flex:0 0 auto;">✎</button>
+        </div>
         <label class="show-row" title="Colorize layers"><input type="checkbox" id="colorizeLayers"><span class="show-swatch"><svg viewBox="0 0 24 24"><circle cx="9" cy="10" r="5" fill="#7fe9c9"></circle><circle cx="15" cy="10" r="5" fill="#f2c14e" fill-opacity="0.85"></circle><circle cx="12" cy="15" r="5" fill="#7ea6ff" fill-opacity="0.85"></circle></svg></span><span class="show-row-label">Colorize layers</span></label>
         <label class="show-row" title="Origin (0, 0)"><input type="checkbox" id="showOrigin"><span class="show-swatch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="6"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke-linecap="round"></path></svg></span><span class="show-row-label">Origin (0, 0)</span></label>
       </div>
       <button class="btn" id="btnCenterOrigin" style="width:100%; margin-top:10px;">Center view on 0, 0</button>
+    </div>
+    <div class="footprint-modal-backdrop" id="footprintModalBackdrop" hidden>
+      <div class="footprint-modal">
+        <div class="footprint-modal-head">
+          <div style="font-weight:600; font-size:14px;">Robot footprint</div>
+          <button class="layer-mini-btn" id="btnFootprintClose" title="Close" style="font-size:16px;">✕</button>
+        </div>
+        <div class="tool-hint" style="margin-top:0; margin-bottom:12px;">Defined once for the whole project. Units are meters.</div>
+        <div class="footprint-modal-body">
+          <div class="footprint-drawing">
+            <svg id="footprintSvg" viewBox="0 0 340 380" width="340" height="380"></svg>
+          </div>
+          <div class="footprint-fields">
+            <div class="field-row"><label for="fpWidth">Width</label><input type="number" id="fpWidth" class="mono" step="0.01" min="0.02"></div>
+            <div class="field-row"><label for="fpHeight">Height</label><input type="number" id="fpHeight" class="mono" step="0.01" min="0.02"></div>
+            <div class="field-row"><label for="fpFromLeft">From left edge</label><input type="number" id="fpFromLeft" class="mono" step="0.01" min="0"></div>
+            <div class="field-row"><label for="fpFromBottom">From bottom edge</label><input type="number" id="fpFromBottom" class="mono" step="0.01" min="0"></div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="shortcuts-popover" id="shortcutsPopover" hidden>
       <div class="shortcuts-popover-head">
@@ -888,7 +941,7 @@ const state = {
   eraseRadius: 0.5,
   eraseShape: 'circle',
   eraseTargets: { scan:true, rssi:true, extra:true },
-  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true, areaDims:true, relations:true, patterns:true },
+  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true, areaDims:true, relations:true, patterns:true, footprint:false },
   showOrigin: false,
   uniformLayerColor: true,
   mouse: null,
@@ -940,6 +993,12 @@ const state = {
   newPathMovestyle: 0,
   newPointType: 'LocationMark',
   stationDistance: 2.2,
+  pickupFarAlong: 3.264,
+  pickupFarPerp: -2.0,
+  pickupNearHandle: 1.0,
+  pickupFarHandle: 2.0,
+  pickupFarHeadingOffset: -Math.PI/2,
+  robotFootprint: {width:0.5, height:0.7, fromLeft:0.25, fromBottom:0.1},
   selectedDimension: null,
   alignLine: null,
   alignAxis: 'x',
@@ -1203,11 +1262,27 @@ const navPtSpin = document.getElementById('navPtSpin');
 const navPtChargeFields = document.getElementById('navPtChargeFields');
 const navPtPrepoint = document.getElementById('navPtPrepoint');
 const navPtRecfile = document.getElementById('navPtRecfile');
-const navPtStationFields = document.getElementById('navPtStationFields');
+const stationPickupFields = document.getElementById('stationPickupFields');
+const stationPickupLabel = document.getElementById('stationPickupLabel');
+const stationPickupPartnerStat = document.getElementById('stationPickupPartnerStat');
 const navPtStationPartner = document.getElementById('navPtStationPartner');
-const navPtStationDistanceRow = document.getElementById('navPtStationDistanceRow');
+const navPtPickupFarStat = document.getElementById('navPtPickupFarStat');
+const navPtPickupFieldsGroup = document.getElementById('navPtPickupFieldsGroup');
 const navPtStationDistance = document.getElementById('navPtStationDistance');
 const btnUnpairStation = document.getElementById('btnUnpairStation');
+const navPtPickupFar = document.getElementById('navPtPickupFar');
+const navPtPickupAlong = document.getElementById('navPtPickupAlong');
+const navPtPickupPerp = document.getElementById('navPtPickupPerp');
+const btnRemovePickupFar = document.getElementById('btnRemovePickupFar');
+const navPtPickupNearHandle = document.getElementById('navPtPickupNearHandle');
+const navPtPickupFarHandle = document.getElementById('navPtPickupFarHandle');
+const navPtPickupHeading = document.getElementById('navPtPickupHeading');
+const stationDistFree = document.getElementById('stationDistFree');
+const pickupAlongFree = document.getElementById('pickupAlongFree');
+const pickupPerpFree = document.getElementById('pickupPerpFree');
+const pickupNearUseDim = document.getElementById('pickupNearUseDim');
+const pickupFarUseDim = document.getElementById('pickupFarUseDim');
+const stationPickupSvg = document.getElementById('stationPickupSvg');
 const navX = document.getElementById('navX'), navY = document.getElementById('navY'), navRot = document.getElementById('navRot');
 const navHasDir = document.getElementById('navHasDir');
 const btnDeleteNavPoint = document.getElementById('btnDeleteNavPoint');
@@ -1250,6 +1325,8 @@ function renameNavPoint(layer, oldName, newName){
       }
       if(otherPt.__pairedLM && otherPt.__pairedLM.name===oldName) otherPt.__pairedLM.name = newName;
       if(otherPt.__pairedAP===oldName) otherPt.__pairedAP = newName;
+      if(otherPt.__pickupFar && otherPt.__pickupFar.name===oldName) otherPt.__pickupFar.name = newName;
+      if(otherPt.__pickupNear===oldName) otherPt.__pickupNear = newName;
     }
   }
   const curves = layer.extra && layer.extra.advancedCurveList;
@@ -1260,6 +1337,8 @@ function renameNavPoint(layer, oldName, newName){
       if(typeof c.instanceName === 'string' && c.instanceName.split('-').includes(oldName)){
         c.instanceName = c.instanceName.split('-').map(part=>part===oldName?newName:part).join('-');
       }
+      if(c.__cpAnchor1 && c.__cpAnchor1.pointName===oldName) c.__cpAnchor1.pointName = newName;
+      if(c.__cpAnchor2 && c.__cpAnchor2.pointName===oldName) c.__cpAnchor2.pointName = newName;
     }
   }
   const fixAnchorName = (c)=>{
@@ -1322,6 +1401,7 @@ function renameNavPoint(layer, oldName, newName){
 }
 
 function renderNavPointPanel(){
+  renderStationPickupPanel();
   const sel = getSelectedNavPoint();
   const visible = sel && state.tool==='nav';
   navPointSection.hidden = !visible;
@@ -1339,8 +1419,13 @@ function renderNavPointPanel(){
   const disabled = !layer.visible;
   const isFollower = isStationFollower(pt);
   const isDriver = isStationDriver(pt);
+  const isPickup = isPickupAp(pt);
+  const isPickupFollow = isPickupFollower(pt);
+  const pickupAp = pickupApForPoint(layer, pt);
+  const pickupReadOnly = !!pickupAp && !isPickup;
+  const isAnyFollower = isNavPointPositionLocked(layer, pt);
   navPtName.disabled = navHasDir.disabled = btnDeleteNavPoint.disabled = disabled;
-  navX.disabled = navY.disabled = disabled || isFollower;
+  navX.disabled = navY.disabled = disabled || isAnyFollower;
   navRot.disabled = disabled || !hasDir;
 
   const className = pt.className || 'LocationMark';
@@ -1352,8 +1437,8 @@ function renderNavPointPanel(){
   } else if(unknownOpt){
     unknownOpt.remove();
   }
-  navPtType.value = (isDriver || isFollower) ? 'Station' : className;
-  navPtType.disabled = disabled || isFollower;
+  navPtType.value = pickupAp ? 'Pickup' : ((isDriver || isFollower) ? 'Station' : className);
+  navPtType.disabled = disabled || isAnyFollower;
 
   navPtSpin.checked = getPointPropBool(pt, 'spin', false);
   navPtSpin.disabled = disabled;
@@ -1384,19 +1469,142 @@ function renderNavPointPanel(){
     btnSkipNavPoint.disabled = disabled;
   }
 
-  navPtStationFields.hidden = !(isDriver || isFollower);
-  if(isDriver || isFollower){
-    const partner = getStationPartner(layer, pt);
-    navPtStationPartner.textContent = partner ? partner.instanceName : '(missing)';
-    const distance = isDriver ? pt.__pairedLM.distance : (partner && partner.__pairedLM ? partner.__pairedLM.distance : 0);
-    if(document.activeElement !== navPtStationDistance) navPtStationDistance.value = distance.toFixed(3);
-    navPtStationDistance.disabled = disabled || isFollower;
-    navPtStationDistanceRow.title = isFollower ? "Set from the Action Point's side." : '';
-    btnUnpairStation.disabled = disabled;
-  }
-  btnDeleteNavPoint.textContent = (isDriver || isFollower) ? 'Delete station' : 'Delete nav point';
+  btnDeleteNavPoint.textContent = pickupAp ? 'Delete pickup' : ((isDriver || isFollower) ? 'Delete station' : 'Delete nav point');
 
   renderNavPointDimPanel(layer, pt);
+}
+// Whether/how the single shared Station+Pickup card should appear right now:
+// 'edit' when the selected point is part of a Station/Pickup unit (AP, near
+// LM, or far LM — any of the three), 'create' when nothing is selected but
+// the "New point" type is Station/Pickup (so the card previews/edits the
+// defaults the next placed point will get), otherwise 'none'. Selecting an
+// unrelated point (a plain Mark/Charge/Action point) hides the card entirely
+// rather than falling back to the create-mode preview, so only ever one
+// relevant menu is on screen at a time.
+function stationPickupMode(){
+  const sel = getSelectedNavPoint();
+  if(sel){
+    const {layer, pt} = sel;
+    const isFollower = isStationFollower(pt);
+    const isDriver = isStationDriver(pt);
+    const pickupAp = pickupApForPoint(layer, pt);
+    if(isDriver || isFollower || pickupAp) return {mode:'edit', layer, pt, isDriver, isFollower, pickupAp};
+    return {mode:'none'};
+  }
+  if(state.tool==='nav' && (state.newPointType==='Station' || state.newPointType==='Pickup')){
+    return {mode:'create', showPickup: state.newPointType==='Pickup'};
+  }
+  return {mode:'none'};
+}
+function renderStationPickupPanel(){
+  const m = stationPickupMode();
+  stationPickupFields.hidden = (m.mode==='none');
+  if(m.mode==='none') return;
+  if(m.mode==='create'){
+    renderStationPickupPanelCreate(m.showPickup);
+    return;
+  }
+  const {layer, pt, isFollower, isDriver, pickupAp} = m;
+  const disabled = !layer.visible;
+  const isPickupFollow = isPickupFollower(pt);
+  const pickupReadOnly = !!pickupAp && !isPickupAp(pt);
+  const partner = getStationPartner(layer, pt) || (isPickupFollow ? pickupAp : null);
+  navPtStationPartner.textContent = partner ? partner.instanceName : '(missing)';
+  stationPickupPartnerStat.hidden = false;
+  const apForStation = isDriver ? pt : partner;
+  const isDistFree = !!(apForStation && apForStation.__pairedLM && apForStation.__pairedLM.distanceFree);
+  const distance = apForStation && apForStation.__pairedLM ? apForStation.__pairedLM.distance : 0;
+  const freeTitle = "Free — pin it with the Dimension tool (D) or drag it.";
+  const distanceReadOnly = isFollower || pickupReadOnly;
+  if(document.activeElement !== navPtStationDistance) navPtStationDistance.value = distance.toFixed(3);
+  navPtStationDistance.disabled = disabled || distanceReadOnly || isDistFree;
+  navPtStationDistance.title = distanceReadOnly ? "Set from the Action Point's side." : (isDistFree ? freeTitle : "LM distance (m)");
+  stationDistFree.checked = isDistFree;
+  stationDistFree.disabled = disabled || distanceReadOnly;
+  btnUnpairStation.hidden = false;
+  btnUnpairStation.disabled = disabled;
+  stationPickupLabel.textContent = pickupAp ? 'Pickup' : 'Station';
+
+  const showPickupPart = !!pickupAp;
+  navPtPickupFieldsGroup.hidden = !showPickupPart;
+  navPtPickupFarStat.hidden = !showPickupPart;
+  btnRemovePickupFar.hidden = !showPickupPart;
+  let along=0, perp=0, nearHandleV=0, farHandleV=0, headingOffset=0, isAlongFree=false, isPerpFree=false, isNearDim=false, isFarDim=false;
+  if(showPickupPart){
+    const apForPickup = pickupAp;
+    navPtPickupFar.textContent = apForPickup.__pickupFar.name || '(missing)';
+    isAlongFree = !!(apForPickup.__pickupFar.alongFree);
+    isPerpFree = !!(apForPickup.__pickupFar.perpFree);
+    ({along, perp} = getPickupFarOffset(layer, apForPickup));
+    if(document.activeElement !== navPtPickupAlong) navPtPickupAlong.value = along.toFixed(3);
+    if(document.activeElement !== navPtPickupPerp) navPtPickupPerp.value = perp.toFixed(3);
+    navPtPickupAlong.disabled = disabled || pickupReadOnly || isAlongFree;
+    navPtPickupPerp.disabled = disabled || pickupReadOnly || isPerpFree;
+    navPtPickupAlong.title = pickupReadOnly ? "Set from the Action Point's side." : (isAlongFree ? freeTitle : 'Far LM along (m)');
+    navPtPickupPerp.title = pickupReadOnly ? "Set from the Action Point's side." : (isPerpFree ? freeTitle : 'Far LM perp (m)');
+    pickupAlongFree.checked = isAlongFree; pickupAlongFree.disabled = disabled || pickupReadOnly;
+    pickupPerpFree.checked = isPerpFree; pickupPerpFree.disabled = disabled || pickupReadOnly;
+    btnRemovePickupFar.disabled = disabled || pickupReadOnly;
+
+    const lmNearName = apForPickup.__pairedLM.name;
+    const lmFarName = apForPickup.__pickupFar.name;
+    const fwdCurve = (lmNearName && lmFarName) ? findCurveByEndpoints(layer, lmNearName, lmFarName) : null;
+    isNearDim = !!fwdCurve && !fwdCurve.__cpAnchor1;
+    isFarDim = !!fwdCurve && !fwdCurve.__cpAnchor2;
+    const handles = (lmNearName && lmFarName) ? getPickupHandleLengths(layer, lmNearName, lmFarName) : {nearHandle:0, farHandle:0};
+    nearHandleV = handles.nearHandle; farHandleV = handles.farHandle;
+    if(document.activeElement !== navPtPickupNearHandle) navPtPickupNearHandle.value = nearHandleV.toFixed(3);
+    if(document.activeElement !== navPtPickupFarHandle) navPtPickupFarHandle.value = farHandleV.toFixed(3);
+    navPtPickupNearHandle.disabled = disabled || pickupReadOnly || isNearDim;
+    navPtPickupFarHandle.disabled = disabled || pickupReadOnly || isFarDim;
+    navPtPickupNearHandle.title = pickupReadOnly ? "Set from the Action Point's side." : (isNearDim ? freeTitle : 'Near handle (m)');
+    navPtPickupFarHandle.title = pickupReadOnly ? "Set from the Action Point's side." : (isFarDim ? freeTitle : 'Far handle (m)');
+    pickupNearUseDim.checked = isNearDim; pickupNearUseDim.disabled = disabled || pickupReadOnly;
+    pickupFarUseDim.checked = isFarDim; pickupFarUseDim.disabled = disabled || pickupReadOnly;
+
+    headingOffset = apForPickup.__pickupFar.headingOffset!=null ? apForPickup.__pickupFar.headingOffset : 0;
+    const isFarCustom = (findNavPointByName(layer, lmFarName)||{}).__customDir;
+    if(document.activeElement !== navPtPickupHeading) navPtPickupHeading.value = round3(headingOffset*180/Math.PI);
+    navPtPickupHeading.disabled = disabled || pickupReadOnly || isFarCustom;
+    navPtPickupHeading.title = pickupReadOnly ? "Set from the Action Point's side." : (isFarCustom ? "Far LM has a fully independent orientation — untick \"Has orientation\" on it to control it from here instead." : 'Far LM heading offset (deg)');
+  }
+  renderStationPickupSvg(distance, isDistFree, showPickupPart, along, perp, nearHandleV, farHandleV, headingOffset, isAlongFree, isPerpFree, isNearDim, isFarDim);
+}
+// The same card, but previewing/editing the defaults a NEW Station or Pickup
+// point will be born with — no partner/far-LM stats or Remove/Unpair buttons
+// since nothing has been placed yet, and checking a "free" box here just
+// means the point starts in that mode instead of toggling an existing one.
+function renderStationPickupPanelCreate(showPickup){
+  stationPickupPartnerStat.hidden = true;
+  navPtPickupFarStat.hidden = true;
+  btnUnpairStation.hidden = true;
+  btnRemovePickupFar.hidden = true;
+  navPtPickupFieldsGroup.hidden = !showPickup;
+  stationPickupLabel.textContent = showPickup ? 'New Pickup' : 'New Station';
+  const distFree = !!state.newStationDistanceFree, alongFree = !!state.newPickupAlongFree,
+        perpFree = !!state.newPickupPerpFree, nearFree = !!state.newPickupNearHandleFree, farFree = !!state.newPickupFarHandleFree;
+  navPtStationDistance.disabled = distFree;
+  navPtStationDistance.title = distFree ? "Starts via the Dimension tool instead." : "LM distance (m)";
+  stationDistFree.checked = distFree; stationDistFree.disabled = false;
+  if(document.activeElement !== navPtStationDistance) navPtStationDistance.value = (state.stationDistance||2.2).toFixed(3);
+  if(showPickup){
+    const along = state.pickupFarAlong!=null?state.pickupFarAlong:3.264, perp = state.pickupFarPerp!=null?state.pickupFarPerp:-2.0;
+    const nearHandle = state.pickupNearHandle||1.0, farHandle = state.pickupFarHandle||2.0;
+    const headingOffset = state.pickupFarHeadingOffset!=null?state.pickupFarHeadingOffset:-Math.PI/2;
+    if(document.activeElement !== navPtPickupAlong) navPtPickupAlong.value = along.toFixed(3);
+    if(document.activeElement !== navPtPickupPerp) navPtPickupPerp.value = perp.toFixed(3);
+    if(document.activeElement !== navPtPickupNearHandle) navPtPickupNearHandle.value = nearHandle.toFixed(3);
+    if(document.activeElement !== navPtPickupFarHandle) navPtPickupFarHandle.value = farHandle.toFixed(3);
+    if(document.activeElement !== navPtPickupHeading) navPtPickupHeading.value = round3(headingOffset*180/Math.PI);
+    navPtPickupAlong.disabled = alongFree; pickupAlongFree.checked = alongFree; pickupAlongFree.disabled = false;
+    navPtPickupPerp.disabled = perpFree; pickupPerpFree.checked = perpFree; pickupPerpFree.disabled = false;
+    navPtPickupNearHandle.disabled = nearFree; pickupNearUseDim.checked = nearFree; pickupNearUseDim.disabled = false;
+    navPtPickupFarHandle.disabled = farFree; pickupFarUseDim.checked = farFree; pickupFarUseDim.disabled = false;
+    navPtPickupHeading.disabled = false;
+    renderStationPickupSvg(state.stationDistance||2.2, distFree, true, along, perp, nearHandle, farHandle, headingOffset, alongFree, perpFree, nearFree, farFree);
+  } else {
+    renderStationPickupSvg(state.stationDistance||2.2, distFree, false, 0,0,0,0,0,false,false,false,false);
+  }
 }
 
 function renderNavPointDimPanel(layer, pt){
@@ -1549,27 +1757,197 @@ btnDeleteNavPoint.addEventListener('click', ()=>{
 
 navPtStationDistance.addEventListener('change', ()=>{
   const sel = getSelectedNavPoint();
-  if(!sel || !sel.layer.visible) return;
-  const {layer, pt} = sel;
-  if(!isStationDriver(pt)) return;
-  const v = parseFloat(navPtStationDistance.value);
-  if(isNaN(v) || v<=0.02) return;
-  pushUndo(layer);
-  pt.__pairedLM.distance = v;
-  propagateStationDistanceToPatternMembers(layer, pt, v);
-  scheduleAutosave(); requestDraw(); renderNavPointPanel();
+  if(sel && sel.layer.visible && isStationDriver(sel.pt)){
+    const {layer, pt} = sel;
+    const v = parseFloat(navPtStationDistance.value);
+    if(isNaN(v) || v<=0.02) return;
+    pushUndo(layer);
+    pt.__pairedLM.distance = v;
+    propagateStationDistanceToPatternMembers(layer, pt, v);
+    scheduleAutosave(); requestDraw(); renderNavPointPanel();
+  } else if(!sel){
+    const v = parseFloat(navPtStationDistance.value);
+    state.stationDistance = (!isNaN(v) && v>0.02) ? v : state.stationDistance;
+    navPtStationDistance.value = state.stationDistance.toFixed(3);
+    renderStationPickupPanel();
+  }
 });
 
 btnUnpairStation.addEventListener('click', ()=>{
   const sel = getSelectedNavPoint();
   if(!sel || !sel.layer.visible) return;
   const {layer, pt} = sel;
+  // A Pickup's far LM carries no Station marker of its own — resolve to the
+  // driving AP first so "Unpair" works no matter which of the three points
+  // (AP, near LM, far LM) happens to be selected.
+  const target = (isStationDriver(pt) || isStationFollower(pt)) ? pt : (pickupApForPoint(layer, pt) || pt);
   pushUndo(layer);
-  const memberNames = patternSeedMemberNames(layer, pt);
-  unpairStation(layer, pt.instanceName);
+  const memberNames = patternSeedMemberNames(layer, target);
+  unpairStation(layer, target.instanceName);
   for(const name of memberNames){
     const memberPt = findNavPointByName(layer, name);
     if(memberPt && (isStationDriver(memberPt) || isStationFollower(memberPt))) unpairStation(layer, memberPt.instanceName);
+  }
+  scheduleAutosave(); requestDraw(); renderNavPointPanel();
+});
+
+navPtPickupAlong.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(sel && sel.layer.visible && isPickupAp(sel.pt)){
+    const {layer, pt} = sel;
+    const v = parseFloat(navPtPickupAlong.value);
+    if(isNaN(v)) return;
+    pushUndo(layer);
+    pt.__pickupFar.along = v;
+    propagatePickupOffsetToPatternMembers(layer, pt, v, pt.__pickupFar.perp);
+    scheduleAutosave(); requestDraw(); renderNavPointPanel();
+  } else if(!sel){
+    const v = parseFloat(navPtPickupAlong.value);
+    state.pickupFarAlong = !isNaN(v) ? v : state.pickupFarAlong;
+    navPtPickupAlong.value = state.pickupFarAlong.toFixed(3);
+    renderStationPickupPanel();
+  }
+});
+navPtPickupPerp.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(sel && sel.layer.visible && isPickupAp(sel.pt)){
+    const {layer, pt} = sel;
+    const v = parseFloat(navPtPickupPerp.value);
+    if(isNaN(v)) return;
+    pushUndo(layer);
+    pt.__pickupFar.perp = v;
+    propagatePickupOffsetToPatternMembers(layer, pt, pt.__pickupFar.along, v);
+    scheduleAutosave(); requestDraw(); renderNavPointPanel();
+  } else if(!sel){
+    const v = parseFloat(navPtPickupPerp.value);
+    state.pickupFarPerp = !isNaN(v) ? v : state.pickupFarPerp;
+    navPtPickupPerp.value = state.pickupFarPerp.toFixed(3);
+    renderStationPickupPanel();
+  }
+});
+function setPickupHandleLength(which, inputEl){
+  const sel = getSelectedNavPoint();
+  if(sel && sel.layer.visible && isPickupAp(sel.pt)){
+    const {layer, pt} = sel;
+    const v = parseFloat(inputEl.value);
+    if(isNaN(v)) return;
+    const lmNearName = pt.__pairedLM.name, lmFarName = pt.__pickupFar.name;
+    const fwd = findCurveByEndpoints(layer, lmNearName, lmFarName);
+    const bwd = findCurveByEndpoints(layer, lmFarName, lmNearName);
+    if(!fwd) return;
+    pushUndo(layer);
+    if(which==='near'){
+      fwd.__cpAnchor1 = {pointName:lmNearName, along:v, perp:0};
+      if(bwd) bwd.__cpAnchor2 = {pointName:lmNearName, along:v, perp:0};
+    } else {
+      fwd.__cpAnchor2 = {pointName:lmFarName, along:-v, perp:0};
+      if(bwd) bwd.__cpAnchor1 = {pointName:lmFarName, along:-v, perp:0};
+    }
+    resolveAnchoredControlPoints();
+    propagateStationCurveShapeToPatternMembers(layer, pt);
+    scheduleAutosave(); requestDraw(); renderNavPointPanel();
+  } else if(!sel){
+    const v = parseFloat(inputEl.value);
+    if(which==='near') state.pickupNearHandle = !isNaN(v) ? v : state.pickupNearHandle;
+    else state.pickupFarHandle = !isNaN(v) ? v : state.pickupFarHandle;
+    inputEl.value = (which==='near' ? state.pickupNearHandle : state.pickupFarHandle).toFixed(3);
+    renderStationPickupPanel();
+  }
+}
+navPtPickupNearHandle.addEventListener('change', ()=>setPickupHandleLength('near', navPtPickupNearHandle));
+navPtPickupFarHandle.addEventListener('change', ()=>setPickupHandleLength('far', navPtPickupFarHandle));
+navPtPickupHeading.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(sel && sel.layer.visible && isPickupAp(sel.pt)){
+    const {layer, pt} = sel;
+    const deg = parseFloat(navPtPickupHeading.value);
+    if(isNaN(deg)) return;
+    const rad = deg*Math.PI/180;
+    pushUndo(layer);
+    pt.__pickupFar.headingOffset = rad;
+    propagatePickupHeadingOffsetToPatternMembers(layer, pt, rad);
+    scheduleAutosave(); requestDraw(); renderNavPointPanel();
+  } else if(!sel){
+    const deg = parseFloat(navPtPickupHeading.value);
+    state.pickupFarHeadingOffset = !isNaN(deg) ? deg*Math.PI/180 : state.pickupFarHeadingOffset;
+    navPtPickupHeading.value = round3(state.pickupFarHeadingOffset*180/Math.PI);
+    renderStationPickupPanel();
+  }
+});
+stationDistFree.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(sel && sel.layer.visible && isStationDriver(sel.pt)){
+    const {layer, pt} = sel;
+    pushUndo(layer);
+    setStationDistanceMode(layer, pt, stationDistFree.checked);
+    scheduleAutosave(); requestDraw(); renderNavPointPanel();
+  } else if(!sel){
+    state.newStationDistanceFree = stationDistFree.checked;
+    renderStationPickupPanel();
+  }
+});
+pickupAlongFree.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(sel && sel.layer.visible && isPickupAp(sel.pt)){
+    const {layer, pt} = sel;
+    pushUndo(layer);
+    setPickupAxisMode(layer, pt, 'along', pickupAlongFree.checked);
+    scheduleAutosave(); requestDraw(); renderNavPointPanel();
+  } else if(!sel){
+    state.newPickupAlongFree = pickupAlongFree.checked;
+    renderStationPickupPanel();
+  }
+});
+pickupPerpFree.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(sel && sel.layer.visible && isPickupAp(sel.pt)){
+    const {layer, pt} = sel;
+    pushUndo(layer);
+    setPickupAxisMode(layer, pt, 'perp', pickupPerpFree.checked);
+    scheduleAutosave(); requestDraw(); renderNavPointPanel();
+  } else if(!sel){
+    state.newPickupPerpFree = pickupPerpFree.checked;
+    renderStationPickupPanel();
+  }
+});
+pickupNearUseDim.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(sel && sel.layer.visible && isPickupAp(sel.pt)){
+    const {layer, pt} = sel;
+    pushUndo(layer);
+    setPickupHandleMode(layer, pt, 'near', pickupNearUseDim.checked);
+    resolveAnchoredControlPoints();
+    scheduleAutosave(); requestDraw(); renderNavPointPanel();
+  } else if(!sel){
+    state.newPickupNearHandleFree = pickupNearUseDim.checked;
+    renderStationPickupPanel();
+  }
+});
+pickupFarUseDim.addEventListener('change', ()=>{
+  const sel = getSelectedNavPoint();
+  if(sel && sel.layer.visible && isPickupAp(sel.pt)){
+    const {layer, pt} = sel;
+    pushUndo(layer);
+    setPickupHandleMode(layer, pt, 'far', pickupFarUseDim.checked);
+    resolveAnchoredControlPoints();
+    scheduleAutosave(); requestDraw(); renderNavPointPanel();
+  } else if(!sel){
+    state.newPickupFarHandleFree = pickupFarUseDim.checked;
+    renderStationPickupPanel();
+  }
+});
+btnRemovePickupFar.addEventListener('click', ()=>{
+  const sel = getSelectedNavPoint();
+  if(!sel || !sel.layer.visible) return;
+  const {layer, pt: selPt} = sel;
+  const pt = isPickupAp(selPt) ? selPt : pickupApForPoint(layer, selPt);
+  if(!pt || !isPickupAp(pt)) return;
+  pushUndo(layer);
+  const memberNames = patternSeedMemberNames(layer, pt);
+  demotePickupToStation(layer, pt);
+  for(const name of memberNames){
+    const memberPt = findNavPointByName(layer, name);
+    if(memberPt && isPickupAp(memberPt)) demotePickupToStation(layer, memberPt);
   }
   scheduleAutosave(); requestDraw(); renderNavPointPanel();
 });
@@ -2246,26 +2624,27 @@ document.getElementById('newPathDirBwd').addEventListener('click', ()=>setNewPat
 document.getElementById('newPathMovestyle').addEventListener('change', e=>{ state.newPathMovestyle = parseInt(e.target.value,10)||0; });
 
 const NAV_POINT_TYPE_PREFIX = { LocationMark:'LM', ChargePoint:'CP', ActionPoint:'AP' };
-const newStationDistanceRow = document.getElementById('newStationDistanceRow');
-const newStationDistanceInput = document.getElementById('newStationDistance');
+state.newStationDistanceFree = false;
+state.newPickupAlongFree = false;
+state.newPickupPerpFree = false;
+state.newPickupNearHandleFree = false;
+state.newPickupFarHandleFree = false;
 function setNewPointType(type){
   state.newPointType = type;
   document.getElementById('newPointTypeLM').classList.toggle('active', type==='LocationMark');
   document.getElementById('newPointTypeCP').classList.toggle('active', type==='ChargePoint');
   document.getElementById('newPointTypeAP').classList.toggle('active', type==='ActionPoint');
   document.getElementById('newPointTypeStation').classList.toggle('active', type==='Station');
-  newStationDistanceRow.hidden = type!=='Station';
-  document.getElementById('newPathSection').hidden = type!=='Station';
+  document.getElementById('newPointTypePickup').classList.toggle('active', type==='Pickup');
+  document.getElementById('newPathSection').hidden = (type!=='Station' && type!=='Pickup');
+  renderStationPickupPanel();
 }
 document.getElementById('newPointTypeLM').addEventListener('click', ()=>setNewPointType('LocationMark'));
 document.getElementById('newPointTypeCP').addEventListener('click', ()=>setNewPointType('ChargePoint'));
 document.getElementById('newPointTypeAP').addEventListener('click', ()=>setNewPointType('ActionPoint'));
 document.getElementById('newPointTypeStation').addEventListener('click', ()=>setNewPointType('Station'));
-newStationDistanceInput.addEventListener('change', ()=>{
-  const v = parseFloat(newStationDistanceInput.value);
-  state.stationDistance = (!isNaN(v) && v>0.02) ? v : state.stationDistance;
-  newStationDistanceInput.value = state.stationDistance.toFixed(3);
-});
+document.getElementById('newPointTypePickup').addEventListener('click', ()=>setNewPointType('Pickup'));
+renderStationPickupPanel();
 
 const eraseRadiusEl = document.getElementById('eraseRadius');
 const eraseRadiusVal = document.getElementById('eraseRadiusVal');
@@ -2377,6 +2756,7 @@ document.getElementById('showRelations').addEventListener('change', e=>{ state.t
 document.getElementById('showPatterns').addEventListener('change', e=>{ state.typeVisibility.patterns = e.target.checked; requestDraw(); });
 document.getElementById('showExtra').addEventListener('change', e=>{ state.typeVisibility.extra = e.target.checked; requestDraw(); });
 document.getElementById('showNav').addEventListener('change', e=>{ state.typeVisibility.nav = e.target.checked; requestDraw(); });
+document.getElementById('showFootprint').addEventListener('change', e=>{ state.typeVisibility.footprint = e.target.checked; requestDraw(); });
 const showOriginEl = document.getElementById('showOrigin');
 showOriginEl.addEventListener('change', e=>{ state.showOrigin = e.target.checked; requestDraw(); });
 document.getElementById('colorizeLayers').addEventListener('change', e=>{ state.uniformLayerColor = !e.target.checked; requestDraw(); });
@@ -2603,6 +2983,18 @@ function navColorForClassName(className){
   if(className==='ActionPoint') return state.printFriendly ? NAV_COLOR_ACTION_PRINT : NAV_COLOR_ACTION;
   return state.printFriendly ? NAV_COLOR_PRINT : NAV_COLOR;
 }
+// Softer, type-distinct fill colors for the to-scale footprint rectangle —
+// kept separate from navColorForClassName (which drives the small icon's
+// border/outline and stays unchanged) since a big filled shape needs a
+// gentler color than a thin outline does.
+const FOOTPRINT_FILL_LM = '#9aa3ad';
+const FOOTPRINT_FILL_AP = '#5fb97e';
+const FOOTPRINT_FILL_CP = '#5b9bd5';
+function footprintFillForClassName(className){
+  if(className==='ChargePoint') return FOOTPRINT_FILL_CP;
+  if(className==='ActionPoint') return FOOTPRINT_FILL_AP;
+  return FOOTPRINT_FILL_LM;
+}
 
 function drawNavPoints(layer, pal){
   const extra = layer.extra;
@@ -2682,8 +3074,10 @@ function drawNavPoints(layer, pal){
       const [sx,sy] = worldToScreen(wx,wy);
       const isHover = state.tool==='nav' && isActiveLayer && state.hoverNavPoint===item.instanceName;
       const isSelected = isActiveLayer && state.selectedNavPoint && state.selectedNavPoint.instanceName===item.instanceName;
-      const boxW = (isHover||isSelected) ? 27 : 23;
-      const boxH = (isHover||isSelected) ? 20 : 17;
+      const useFootprint = state.typeVisibility.footprint && state.robotFootprint;
+      const fp = state.robotFootprint;
+      const boxW = useFootprint ? fp.width*state.view.scale : ((isHover||isSelected) ? 27 : 23);
+      const boxH = useFootprint ? fp.height*state.view.scale : ((isHover||isSelected) ? 20 : 17);
 
       const hasDir = typeof item.dir === 'number' && !item.ignoreDir;
       const worldDir = hasDir ? (item.dir + layer.transform.rot) : 0;
@@ -2693,15 +3087,35 @@ function drawNavPoints(layer, pal){
       ctx.save();
       ctx.translate(sx,sy);
       if(hasDir) ctx.rotate(-worldDir);
-      ctx.beginPath(); ctx.rect(-boxW/2,-boxH/2,boxW,boxH);
-      ctx.fillStyle = fillColor; ctx.globalAlpha = (isHover||isSelected) ? 0.95 : 0.88; ctx.fill();
+      ctx.beginPath();
+      if(useFootprint){
+        // local +X is forward (toward the heading arrow) and holds the
+        // footprint's "height" extent (front-to-back length); local Y holds
+        // its "width" extent (side-to-side). The reference point (this nav
+        // point's own position) sits wherever fromLeft/fromBottom say within
+        // the rectangle, not necessarily centered.
+        ctx.rect(-fp.fromBottom*state.view.scale, -fp.fromLeft*state.view.scale, boxH, boxW);
+      } else {
+        ctx.rect(-boxW/2,-boxH/2,boxW,boxH);
+      }
+      ctx.fillStyle = useFootprint ? footprintFillForClassName(item.className) : fillColor;
+      ctx.globalAlpha = (isHover||isSelected) ? 0.95 : 0.88; ctx.fill();
       ctx.globalAlpha = 1;
       ctx.strokeStyle = isSelected ? '#ffffff' : pointColor;
       ctx.lineWidth = isSelected ? 3.4 : 2.8;
       ctx.stroke();
 
-      // type glyph: distinguishes Charge/Action points (and Action-Point Stations) from a plain Location Mark
+      // type glyph: distinguishes Charge/Action points (and Action-Point Stations) from a plain Location Mark.
+      // In footprint mode it's drawn bigger, at the rectangle's geometric center rather than the (possibly
+      // off-center) reference point, so it doesn't compete with the reference-point cross below.
       if(item.className==='ChargePoint' || item.className==='ActionPoint'){
+        ctx.save();
+        if(useFootprint){
+          const glyphCx = (fp.height/2 - fp.fromBottom)*state.view.scale;
+          const glyphCy = (fp.width/2 - fp.fromLeft)*state.view.scale;
+          ctx.translate(glyphCx, glyphCy);
+          ctx.scale(1.8, 1.8);
+        }
         const glyphColor = state.printFriendly ? '#ffffff' : '#000000';
         ctx.fillStyle = glyphColor;
         if(item.className==='ChargePoint'){
@@ -2718,12 +3132,17 @@ function drawNavPoints(layer, pal){
           ctx.fillRect(-1,-6,2,7);
           ctx.beginPath(); ctx.arc(0,4,1.4,0,Math.PI*2); ctx.fill();
         }
+        ctx.restore();
       }
 
       if(hasDir){
-        // forward is now the box's local +X axis, since the whole box is rotated to face worldDir
-        const tipX = boxW/2 + ((isHover||isSelected) ? 30 : 24);
-        const backX = -(boxW/2)*0.5;
+        // forward is now the box's local +X axis, since the whole box is rotated to face worldDir.
+        // In footprint mode the arrow spans the robot's actual rear-to-front length (plus a small
+        // overshoot past the front) instead of a fixed length keyed to the small icon's old size.
+        const frontX = useFootprint ? (fp.height-fp.fromBottom)*state.view.scale : boxW/2;
+        const rearX = useFootprint ? -fp.fromBottom*state.view.scale : -(boxW/2)*0.5;
+        const tipX = frontX + ((isHover||isSelected) ? 30 : 24);
+        const backX = rearX;
         const haloColor = state.printFriendly ? '#ffffff' : '#000000';
         const arrowColor = state.printFriendly ? NAV_ARROW_COLOR_PRINT : NAV_ARROW_COLOR;
         const headLen = (isHover||isSelected) ? 15 : 13;
@@ -2744,17 +3163,31 @@ function drawNavPoints(layer, pal){
         ctx.fillStyle = arrowColor; ctx.fill();
         ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
 
-        ctx.beginPath(); ctx.arc(0,0,3.5,0,Math.PI*2);
-        ctx.fillStyle = haloColor; ctx.fill();
-        ctx.beginPath(); ctx.arc(0,0,1.8,0,Math.PI*2);
-        ctx.fillStyle = arrowColor; ctx.fill();
+        if(!useFootprint){
+          ctx.beginPath(); ctx.arc(0,0,3.5,0,Math.PI*2);
+          ctx.fillStyle = haloColor; ctx.fill();
+          ctx.beginPath(); ctx.arc(0,0,1.8,0,Math.PI*2);
+          ctx.fillStyle = arrowColor; ctx.fill();
+        }
+      }
+      if(useFootprint){
+        // Bigger reference-point cross, drawn last (on top of the glyph and
+        // arrow) so it's never hidden the way it was at its original tiny size.
+        const crossHalo = state.printFriendly ? '#ffffff' : '#000000';
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = crossHalo; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(-10,0); ctx.lineTo(10,0); ctx.moveTo(0,-10); ctx.lineTo(0,10); ctx.stroke();
+        ctx.strokeStyle = '#e8463a'; ctx.lineWidth = 2.6;
+        ctx.beginPath(); ctx.moveTo(-10,0); ctx.lineTo(10,0); ctx.moveTo(0,-10); ctx.lineTo(0,10); ctx.stroke();
+        ctx.lineCap = 'butt';
       }
       ctx.restore();
 
       ctx.font = 'bold 11px "IBM Plex Mono", ui-monospace, monospace';
       ctx.fillStyle = state.printFriendly ? '#111111' : '#ffffff';
       ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
-      ctx.fillText(item.instanceName||'', sx+boxW/2+4, sy-boxH/2+3);
+      const labelReach = useFootprint ? Math.max(boxW,boxH)/2 : boxW/2;
+      ctx.fillText(item.instanceName||'', sx+labelReach+4, sy-labelReach+3);
       ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
     }
   }
@@ -3703,6 +4136,8 @@ function draw(){
   resolveAllGridPatterns();
   resolveFixedPositions();
   resolvePairOffsets();
+  resolvePickupOffsets();
+  resolveAnchoredControlPoints();
   const pal = currentPalette();
   ctx.fillStyle = pal.bg;
   ctx.fillRect(0,0,cssW,cssH);
@@ -4020,6 +4455,31 @@ function findLineBodyAt(layer, sx, sy, pxThreshold){
   return best;
 }
 
+// When the robot footprint is being shown, a nav point's clickable area is
+// its whole rendered rectangle (which can be much bigger than, and off-
+// center from, the small-icon hit radius every tool otherwise uses) rather
+// than a fixed pixel radius around its own coordinate.
+function isScreenPointInFootprint(layer, pt, sx, sy, ssx, ssy){
+  const fp = state.robotFootprint;
+  const hasDir = typeof pt.dir === 'number' && !pt.ignoreDir;
+  const worldDir = hasDir ? (pt.dir + layer.transform.rot) : 0;
+  const dx = sx-ssx, dy = sy-ssy;
+  const lx = dx*Math.cos(worldDir) - dy*Math.sin(worldDir);
+  const ly = dx*Math.sin(worldDir) + dy*Math.cos(worldDir);
+  const scale = state.view.scale;
+  const xMin = -fp.fromBottom*scale, xMax = xMin + fp.height*scale;
+  const yMin = -fp.fromLeft*scale, yMax = yMin + fp.width*scale;
+  return lx>=xMin && lx<=xMax && ly>=yMin && ly<=yMax;
+}
+// Drop-in replacement for the plain Math.hypot(ssx-sx,ssy-sy) hit-test every
+// tool uses against a nav point's own screen position: scores an in-footprint
+// click as an exact (zero-distance) hit, otherwise falls back to the usual
+// center-distance so the small-icon radius still works when footprint mode
+// is off (or undefined).
+function navHitDistance(layer, pt, ssx, ssy, sx, sy){
+  if(state.typeVisibility.footprint && state.robotFootprint && isScreenPointInFootprint(layer, pt, sx, sy, ssx, ssy)) return 0;
+  return Math.hypot(ssx-sx, ssy-sy);
+}
 function findNavPointAt(layer, sx, sy, pxThreshold){
   const list = layer.extra && layer.extra.advancedPointList;
   if(!Array.isArray(list)) return null;
@@ -4028,7 +4488,7 @@ function findNavPointAt(layer, sx, sy, pxThreshold){
     if(!item || !item.pos) continue;
     const [wx,wy] = layerToWorld(layer, item.pos.x, item.pos.y);
     const [ssx,ssy] = worldToScreen(wx,wy);
-    const d = Math.hypot(ssx-sx, ssy-sy);
+    const d = navHitDistance(layer, item, ssx, ssy, sx, sy);
     if(d<bestD){ bestD=d; best=item; }
   }
   return best;
@@ -4156,11 +4616,20 @@ function createOneWayPath(layer, nameA, nameB){
 function deleteNavPoint(layer, name){
   if(!layer.extra) return;
   const pt = findNavPointByName(layer, name);
-  // Deleting either half of a Station takes the other half with it — every
-  // deletion path (pattern/grid shrink, skip, rect-select erase, the Del key,
-  // the single delete button, pruning) funnels through here, so this is the
-  // one place that needs to know about pairing instead of each call site.
-  const partnerName = pt && isStationDriver(pt) ? pt.__pairedLM.name : (pt && isStationFollower(pt) ? pt.__pairedAP : null);
+  // Deleting any piece of a Station or Pickup takes the rest of it with it —
+  // every deletion path (pattern/grid shrink, skip, rect-select erase, the
+  // Del key, the single delete button, pruning) funnels through here, so
+  // this is the one place that needs to know about pairing instead of each
+  // call site. Recursing one link at a time (rather than resolving the whole
+  // chain up front) is what lets a 3-point Pickup fully cascade regardless
+  // of which of its three points you started from.
+  const partnerNames = [];
+  if(pt){
+    if(isStationDriver(pt)) partnerNames.push(pt.__pairedLM.name);
+    if(isStationFollower(pt)) partnerNames.push(pt.__pairedAP);
+    if(isPickupAp(pt)) partnerNames.push(pt.__pickupFar.name);
+    if(isPickupFollower(pt)) partnerNames.push(pt.__pickupNear);
+  }
   if(Array.isArray(layer.extra.advancedPointList)){
     layer.extra.advancedPointList = layer.extra.advancedPointList.filter(p=>p.instanceName!==name);
   }
@@ -4170,7 +4639,7 @@ function deleteNavPoint(layer, name){
     );
   }
   pruneInvalidRelations();
-  if(partnerName) deleteNavPoint(layer, partnerName);
+  for(const partnerName of partnerNames) deleteNavPoint(layer, partnerName);
 }
 
 function worldDeltaToLocal(layer, dx, dy){
@@ -4547,11 +5016,20 @@ function createInstancePointFromSeed(layer, seedName){
   if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
   const newPt = {className:props.className, instanceName:name, pos:{x:0,y:0}, dir:props.dir, ignoreDir:props.ignoreDir, property:props.property};
   layer.extra.advancedPointList.push(newPt);
-  // A pattern/grid built from a Station seed gives every instance its own
-  // Location Mark too — cloneSeedPropsForInstance only copies plain point
-  // fields, since __pairedLM is a relationship each instance must get fresh,
-  // not a value to duplicate.
-  if(isStationDriver(seedPt)) promoteToStation(layer, newPt, seedPt.__pairedLM.distance);
+  // A pattern/grid built from a Station (or Pickup) seed gives every instance
+  // its own Location Mark(s) too — cloneSeedPropsForInstance only copies
+  // plain point fields, since __pairedLM/__pickupFar are relationships each
+  // instance must get fresh, not a value to duplicate.
+  if(isStationDriver(seedPt)){
+    promoteToStation(layer, newPt, seedPt.__pairedLM.distance);
+    if(isPickupAp(seedPt)){
+      const seedLmNear = findNavPointByName(layer, seedPt.__pairedLM.name);
+      const seedLmFar = findNavPointByName(layer, seedPt.__pickupFar.name);
+      const handles = (seedLmNear && seedLmFar) ? getPickupHandleLengths(layer, seedLmNear.instanceName, seedLmFar.instanceName) : {nearHandle:1.0, farHandle:2.0};
+      const {along, perp, headingOffset} = seedPt.__pickupFar;
+      promoteToPickup(layer, newPt, along, perp, handles.nearHandle, handles.farHandle, headingOffset);
+    }
+  }
   return name;
 }
 function patternStepFor(pat, inst){
@@ -4742,7 +5220,7 @@ function findPatternInstanceAt(layer, sx, sy, pxThreshold){
       if(!pt) continue;
       const [wx,wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
       const [ssx,ssy] = worldToScreen(wx,wy);
-      const d = Math.hypot(ssx-sx, ssy-sy);
+      const d = navHitDistance(layer, pt, ssx, ssy, sx, sy);
       if(d<bestD){ bestD=d; best={pat, index:i}; }
     }
   }
@@ -5291,6 +5769,43 @@ function getStationPartner(layer, pt){
   if(isStationFollower(pt)) return findNavPointByName(layer, pt.__pairedAP);
   return null;
 }
+// A "Pickup" is a Station (AP + near LM) with a second, farther LM attached
+// to the near LM — __pickupFar lives on the AP (alongside __pairedLM) so
+// "is this a Pickup" is a single check on the driver, same as Station.
+function isPickupAp(pt){ return !!(pt && pt.__pickupFar); }
+function isPickupFollower(pt){ return !!(pt && pt.__pickupNear); }
+// The Station's own near LM carries no Pickup marker itself (that lives on
+// the AP and on the far LM) — so selecting it needs its AP partner checked
+// to know the point is really part of a Pickup, not a plain Station.
+function pickupApForPoint(layer, pt){
+  if(isPickupAp(pt)) return pt;
+  if(isStationFollower(pt)){
+    const ap = getStationPartner(layer, pt);
+    if(ap && isPickupAp(ap)) return ap;
+  }
+  if(isPickupFollower(pt)){
+    const lmNear = findNavPointByName(layer, pt.__pickupNear);
+    const ap = lmNear ? getStationPartner(layer, lmNear) : null;
+    if(ap && isPickupAp(ap)) return ap;
+  }
+  return null;
+}
+// Whether a point's position is currently derived (Station's near LM always
+// is; a Pickup's far LM is too, unless its "Position via Dimension tool"
+// toggle is on) — used to decide whether direct dragging is allowed.
+function isNavPointPositionLocked(layer, pt){
+  if(!pt) return false;
+  if(isStationFollower(pt)){
+    const ap = getStationPartner(layer, pt);
+    return !(ap && ap.__pairedLM && ap.__pairedLM.distanceFree);
+  }
+  if(isPickupFollower(pt)){
+    const lmNear = findNavPointByName(layer, pt.__pickupNear);
+    const ap = lmNear ? getStationPartner(layer, lmNear) : null;
+    return !(ap && ap.__pickupFar && (ap.__pickupFar.alongFree || ap.__pickupFar.perpFree));
+  }
+  return false;
+}
 function resolvePairOffsets(){
   for(const layer of state.layers){
     const pts = layer.extra && layer.extra.advancedPointList;
@@ -5303,6 +5818,9 @@ function resolvePairOffsets(){
       // orientation" on the LM itself (__customDir) opts it out of that and
       // lets it keep its own independent heading from then on.
       if(!lm.__customDir){ lm.dir = ap.dir; lm.ignoreDir = ap.ignoreDir; }
+      // "Via Dimension tool" on the distance field leaves the LM's position
+      // entirely to __ptConstraints / dragging instead.
+      if(ap.__pairedLM.distanceFree) continue;
       const distance = ap.__pairedLM.distance;
       const worldDir = (ap.dir||0) + layer.transform.rot;
       const [apWx, apWy] = layerToWorld(layer, ap.pos.x, ap.pos.y);
@@ -5317,6 +5835,100 @@ function resolvePairOffsets(){
     }
   }
 }
+// The far LM of a Pickup is anchored to the NEAR LM's current position and
+// heading (not the AP's) — {along, perp} relative to that frame — per your
+// correction to measure it the same way you did in the example file. Since
+// the near LM mirrors the AP's heading by default, this rotates with the AP
+// in the common case, and follows the near LM's own heading if it's ever
+// given a custom orientation independently.
+// The far LM's own heading usually DIFFERS from the near LM's (that's what
+// makes the connecting curve bend the way it does in the reference example,
+// where the far LM is 90 degrees off from the near one) — headingOffset is
+// that difference, re-applied every frame so it stays correct under
+// rotation instead of being frozen at creation time. Ticking "Has
+// orientation" on the far LM itself still opts out of this entirely for a
+// fully independent heading, same as Station's LM.
+function resolvePickupOffsets(){
+  for(const layer of state.layers){
+    const pts = layer.extra && layer.extra.advancedPointList;
+    if(!Array.isArray(pts)) continue;
+    for(const ap of pts){
+      if(!ap.__pickupFar || !ap.__pairedLM) continue;
+      const lmNear = findNavPointByName(layer, ap.__pairedLM.name);
+      const lmFar = findNavPointByName(layer, ap.__pickupFar.name);
+      if(!lmNear || !lmFar) continue;
+      if(!lmFar.__customDir){ lmFar.dir = (lmNear.dir||0) + (ap.__pickupFar.headingOffset||0); lmFar.ignoreDir = lmNear.ignoreDir; }
+      // "Via Dimension tool" on along/perp are independent toggles — each
+      // axis left free is read back from wherever the point currently sits
+      // (so __ptConstraints / dragging owns just that axis) while the other
+      // axis, if still fixed, keeps being enforced from its own number.
+      const alongFree = !!ap.__pickupFar.alongFree, perpFree = !!ap.__pickupFar.perpFree;
+      let {along, perp} = ap.__pickupFar;
+      if(alongFree || perpFree){
+        const [curFarWx, curFarWy] = layerToWorld(layer, lmFar.pos.x, lmFar.pos.y);
+        const live = worldPosToAnchorOffset(layer, lmNear, curFarWx, curFarWy);
+        if(alongFree) along = live.along;
+        if(perpFree) perp = live.perp;
+      }
+      const worldDir = (lmNear.dir||0) + layer.transform.rot;
+      const ux = Math.cos(worldDir), uy = Math.sin(worldDir);
+      const px = -uy, py = ux;
+      const [nearWx, nearWy] = layerToWorld(layer, lmNear.pos.x, lmNear.pos.y);
+      const targetWx = nearWx + along*ux + perp*px;
+      const targetWy = nearWy + along*uy + perp*py;
+      const [targetLx, targetLy] = worldToLayer(layer, targetWx, targetWy);
+      const nx = round3(targetLx), ny = round3(targetLy);
+      if(lmFar.pos.x===nx && lmFar.pos.y===ny) continue;
+      const oldLX = lmFar.pos.x, oldLY = lmFar.pos.y;
+      lmFar.pos = {x:nx, y:ny};
+      syncCurvesForPoint(layer, lmFar.instanceName, oldLX, oldLY);
+    }
+  }
+}
+// A Station/Pickup curve's control points aren't stored as fixed absolute
+// coordinates — each is anchored to its nearest endpoint as {pointName,
+// along, perp}, a length along that point's own current heading plus a
+// perpendicular offset. Recomputing from this every frame (instead of
+// translating the old absolute point by whatever delta the endpoint moved)
+// is what keeps the curve rigid under rotation: a straight default (perp:0)
+// stays straight, and a manually-dragged custom shape keeps its shape,
+// because the offset is defined in a frame that rotates with the endpoint.
+function anchoredControlWorldPos(layer, anchor){
+  const anchorPt = findNavPointByName(layer, anchor.pointName);
+  if(!anchorPt) return null;
+  const worldDir = (anchorPt.dir||0) + layer.transform.rot;
+  const ux = Math.cos(worldDir), uy = Math.sin(worldDir);
+  const px = -uy, py = ux;
+  const [awx, awy] = layerToWorld(layer, anchorPt.pos.x, anchorPt.pos.y);
+  return [awx + anchor.along*ux + anchor.perp*px, awy + anchor.along*uy + anchor.perp*py];
+}
+function worldPosToAnchorOffset(layer, anchorPt, wx, wy){
+  const worldDir = (anchorPt.dir||0) + layer.transform.rot;
+  const ux = Math.cos(worldDir), uy = Math.sin(worldDir);
+  const px = -uy, py = ux;
+  const [awx, awy] = layerToWorld(layer, anchorPt.pos.x, anchorPt.pos.y);
+  const dx = wx-awx, dy = wy-awy;
+  return {along: round3(dx*ux+dy*uy), perp: round3(dx*px+dy*py)};
+}
+function resolveAnchoredControlPointsForCurve(layer, curve){
+  if(curve.__cpAnchor1){
+    const world = anchoredControlWorldPos(layer, curve.__cpAnchor1);
+    if(world){ const [lx,ly] = worldToLayer(layer, world[0], world[1]); curve.controlPos1 = {x:round3(lx), y:round3(ly)}; }
+  }
+  if(curve.__cpAnchor2){
+    const world = anchoredControlWorldPos(layer, curve.__cpAnchor2);
+    if(world){ const [lx,ly] = worldToLayer(layer, world[0], world[1]); curve.controlPos2 = {x:round3(lx), y:round3(ly)}; }
+  }
+}
+function resolveAnchoredControlPoints(){
+  for(const layer of state.layers){
+    const curves = layer.extra && layer.extra.advancedCurveList;
+    if(!Array.isArray(curves)) continue;
+    for(const curve of curves){
+      if(curve.__cpAnchor1 || curve.__cpAnchor2) resolveAnchoredControlPointsForCurve(layer, curve);
+    }
+  }
+}
 function generateStationNames(layer){
   const apName = generateNavPointName(layer, 'AP');
   const lmName = generateNavPointName(layer, 'LM');
@@ -5326,28 +5938,32 @@ function generateStationNames(layer){
 function createStationPaths(layer, apName, lmName){
   const ptA = findNavPointByName(layer, apName), ptB = findNavPointByName(layer, lmName);
   if(!ptA || !ptB) return;
-  const dx = (ptB.pos.x-ptA.pos.x)/3, dy = (ptB.pos.y-ptA.pos.y)/3;
-  const c1 = {x:round3(ptA.pos.x+dx), y:round3(ptA.pos.y+dy)};
-  const c2 = {x:round3(ptA.pos.x+2*dx), y:round3(ptA.pos.y+2*dy)};
+  const distance = (ptA.__pairedLM && ptA.__pairedLM.distance) || Math.hypot(ptB.pos.x-ptA.pos.x, ptB.pos.y-ptA.pos.y);
   const forward = { // AP -> LM : Direction 0 = Forward
     className:'DegenerateBezier', instanceName:apName+'-'+lmName,
     startPos:{instanceName:apName, pos:{x:ptA.pos.x,y:ptA.pos.y}},
     endPos:{instanceName:lmName, pos:{x:ptB.pos.x,y:ptB.pos.y}},
-    controlPos1:c1, controlPos2:c2,
+    controlPos1:{x:ptA.pos.x,y:ptA.pos.y}, controlPos2:{x:ptB.pos.x,y:ptB.pos.y},
     property:[{key:'direction', ...intProp(0)}, {key:'movestyle', ...intProp(0)}],
     __unsplit:true,
+    __cpAnchor1:{pointName:apName, along:round3(distance/3), perp:0},
+    __cpAnchor2:{pointName:lmName, along:round3(-distance/3), perp:0},
   };
   const backward = { // LM -> AP : Direction 1 = Backward
     className:'DegenerateBezier', instanceName:lmName+'-'+apName,
     startPos:{instanceName:lmName, pos:{x:ptB.pos.x,y:ptB.pos.y}},
     endPos:{instanceName:apName, pos:{x:ptA.pos.x,y:ptA.pos.y}},
-    controlPos1:c2, controlPos2:c1,
+    controlPos1:{x:ptB.pos.x,y:ptB.pos.y}, controlPos2:{x:ptA.pos.x,y:ptA.pos.y},
     property:[{key:'direction', ...intProp(1)}, {key:'movestyle', ...intProp(0)}],
     __unsplit:true,
+    __cpAnchor1:{pointName:lmName, along:round3(-distance/3), perp:0},
+    __cpAnchor2:{pointName:apName, along:round3(distance/3), perp:0},
   };
   if(!layer.extra) layer.extra = {};
   if(!Array.isArray(layer.extra.advancedCurveList)) layer.extra.advancedCurveList = [];
   layer.extra.advancedCurveList.push(forward, backward);
+  resolveAnchoredControlPointsForCurve(layer, forward);
+  resolveAnchoredControlPointsForCurve(layer, backward);
 }
 function createStationPair(layer, lx, ly){
   if(!layer.extra) layer.extra = {};
@@ -5369,6 +5985,7 @@ function createStationPair(layer, lx, ly){
 function unpairStation(layer, anyName){
   const pt = findNavPointByName(layer, anyName);
   if(!pt) return;
+  if(isPickupAp(pt)) demotePickupToStation(layer, pt);
   const partner = getStationPartner(layer, pt);
   if(isStationDriver(pt)) delete pt.__pairedLM;
   if(isStationFollower(pt)) delete pt.__pairedAP;
@@ -5382,7 +5999,7 @@ function unpairStation(layer, anyName){
 // (along its current heading), linked by the same two one-way curves a
 // from-scratch Station gets. No-op on a point that's already a follower.
 function promoteToStation(layer, pt, distanceOverride){
-  if(isStationFollower(pt)) return;
+  if(isStationFollower(pt) || isPickupFollower(pt)) return;
   pt.className = 'ActionPoint';
   pt.ignoreDir = false;
   if(typeof pt.dir !== 'number') pt.dir = 0;
@@ -5399,14 +6016,202 @@ function promoteToStation(layer, pt, distanceOverride){
   pt.__pairedLM = {name:lmName, distance};
   createStationPaths(layer, pt.instanceName, lmName);
 }
+// The second leg (near LM <-> far LM) uses the same anchored-control-point
+// mechanism as a Station's own curve, but since the far LM's offset isn't
+// necessarily along the near LM's heading, the default shape is computed by
+// projecting a plain straight-line interpolation onto each endpoint's own
+// frame (worldPosToAnchorOffset) rather than assuming a pure axial distance.
+// Both directions are Direction 0/Forward here (not 0/1 Forward/Backward
+// like the AP<->LM leg), matching the reference file's own curves.
+// Each control point sits a fixed length purely ALONG its own endpoint's
+// heading (perp:0) — tangent to that point's facing direction, exactly like
+// the reference example: the curve leaves the near LM tangent to its own
+// heading and arrives at the far LM tangent to ITS heading, regardless of
+// the straight-line direction between them. nearHandle/farHandle are
+// independent, user-facing lengths (both positive); farHandle is stored as
+// a negative along-value since it's "behind" the far LM's own heading.
+function createPickupSecondPath(layer, lmNearName, lmFarName, nearHandle, farHandle){
+  const ptNear = findNavPointByName(layer, lmNearName), ptFar = findNavPointByName(layer, lmFarName);
+  if(!ptNear || !ptFar) return;
+  const forward = { // near -> far : Direction 0 = Forward
+    className:'DegenerateBezier', instanceName:lmNearName+'-'+lmFarName,
+    startPos:{instanceName:lmNearName, pos:{x:ptNear.pos.x,y:ptNear.pos.y}},
+    endPos:{instanceName:lmFarName, pos:{x:ptFar.pos.x,y:ptFar.pos.y}},
+    controlPos1:{x:ptNear.pos.x,y:ptNear.pos.y}, controlPos2:{x:ptFar.pos.x,y:ptFar.pos.y},
+    property:[{key:'direction', ...intProp(0)}, {key:'movestyle', ...intProp(0)}],
+    __unsplit:true,
+    __cpAnchor1:{pointName:lmNearName, along:nearHandle, perp:0},
+    __cpAnchor2:{pointName:lmFarName, along:-farHandle, perp:0},
+  };
+  const backward = { // far -> near : Direction 0 = Forward too
+    className:'DegenerateBezier', instanceName:lmFarName+'-'+lmNearName,
+    startPos:{instanceName:lmFarName, pos:{x:ptFar.pos.x,y:ptFar.pos.y}},
+    endPos:{instanceName:lmNearName, pos:{x:ptNear.pos.x,y:ptNear.pos.y}},
+    controlPos1:{x:ptFar.pos.x,y:ptFar.pos.y}, controlPos2:{x:ptNear.pos.x,y:ptNear.pos.y},
+    property:[{key:'direction', ...intProp(0)}, {key:'movestyle', ...intProp(0)}],
+    __unsplit:true,
+    __cpAnchor1:{pointName:lmFarName, along:-farHandle, perp:0},
+    __cpAnchor2:{pointName:lmNearName, along:nearHandle, perp:0},
+  };
+  if(!layer.extra) layer.extra = {};
+  if(!Array.isArray(layer.extra.advancedCurveList)) layer.extra.advancedCurveList = [];
+  layer.extra.advancedCurveList.push(forward, backward);
+  resolveAnchoredControlPointsForCurve(layer, forward);
+  resolveAnchoredControlPointsForCurve(layer, backward);
+}
+// Adds the far LM to an existing Station, turning it into a Pickup. No-op if
+// it's already a Pickup, and requires apPt to already be a Station driver
+// (promoteToPickup's callers are expected to promoteToStation first).
+function promoteToPickup(layer, apPt, alongOverride, perpOverride, nearHandleOverride, farHandleOverride, headingOffsetOverride){
+  if(!isStationDriver(apPt) || isPickupAp(apPt)) return;
+  const lmNear = findNavPointByName(layer, apPt.__pairedLM.name);
+  if(!lmNear) return;
+  const along = alongOverride!=null ? alongOverride : (state.pickupFarAlong!=null ? state.pickupFarAlong : 3.264);
+  const perp = perpOverride!=null ? perpOverride : (state.pickupFarPerp!=null ? state.pickupFarPerp : -2.0);
+  const nearHandle = nearHandleOverride!=null ? nearHandleOverride : (state.pickupNearHandle || 1.0);
+  const farHandle = farHandleOverride!=null ? farHandleOverride : (state.pickupFarHandle || 2.0);
+  const headingOffset = headingOffsetOverride!=null ? headingOffsetOverride : (state.pickupFarHeadingOffset!=null ? state.pickupFarHeadingOffset : -Math.PI/2);
+  const worldDir = (lmNear.dir||0) + layer.transform.rot;
+  const ux = Math.cos(worldDir), uy = Math.sin(worldDir), px = -uy, py = ux;
+  const [nearWx, nearWy] = layerToWorld(layer, lmNear.pos.x, lmNear.pos.y);
+  const farWx = nearWx + along*ux + perp*px, farWy = nearWy + along*uy + perp*py;
+  const [farLx, farLy] = worldToLayer(layer, farWx, farWy);
+  const lmFarName = generateNavPointName(layer, 'LM');
+  if(!layer.extra) layer.extra = {};
+  if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
+  layer.extra.advancedPointList.push({className:'LocationMark', instanceName:lmFarName, pos:{x:round3(farLx), y:round3(farLy)}, dir:lmNear.dir+headingOffset, ignoreDir:lmNear.ignoreDir, property:[], __pickupNear:lmNear.instanceName});
+  apPt.__pickupFar = {name:lmFarName, along, perp, headingOffset};
+  createPickupSecondPath(layer, lmNear.instanceName, lmFarName, nearHandle, farHandle);
+}
+// Strips the far LM back off, leaving a plain Station behind. Non-destructive
+// like Unpair: the far LM and its curves stay as independent objects.
+function demotePickupToStation(layer, apPt){
+  if(!isPickupAp(apPt)) return;
+  const lmFar = findNavPointByName(layer, apPt.__pickupFar.name);
+  if(lmFar) delete lmFar.__pickupNear;
+  delete apPt.__pickupFar;
+}
+// Reads the second curve's own control-point anchors back out as plain
+// near/far handle lengths for display/editing — the curve itself is the
+// single source of truth, there's no separate stored copy of these.
+// Reads back a live, accurate handle length regardless of mode: if the
+// anchor is present (fixed/handle-driven) it's the source of truth; if it's
+// absent (dimension mode), the equivalent length is derived from wherever
+// the control point actually currently sits, so displays stay accurate
+// instead of falling back to a stale guess.
+function getPickupHandleLengths(layer, lmNearName, lmFarName){
+  const fwd = findCurveByEndpoints(layer, lmNearName, lmFarName);
+  if(!fwd) return {nearHandle:1.0, farHandle:2.0};
+  let nearHandle = 1.0, farHandle = 2.0;
+  if(fwd.__cpAnchor1){
+    nearHandle = fwd.__cpAnchor1.along;
+  } else if(fwd.controlPos1){
+    const lmNearPt = findNavPointByName(layer, lmNearName);
+    if(lmNearPt){
+      const [cpWx,cpWy] = layerToWorld(layer, fwd.controlPos1.x, fwd.controlPos1.y);
+      nearHandle = worldPosToAnchorOffset(layer, lmNearPt, cpWx, cpWy).along;
+    }
+  }
+  if(fwd.__cpAnchor2){
+    farHandle = -fwd.__cpAnchor2.along;
+  } else if(fwd.controlPos2){
+    const lmFarPt = findNavPointByName(layer, lmFarName);
+    if(lmFarPt){
+      const [cpWx,cpWy] = layerToWorld(layer, fwd.controlPos2.x, fwd.controlPos2.y);
+      farHandle = -worldPosToAnchorOffset(layer, lmFarPt, cpWx, cpWy).along;
+    }
+  }
+  return {nearHandle, farHandle};
+}
+// Same "live, accurate regardless of mode" idea for the far LM's position —
+// each axis independently, since along/perp now toggle separately.
+function getPickupFarOffset(layer, apPt){
+  if(!apPt || !apPt.__pickupFar || !apPt.__pairedLM) return {along:0, perp:0};
+  const {along, perp, alongFree, perpFree} = apPt.__pickupFar;
+  if(!alongFree && !perpFree) return {along, perp};
+  const lmNear = findNavPointByName(layer, apPt.__pairedLM.name);
+  const lmFar = findNavPointByName(layer, apPt.__pickupFar.name);
+  if(!lmNear || !lmFar) return {along, perp};
+  const [farWx,farWy] = layerToWorld(layer, lmFar.pos.x, lmFar.pos.y);
+  const live = worldPosToAnchorOffset(layer, lmNear, farWx, farWy);
+  return {along: alongFree ? live.along : along, perp: perpFree ? live.perp : perp};
+}
+// Toggles one axis (along or perp) of the far LM's position between "driven
+// by its number" and "free for the Dimension tool / __ptConstraints /
+// dragging" — independent per axis. Fixing an axis back re-derives it from
+// wherever the point currently sits, so it doesn't jump.
+function setPickupAxisMode(layer, apPt, axis, free){
+  if(!isPickupAp(apPt)) return;
+  if(free){
+    apPt.__pickupFar[axis+'Free'] = true;
+  } else {
+    const lmNear = findNavPointByName(layer, apPt.__pairedLM.name);
+    const lmFar = findNavPointByName(layer, apPt.__pickupFar.name);
+    if(lmNear && lmFar){
+      const [farWx, farWy] = layerToWorld(layer, lmFar.pos.x, lmFar.pos.y);
+      const live = worldPosToAnchorOffset(layer, lmNear, farWx, farWy);
+      apPt.__pickupFar[axis] = live[axis];
+    }
+    delete apPt.__pickupFar[axis+'Free'];
+  }
+}
+// Same idea for the Station's own AP<->near-LM distance.
+function setStationDistanceMode(layer, apPt, free){
+  if(!isStationDriver(apPt)) return;
+  if(free){
+    apPt.__pairedLM.distanceFree = true;
+  } else {
+    const lm = findNavPointByName(layer, apPt.__pairedLM.name);
+    if(lm){
+      const [apWx,apWy] = layerToWorld(layer, apPt.pos.x, apPt.pos.y);
+      const [lmWx,lmWy] = layerToWorld(layer, lm.pos.x, lm.pos.y);
+      apPt.__pairedLM.distance = round3(Math.hypot(lmWx-apWx, lmWy-apWy));
+    }
+    delete apPt.__pairedLM.distanceFree;
+  }
+}
+// Same idea for one of the second curve's two control points: dropping its
+// __cpAnchor frees it for __cpConstraints / manual dragging; restoring it
+// re-derives the handle length from the control point's current position.
+function setPickupHandleMode(layer, apPt, which, useDimension){
+  if(!isPickupAp(apPt)) return;
+  const lmNearName = apPt.__pairedLM.name, lmFarName = apPt.__pickupFar.name;
+  const fwd = findCurveByEndpoints(layer, lmNearName, lmFarName);
+  const bwd = findCurveByEndpoints(layer, lmFarName, lmNearName);
+  if(!fwd) return;
+  const fwdKey = which==='near' ? '__cpAnchor1' : '__cpAnchor2';
+  const bwdKey = which==='near' ? '__cpAnchor2' : '__cpAnchor1';
+  if(useDimension){
+    delete fwd[fwdKey];
+    if(bwd) delete bwd[bwdKey];
+  } else {
+    const anchorPtName = which==='near' ? lmNearName : lmFarName;
+    const anchorPt = findNavPointByName(layer, anchorPtName);
+    const cpField = which==='near' ? 'controlPos1' : 'controlPos2';
+    if(anchorPt && fwd[cpField]){
+      const [cpWx, cpWy] = layerToWorld(layer, fwd[cpField].x, fwd[cpField].y);
+      const offset = worldPosToAnchorOffset(layer, anchorPt, cpWx, cpWy);
+      fwd[fwdKey] = {pointName: anchorPtName, along: offset.along, perp: offset.perp};
+      if(bwd) bwd[bwdKey] = {pointName: anchorPtName, along: offset.along, perp: offset.perp};
+    }
+  }
+}
 // Single entry point for changing a point's "type" from the UI, where type
-// is one of the three real classNames or the synthetic 'Station' value.
-// Handles promoting into / unpairing out of a Station as needed.
+// is one of the three real classNames or the synthetic 'Station'/'Pickup'
+// values. Handles promoting into / unpairing out of a Station or Pickup as
+// needed; Pickup is a strict superset of Station (promote adds the far LM
+// on top, demoting from Pickup to Station strips just the far LM).
 function applyPointTypeChange(layer, pt, newType){
   const wasStation = isStationDriver(pt) || isStationFollower(pt);
-  if(newType==='Station'){
+  const wasPickup = isPickupAp(pt);
+  if(newType==='Pickup'){
+    if(!wasStation) promoteToStation(layer, pt);
+    if(!isPickupAp(pt)) promoteToPickup(layer, pt);
+  } else if(newType==='Station'){
+    if(wasPickup) demotePickupToStation(layer, pt);
     if(!wasStation) promoteToStation(layer, pt);
   } else {
+    if(wasPickup) demotePickupToStation(layer, pt);
     if(wasStation) unpairStation(layer, pt.instanceName);
     pt.className = newType;
   }
@@ -5474,6 +6279,61 @@ function propagateLmOverrideToPatternMembers(layer, lmPt){
     } else {
       delete memberLm.__customDir;
     }
+  }
+}
+// Copies one Station curve's anchor shape onto another's, remapping
+// pointName from the seed's AP/LM names to the member's own AP/LM names —
+// along/perp are pure lengths, so they carry over unchanged.
+function copyAnchoredCurveShape(seedCurve, memberCurve, seedApName, seedLmName, memberApName, memberLmName){
+  for(const key of ['__cpAnchor1','__cpAnchor2']){
+    const anchor = seedCurve[key];
+    if(!anchor){ delete memberCurve[key]; continue; }
+    const mappedName = anchor.pointName===seedApName ? memberApName : (anchor.pointName===seedLmName ? memberLmName : anchor.pointName);
+    memberCurve[key] = {pointName: mappedName, along: anchor.along, perp: anchor.perp};
+  }
+}
+// A manual control-point edit on a pattern seed's Station (or Pickup) curve
+// is as much a "retroactive" change as distance/heading/type — fan it out
+// the same way. Handles both the AP<->near-LM leg and, for a Pickup, the
+// near-LM<->far-LM leg too.
+function propagateStationCurveShapeToPatternMembers(layer, apSeedPt){
+  if(!isStationDriver(apSeedPt)) return;
+  const seedApName = apSeedPt.instanceName, seedLmName = apSeedPt.__pairedLM.name;
+  const seedForward = findCurveByEndpoints(layer, seedApName, seedLmName);
+  const seedBackward = findCurveByEndpoints(layer, seedLmName, seedApName);
+  const seedPickup = isPickupAp(apSeedPt);
+  const seedLmFarName = seedPickup ? apSeedPt.__pickupFar.name : null;
+  const seedFarForward = seedPickup ? findCurveByEndpoints(layer, seedLmName, seedLmFarName) : null;
+  const seedFarBackward = seedPickup ? findCurveByEndpoints(layer, seedLmFarName, seedLmName) : null;
+  for(const name of patternSeedMemberNames(layer, apSeedPt)){
+    const memberAp = findNavPointByName(layer, name);
+    if(!memberAp || !isStationDriver(memberAp)) continue;
+    const memberApName = memberAp.instanceName, memberLmName = memberAp.__pairedLM.name;
+    const memberForward = findCurveByEndpoints(layer, memberApName, memberLmName);
+    const memberBackward = findCurveByEndpoints(layer, memberLmName, memberApName);
+    if(seedForward && memberForward) copyAnchoredCurveShape(seedForward, memberForward, seedApName, seedLmName, memberApName, memberLmName);
+    if(seedBackward && memberBackward) copyAnchoredCurveShape(seedBackward, memberBackward, seedApName, seedLmName, memberApName, memberLmName);
+    if(seedPickup && isPickupAp(memberAp)){
+      const memberLmFarName = memberAp.__pickupFar.name;
+      const memberFarForward = findCurveByEndpoints(layer, memberLmName, memberLmFarName);
+      const memberFarBackward = findCurveByEndpoints(layer, memberLmFarName, memberLmName);
+      if(seedFarForward && memberFarForward) copyAnchoredCurveShape(seedFarForward, memberFarForward, seedLmName, seedLmFarName, memberLmName, memberLmFarName);
+      if(seedFarBackward && memberFarBackward) copyAnchoredCurveShape(seedFarBackward, memberFarBackward, seedLmName, seedLmFarName, memberLmName, memberLmFarName);
+    }
+  }
+}
+// Retroactive edits to a Pickup seed's far-LM along/perp fan out to every
+// other Pickup instance in the pattern, same as Station's distance does.
+function propagatePickupOffsetToPatternMembers(layer, apSeedPt, along, perp){
+  for(const name of patternSeedMemberNames(layer, apSeedPt)){
+    const memberPt = findNavPointByName(layer, name);
+    if(memberPt && isPickupAp(memberPt)){ memberPt.__pickupFar.along = along; memberPt.__pickupFar.perp = perp; }
+  }
+}
+function propagatePickupHeadingOffsetToPatternMembers(layer, apSeedPt, headingOffset){
+  for(const name of patternSeedMemberNames(layer, apSeedPt)){
+    const memberPt = findNavPointByName(layer, name);
+    if(memberPt && isPickupAp(memberPt)) memberPt.__pickupFar.headingOffset = headingOffset;
   }
 }
 
@@ -6124,7 +6984,7 @@ function findPickableAnchorAt(sx, sy, pxThreshold, excludeRef, requiredAxis){
         if(excludeRef && excludeRef.instanceName!=null && excludeRef.layerId===layer.id && excludeRef.instanceName===pt.instanceName) continue;
         const [wx,wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
         const [ssx,ssy] = worldToScreen(wx,wy);
-        const d = Math.hypot(ssx-sx, ssy-sy);
+        const d = navHitDistance(layer, pt, ssx, ssy, sx, sy);
         if(d<bestD){ bestD=d; best={kind:'navPoint', layerId:layer.id, name:pt.instanceName}; }
       }
     }
@@ -6206,7 +7066,7 @@ function findRelationPointAt(sx, sy, pxThreshold){
         if(!pt || !pt.pos) continue;
         const [wx,wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
         const [ssx,ssy] = worldToScreen(wx,wy);
-        const d = Math.hypot(ssx-sx, ssy-sy);
+        const d = navHitDistance(layer, pt, ssx, ssy, sx, sy);
         if(d<bestD){ bestD=d; best={kind:'navPoint', layerId:layer.id, instanceName:pt.instanceName}; }
       }
     }
@@ -6247,7 +7107,7 @@ function findConstrainableTargetAt(sx, sy, pxThreshold){
         if(!pt || !pt.pos) continue;
         const [wx,wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
         const [ssx,ssy] = worldToScreen(wx,wy);
-        const d = Math.hypot(ssx-sx, ssy-sy);
+        const d = navHitDistance(layer, pt, ssx, ssy, sx, sy);
         if(d<bestD){ bestD=d; best={kind:'navPoint', layerId:layer.id, instanceName:pt.instanceName}; }
       }
     }
@@ -6611,7 +7471,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       dragging = true;
     } else if(hit){
       const hitPt = findNavPointByName(layer, hit.instanceName);
-      const isFollower = isStationFollower(hitPt);
+      const isFollower = isNavPointPositionLocked(layer, hitPt);
       if(!isFollower) pushUndo(layer);
       if(!isFollower){
         state.draggingNavPoint = {layerId:layer.id, instanceName:hit.instanceName};
@@ -6636,6 +7496,19 @@ canvasEl.addEventListener('pointerdown', (e)=>{
         let name;
         if(newType==='Station'){
           const created = createStationPair(layer, round3(lx), round3(ly));
+          const apPt = findNavPointByName(layer, created.apName);
+          if(state.newStationDistanceFree) setStationDistanceMode(layer, apPt, true);
+          name = created.apName;
+        } else if(newType==='Pickup'){
+          const created = createStationPair(layer, round3(lx), round3(ly));
+          const apPt = findNavPointByName(layer, created.apName);
+          if(state.newStationDistanceFree) setStationDistanceMode(layer, apPt, true);
+          promoteToPickup(layer, apPt);
+          if(state.newPickupAlongFree) setPickupAxisMode(layer, apPt, 'along', true);
+          if(state.newPickupPerpFree) setPickupAxisMode(layer, apPt, 'perp', true);
+          if(state.newPickupNearHandleFree) setPickupHandleMode(layer, apPt, 'near', true);
+          if(state.newPickupFarHandleFree) setPickupHandleMode(layer, apPt, 'far', true);
+          resolveAnchoredControlPoints();
           name = created.apName;
         } else {
           name = generateNavPointName(layer, NAV_POINT_TYPE_PREFIX[newType] || 'LM');
@@ -6995,11 +7868,24 @@ canvasEl.addEventListener('pointermove', (e)=>{
     const curve = curveDir==='forward' ? findCurveByEndpoints(layer, nameA, nameB) : findCurveByEndpoints(layer, nameB, nameA);
     const mirror = curveDir==='forward' ? findCurveByEndpoints(layer, nameB, nameA) : findCurveByEndpoints(layer, nameA, nameB);
     if(curve){
-      const [lx,ly] = worldToLayer(layer, wx, wy);
-      curve[which] = {x:round3(lx), y:round3(ly)};
-      if(mirror && curve.__unsplit && mirror.__unsplit){
-        const mirrorWhich = which==='controlPos1' ? 'controlPos2' : 'controlPos1';
-        mirror[mirrorWhich] = {x:round3(lx), y:round3(ly)};
+      const anchorKey = which==='controlPos1' ? '__cpAnchor1' : '__cpAnchor2';
+      const existingAnchor = curve[anchorKey];
+      const anchorPt = existingAnchor ? findNavPointByName(layer, existingAnchor.pointName) : null;
+      if(existingAnchor && anchorPt){
+        const offset = worldPosToAnchorOffset(layer, anchorPt, wx, wy);
+        curve[anchorKey] = {pointName: existingAnchor.pointName, along: offset.along, perp: offset.perp};
+        if(mirror && curve.__unsplit && mirror.__unsplit){
+          const mirrorAnchorKey = which==='controlPos1' ? '__cpAnchor2' : '__cpAnchor1';
+          mirror[mirrorAnchorKey] = {pointName: existingAnchor.pointName, along: offset.along, perp: offset.perp};
+        }
+        resolveAnchoredControlPoints();
+      } else {
+        const [lx,ly] = worldToLayer(layer, wx, wy);
+        curve[which] = {x:round3(lx), y:round3(ly)};
+        if(mirror && curve.__unsplit && mirror.__unsplit){
+          const mirrorWhich = which==='controlPos1' ? 'controlPos2' : 'controlPos1';
+          mirror[mirrorWhich] = {x:round3(lx), y:round3(ly)};
+        }
       }
       requestDraw();
     }
@@ -7145,6 +8031,27 @@ function endPointer(e){
     scheduleAutosave();
   }
   if(state.tool==='nav' && state.draggingControlPoint){
+    const {layerId, nameA, nameB, curveDir, which} = state.draggingControlPoint;
+    const dragLayer = getLayer(layerId);
+    if(dragLayer){
+      const curve = curveDir==='forward' ? findCurveByEndpoints(dragLayer, nameA, nameB) : findCurveByEndpoints(dragLayer, nameB, nameA);
+      const anchorKey = which==='controlPos1' ? '__cpAnchor1' : '__cpAnchor2';
+      const anchor = curve && curve[anchorKey];
+      const anchorPt = anchor && findNavPointByName(dragLayer, anchor.pointName);
+      if(anchorPt){
+        // The anchor could be the AP, the near LM, or (for a Pickup's second
+        // curve) the far LM — resolve any of those back to the AP, since
+        // that's always the pattern seed propagation is keyed off of.
+        let apPt = null;
+        if(isStationDriver(anchorPt)) apPt = anchorPt;
+        else if(isStationFollower(anchorPt)) apPt = getStationPartner(dragLayer, anchorPt);
+        else if(isPickupFollower(anchorPt)){
+          const lmNear = findNavPointByName(dragLayer, anchorPt.__pickupNear);
+          apPt = lmNear ? getStationPartner(dragLayer, lmNear) : null;
+        }
+        if(apPt) propagateStationCurveShapeToPatternMembers(dragLayer, apPt);
+      }
+    }
     state.draggingControlPoint = null;
     scheduleAutosave();
   }
@@ -7559,6 +8466,7 @@ function serializeProject(){
     relations: state.relations,
     patterns: state.patterns,
     gridPatterns: state.gridPatterns,
+    robotFootprint: state.robotFootprint,
   };
 }
 function loadProjectData(data){
@@ -7582,6 +8490,7 @@ function loadProjectData(data){
   state.patDraft = null;
   state.gridPatterns = Array.isArray(data.gridPatterns) ? data.gridPatterns : [];
   state.selectedGridPattern = null;
+  if(data.robotFootprint) state.robotFootprint = data.robotFootprint;
   for(const layer of state.layers){ normalizeCurvePairs(layer); normalizeAreaRects(layer); }
   pruneInvalidRelations();
   prunePatterns();
@@ -7688,6 +8597,178 @@ document.getElementById('btnTheme').addEventListener('click', ()=>{
     popover.hidden = true;
   });
 })();
+
+// ---------------- shared dimensioned-SVG drawing helpers ----------------
+// Used by both the robot footprint modal and the Station/Pickup sidebar
+// diagram, so the two look like one consistent visual language.
+function svgDimLineH(x1,x2,y,label,dimColor){
+  return '<line x1="'+x1+'" y1="'+y+'" x2="'+x2+'" y2="'+y+'" stroke="'+dimColor+'" stroke-width="1.2"/>'+
+    '<polygon points="'+x1+','+y+' '+(x1+7)+','+(y-3.5)+' '+(x1+7)+','+(y+3.5)+'" fill="'+dimColor+'"/>'+
+    '<polygon points="'+x2+','+y+' '+(x2-7)+','+(y-3.5)+' '+(x2-7)+','+(y+3.5)+'" fill="'+dimColor+'"/>'+
+    '<text x="'+((x1+x2)/2)+'" y="'+(y-6)+'" font-size="11" fill="'+dimColor+'" text-anchor="middle" font-family="monospace">'+label+'</text>';
+}
+function svgDimLineV(y1,y2,x,label,dimColor){
+  return '<line x1="'+x+'" y1="'+y1+'" x2="'+x+'" y2="'+y2+'" stroke="'+dimColor+'" stroke-width="1.2"/>'+
+    '<polygon points="'+x+','+y1+' '+(x-3.5)+','+(y1+7)+' '+(x+3.5)+','+(y1+7)+'" fill="'+dimColor+'"/>'+
+    '<polygon points="'+x+','+y2+' '+(x-3.5)+','+(y2-7)+' '+(x+3.5)+','+(y2-7)+'" fill="'+dimColor+'"/>'+
+    '<text x="'+(x+6)+'" y="'+((y1+y2)/2+4)+'" font-size="10.5" fill="'+dimColor+'" text-anchor="start" font-family="monospace">'+label+'</text>';
+}
+function svgExtLine(x1,y1,x2,y2,dimColor){
+  return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+dimColor+'" stroke-width="0.8" stroke-dasharray="2 2"/>';
+}
+// Combined flat, canonical (unrotated, forward = up) schematic of the whole
+// Station/Pickup unit — AP<->near-LM leg always, near-LM<->far-LM leg only
+// when the point is a Pickup. This is a plain, read-only reference picture
+// (values drawn as SVG text); the actual editable numbers live in the field
+// list below it, each with its own "via Dimension tool" checkbox. The svg's
+// own height is recomputed every render so a Station-only point doesn't
+// leave a tall dead gap where the Pickup leg would otherwise go.
+function renderStationPickupSvg(distance, distanceFree, showPickup, along, perp, nearHandle, farHandle, headingOffset, alongFree, perpFree, nearFree, farFree){
+  renderStationPickupDiagram(stationPickupSvg, distance, distanceFree, showPickup, along, perp, nearHandle, farHandle, headingOffset, alongFree, perpFree, nearFree, farFree);
+}
+function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, along, perp, nearHandle, farHandle, headingOffset, alongFree, perpFree, nearFree, farFree){
+  if(!svgEl) return;
+  const distColor = distanceFree ? '#c7c9cf' : '#b8860b';
+  const svgW = 260;
+  const stationSlotH = 150;
+  const topPad = 20, bottomPad = 30;
+  const pickupSlotH = showPickup ? 220 : 0;
+  const svgH = topPad + pickupSlotH + stationSlotH + bottomPad;
+  const apX = 150, apY = svgH-bottomPad;
+  const lmNearX = 150, lmNearY = apY-stationSlotH;
+  let s = '';
+  s += '<line x1="'+apX+'" y1="'+apY+'" x2="'+lmNearX+'" y2="'+lmNearY+'" stroke="#7c6cff" stroke-width="2"/>';
+  s += '<rect x="'+(apX-10)+'" y="'+(apY-10)+'" width="20" height="20" rx="2" fill="#5fb97e" fill-opacity="0.35" stroke="#5fb97e" stroke-width="1.8"/>';
+  s += '<rect x="'+(lmNearX-9)+'" y="'+(lmNearY-9)+'" width="18" height="18" rx="2" fill="#9aa3ad" fill-opacity="0.35" stroke="#9aa3ad" stroke-width="1.6"/>';
+  s += '<text x="'+apX+'" y="'+(apY+26)+'" font-size="10" fill="#777" text-anchor="middle" font-family="monospace">AP</text>';
+  s += '<text x="'+lmNearX+'" y="'+(lmNearY-14)+'" font-size="10" fill="#777" text-anchor="middle" font-family="monospace">'+(showPickup?'near':'LM')+'</text>';
+  s += svgExtLine(apX, apY, 20, apY, distColor);
+  s += svgExtLine(lmNearX, lmNearY, 20, lmNearY, distColor);
+  s += svgDimLineV(apY, lmNearY, 25, distance.toFixed(3), distColor);
+
+  if(showPickup){
+    const alongColor = alongFree ? '#c7c9cf' : '#b8860b';
+    const perpColor = perpFree ? '#c7c9cf' : '#b8860b';
+    const nearHandleColor = nearFree ? '#c7c9cf' : '#b8860b';
+    const farHandleColor = farFree ? '#c7c9cf' : '#b8860b';
+    const leftMargin=55, rightMargin=35;
+    const availH = lmNearY-topPad;
+    const nearLocal = [0,0];
+    const farLocal = [along, perp];
+    const nearCtrlLocal = [nearHandle, 0];
+    const farDir = headingOffset||0;
+    const farCtrlLocal = [farLocal[0]-farHandle*Math.cos(farDir), farLocal[1]-farHandle*Math.sin(farDir)];
+    const pts = [nearLocal, farLocal, nearCtrlLocal, farCtrlLocal];
+    let minFwd=0,maxFwd=0,minSide=0,maxSide=0;
+    for(const [fwd,side] of pts){ minFwd=Math.min(minFwd,fwd); maxFwd=Math.max(maxFwd,fwd); minSide=Math.min(minSide,side); maxSide=Math.max(maxSide,side); }
+    let scale = Infinity;
+    if(maxFwd>1e-6) scale = Math.min(scale, availH/maxFwd);
+    if(minFwd<-1e-6) scale = Math.min(scale, (availH*0.4)/(-minFwd));
+    if(maxSide>1e-6) scale = Math.min(scale, (svgW-rightMargin-lmNearX)/maxSide);
+    if(minSide<-1e-6) scale = Math.min(scale, (lmNearX-leftMargin)/(-minSide));
+    if(!isFinite(scale) || scale<=0) scale = 40;
+    const toSvg = ([fwd,side])=>[lmNearX+side*scale, lmNearY-fwd*scale];
+    const [nearX,nearY] = [lmNearX, lmNearY];
+    const [farX,farY] = toSvg(farLocal);
+    const [nearCtrlX,nearCtrlY] = toSvg(nearCtrlLocal);
+    const [farCtrlX,farCtrlY] = toSvg(farCtrlLocal);
+    s += '<path d="M '+nearX+' '+nearY+' C '+nearCtrlX+' '+nearCtrlY+', '+farCtrlX+' '+farCtrlY+', '+farX+' '+farY+'" fill="none" stroke="#7c6cff" stroke-width="2"/>';
+    s += '<rect x="'+(farX-9)+'" y="'+(farY-9)+'" width="18" height="18" rx="2" fill="#9aa3ad" fill-opacity="0.35" stroke="#9aa3ad" stroke-width="1.6"/>';
+    s += '<text x="'+farX+'" y="'+(farY-12)+'" font-size="9.5" fill="#777" text-anchor="middle" font-family="monospace">far</text>';
+    s += svgExtLine(nearX, nearY, leftMargin-10, nearY, alongColor);
+    s += svgExtLine(farX, farY, leftMargin-10, farY, alongColor);
+    s += svgDimLineV(nearY, farY, leftMargin-15, along.toFixed(3), alongColor);
+    const bY = Math.max(nearY,farY,nearCtrlY,farCtrlY)+28;
+    s += svgExtLine(nearX, nearY, nearX, bY+10, perpColor);
+    s += svgExtLine(farX, farY, farX, bY+10, perpColor);
+    s += svgDimLineH(nearX, farX, bY, perp.toFixed(3), perpColor);
+    s += '<line x1="'+nearX+'" y1="'+nearY+'" x2="'+nearCtrlX+'" y2="'+nearCtrlY+'" stroke="'+nearHandleColor+'" stroke-width="1" stroke-dasharray="2 2"/>';
+    s += '<text x="'+(nearCtrlX+6)+'" y="'+(nearCtrlY-2)+'" font-size="9" fill="'+nearHandleColor+'" font-family="monospace">'+nearHandle.toFixed(3)+'</text>';
+    s += '<line x1="'+farX+'" y1="'+farY+'" x2="'+farCtrlX+'" y2="'+farCtrlY+'" stroke="'+farHandleColor+'" stroke-width="1" stroke-dasharray="2 2"/>';
+    s += '<text x="'+(farCtrlX+6)+'" y="'+(farCtrlY-2)+'" font-size="9" fill="'+farHandleColor+'" font-family="monospace">'+farHandle.toFixed(3)+'</text>';
+  }
+  svgEl.setAttribute('width', svgW);
+  svgEl.setAttribute('height', svgH);
+  svgEl.innerHTML = s;
+}
+
+// ---------------- robot footprint modal ----------------
+(function initFootprintModal(){
+  const backdrop = document.getElementById('footprintModalBackdrop');
+  const closeBtn = document.getElementById('btnFootprintClose');
+  const editBtn = document.getElementById('btnEditFootprint');
+  const svg = document.getElementById('footprintSvg');
+  const wInput = document.getElementById('fpWidth');
+  const hInput = document.getElementById('fpHeight');
+  const flInput = document.getElementById('fpFromLeft');
+  const fbInput = document.getElementById('fpFromBottom');
+  const dimLineH = svgDimLineH, dimLineV = svgDimLineV, extLine = svgExtLine;
+  function renderFootprintSvg(){
+    const dimColor = '#b8860b';
+    const arrowColor = '#ff2f92';
+    const W = Math.max(parseFloat(wInput.value)||0.02, 0.02);
+    const H = Math.max(parseFloat(hInput.value)||0.02, 0.02);
+    const FL = Math.min(Math.max(parseFloat(flInput.value)||0, 0), W);
+    const FB = Math.min(Math.max(parseFloat(fbInput.value)||0, 0), H);
+    const left=70, right=70, top=50, bottom=60, viewW=340, viewH=380;
+    const availW = viewW-left-right, availH = viewH-top-bottom;
+    const scale = Math.min(availW/W, availH/H);
+    const rectW = W*scale, rectH = H*scale;
+    const rectX = left + (availW-rectW)/2;
+    const rectY = top + (availH-rectH)/2;
+    const refX = rectX + FL*scale;
+    const refY = rectY + rectH - FB*scale;
+    let s = '';
+    s += '<rect x="'+rectX+'" y="'+rectY+'" width="'+rectW+'" height="'+rectH+'" fill="#8a929e" fill-opacity="0.35" stroke="#3fa6ff" stroke-width="1.6" stroke-dasharray="5 3"/>';
+    s += extLine(rectX, rectY, rectX, top-10, dimColor);
+    s += extLine(rectX+rectW, rectY, rectX+rectW, top-10, dimColor);
+    s += dimLineH(rectX, rectX+rectW, top-15, W.toFixed(3), dimColor);
+    s += extLine(rectX, rectY, left-10, rectY, dimColor);
+    s += extLine(rectX, rectY+rectH, left-10, rectY+rectH, dimColor);
+    s += dimLineV(rectY, rectY+rectH, left-15, H.toFixed(3), dimColor);
+    const bY = rectY+rectH+25;
+    s += extLine(rectX, rectY+rectH, rectX, bY+10, dimColor);
+    s += extLine(refX, rectY+rectH, refX, bY+10, dimColor);
+    s += dimLineH(rectX, refX, bY, FL.toFixed(3), dimColor);
+    const rX = rectX+rectW+25;
+    s += extLine(rectX+rectW, rectY+rectH, rX+10, rectY+rectH, dimColor);
+    s += extLine(rectX+rectW, refY, rX+10, refY, dimColor);
+    s += dimLineV(rectY+rectH, refY, rX, FB.toFixed(3), dimColor);
+    s += '<line x1="'+(refX-7)+'" y1="'+refY+'" x2="'+(refX+7)+'" y2="'+refY+'" stroke="#e8463a" stroke-width="2"/>';
+    s += '<line x1="'+refX+'" y1="'+(refY-7)+'" x2="'+refX+'" y2="'+(refY+7)+'" stroke="#e8463a" stroke-width="2"/>';
+    const armLen = 24;
+    s += '<line x1="'+refX+'" y1="'+refY+'" x2="'+refX+'" y2="'+(refY-armLen)+'" stroke="'+arrowColor+'" stroke-width="3" stroke-linecap="round"/>';
+    s += '<polygon points="'+refX+','+(refY-armLen-8)+' '+(refX-5)+','+(refY-armLen+2)+' '+(refX+5)+','+(refY-armLen+2)+'" fill="'+arrowColor+'"/>';
+    svg.innerHTML = s;
+  }
+  function openModal(){
+    const fp = state.robotFootprint;
+    wInput.value = fp.width.toFixed(3);
+    hInput.value = fp.height.toFixed(3);
+    flInput.value = fp.fromLeft.toFixed(3);
+    fbInput.value = fp.fromBottom.toFixed(3);
+    renderFootprintSvg();
+    document.getElementById('showPopover').hidden = true;
+    backdrop.hidden = false;
+  }
+  function closeModal(){ backdrop.hidden = true; }
+  function applyFields(){
+    const w = Math.max(parseFloat(wInput.value)||0.02, 0.02);
+    const h = Math.max(parseFloat(hInput.value)||0.02, 0.02);
+    let fl = parseFloat(flInput.value); if(isNaN(fl)) fl = 0; fl = Math.min(Math.max(fl,0), w);
+    let fb = parseFloat(fbInput.value); if(isNaN(fb)) fb = 0; fb = Math.min(Math.max(fb,0), h);
+    state.robotFootprint = {width:round3(w), height:round3(h), fromLeft:round3(fl), fromBottom:round3(fb)};
+    renderFootprintSvg();
+    scheduleAutosave();
+    requestDraw();
+  }
+  editBtn.addEventListener('click', openModal);
+  closeBtn.addEventListener('click', closeModal);
+  backdrop.addEventListener('pointerdown', e=>{ if(e.target===backdrop) closeModal(); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && !backdrop.hidden) closeModal(); });
+  [wInput,hInput,flInput,fbInput].forEach(el=>{ el.addEventListener('input', applyFields); });
+})();
+
 (function initTheme(){
   let saved = '';
   try{ saved = localStorage.getItem(THEME_KEY)||''; }catch(e){}
