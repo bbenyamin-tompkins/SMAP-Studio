@@ -204,12 +204,14 @@
   .tool-btn[data-tool="pan"].active, .tool-btn[data-tool="move"].active, .tool-btn[data-tool="rotate"].active, .tool-btn[data-tool="align"].active{background:#2563eb33; border-color:#2563eb;}
   .tool-btn[data-tool="erase"]{background:#dc26261a; border-color:#dc262640; color:#dc2626;}
   .tool-btn[data-tool="erase"].active{background:#dc262633; border-color:#dc2626;}
-  .tool-btn[data-tool="draw"], .tool-btn[data-tool="reflector"], .tool-btn[data-tool="select"]{background:#0596691a; border-color:#05966940; color:#059669;}
-  .tool-btn[data-tool="draw"].active, .tool-btn[data-tool="reflector"].active, .tool-btn[data-tool="select"].active{background:#05966933; border-color:#059669;}
-  .tool-btn[data-tool="measure"], .tool-btn[data-tool="nav"], .tool-btn[data-tool="area"]{background:#d977061a; border-color:#d9770640; color:#d97706;}
-  .tool-btn[data-tool="measure"].active, .tool-btn[data-tool="nav"].active, .tool-btn[data-tool="area"].active{background:#d9770633; border-color:#d97706;}
+  .tool-btn[data-tool="draw"], .tool-btn[data-tool="reflector"], .tool-btn[data-tool="boxerase"]{background:#0596691a; border-color:#05966940; color:#059669;}
+  .tool-btn[data-tool="draw"].active, .tool-btn[data-tool="reflector"].active, .tool-btn[data-tool="boxerase"].active{background:#05966933; border-color:#059669;}
+  .tool-btn[data-tool="measure"], .tool-btn[data-tool="nav"], .tool-btn[data-tool="path"], .tool-btn[data-tool="area"]{background:#d977061a; border-color:#d9770640; color:#d97706;}
+  .tool-btn[data-tool="measure"].active, .tool-btn[data-tool="nav"].active, .tool-btn[data-tool="path"].active, .tool-btn[data-tool="area"].active{background:#d9770633; border-color:#d97706;}
   .tool-btn[data-tool="dist"], .tool-btn[data-tool="constraints"], .tool-btn[data-tool="pattern"]{background:#7c3aed1a; border-color:#7c3aed40; color:#7c3aed;}
   .tool-btn[data-tool="dist"].active, .tool-btn[data-tool="constraints"].active, .tool-btn[data-tool="pattern"].active{background:#7c3aed33; border-color:#7c3aed;}
+  .tool-btn[data-tool="select"]{background:#33415519; border-color:#33415545; color:#334155;}
+  .tool-btn[data-tool="select"].active{background:#33415533; border-color:#334155;}
 
   .io-btn{
     width:auto; min-width:44px; flex:0 0 auto; border-radius:9px; border:1px solid var(--line);
@@ -369,10 +371,21 @@
   .rel-menu-item .rel-del{ color:var(--danger); font-weight:700; padding:0 4px; }
   .rel-menu-empty{ padding:6px 8px; color:var(--overlay-dim); }
   .rel-menu-divider{ height:1px; background:var(--overlay-divider); margin:4px 0; }
+  .isolate-popup{
+    position:absolute; z-index:10; display:flex; align-items:center; gap:8px;
+    padding:6px 8px; background:var(--overlay-panel); border:1px solid var(--overlay-border); border-radius:6px;
+    box-shadow:0 4px 16px rgba(0,0,0,0.25); font-size:11.5px; color:var(--overlay-ink);
+    transform:translate(-50%,-100%); margin-top:-12px; pointer-events:auto;
+  }
+  .isolate-popup button{
+    padding:3px 8px; border-radius:4px; border:1px solid var(--overlay-border); background:var(--overlay-hover);
+    color:var(--overlay-ink); font-size:11px; cursor:pointer;
+  }
+  .isolate-popup button:hover{ border-color:var(--accent); }
 
   /* ---------- print ---------- */
   @media print{
-    header, aside, .hud, .scalebar, .tool-status, .no-layer-banner, .restore-banner, .dim-inline-input, .dim-inline-hint, .rel-toolbar, .rel-menu, .shortcuts-popover, .show-anchor-btn, .show-popover, .footprint-modal-backdrop{display:none !important;}
+    header, aside, .hud, .scalebar, .tool-status, .no-layer-banner, .restore-banner, .dim-inline-input, .dim-inline-hint, .rel-toolbar, .rel-menu, .isolate-popup, .shortcuts-popover, .show-anchor-btn, .show-popover, .footprint-modal-backdrop{display:none !important;}
     body, .layout, .main-col, main{position:static; height:auto; overflow:visible;}
     main{position:fixed; inset:0;}
     canvas{width:100%; height:100%;}
@@ -414,6 +427,38 @@
     <div class="section">
       <div class="section-title" data-key="tools"><span>Tool options</span><span class="chev">▾</span></div>
 
+      <div class="tool-options" id="opts-select" hidden>
+        <div class="row" style="gap:8px;">
+          <span style="width:70px;">Click mode</span>
+          <div class="shape-toggle">
+            <button type="button" class="shape-btn active" id="selectModeBasic" title="Click an object to see its basic info here, without switching tools">Basic</button>
+            <button type="button" class="shape-btn" id="selectModeFull" title="Click an object to jump straight into its full editing tool (drag curve handles, reshape areas, etc.)">Full edit</button>
+          </div>
+        </div>
+        <div class="tool-hint" id="selectFullEditHint" hidden style="margin-top:8px;">Clicking a nav point or area now switches straight into its tool. Reflectors and walls don't have a dedicated select-to-edit mode yet, so clicks on those still show basic info here.</div>
+        <div id="selectBasicInfo" class="field-card" hidden style="margin-top:8px;">
+          <div class="label-sub" id="selectBasicLabel" style="margin-top:0;">—</div>
+          <div class="field-row" id="selectBasicNameRow"><label for="selectBasicName">Name</label><input type="text" id="selectBasicName" class="mono"></div>
+          <div class="field-row"><label for="selectBasicX">X (m)</label><input type="number" id="selectBasicX" step="0.01"></div>
+          <div class="field-row"><label for="selectBasicY">Y (m)</label><input type="number" id="selectBasicY" step="0.01"></div>
+        </div>
+        <div class="tool-hint" id="selectEmptyHint" style="margin-top:8px;">Click any nav point, path, area, reflector, or wall to select it.</div>
+        <div class="label-sub" style="margin-top:14px;">Group select</div>
+        <div class="field-row"><label for="groupSelLayer">Layer</label>
+          <select id="groupSelLayer" style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:13px;"></select>
+        </div>
+        <label class="check-inline"><input type="checkbox" id="groupSelNav" checked> Nav points</label>
+        <label class="check-inline"><input type="checkbox" id="groupSelPaths"> Paths</label>
+        <label class="check-inline"><input type="checkbox" id="groupSelAreas"> Areas</label>
+        <label class="check-inline"><input type="checkbox" id="groupSelReflectors"> Reflectors</label>
+        <label class="check-inline"><input type="checkbox" id="groupSelWalls"> Walls</label>
+        <button class="btn" id="btnGroupSelectAll" style="width:100%; margin-top:8px;">Select matching</button>
+        <div class="stat-line" id="groupSelResult" style="margin-top:8px;" hidden><span>Selected</span><b id="groupSelCount" class="mono">0</b></div>
+        <button class="btn" id="btnGroupLock" style="width:100%; margin-top:4px;" hidden>Lock</button>
+        <button class="btn" id="btnGroupUnlock" style="width:100%; margin-top:4px;" hidden>Unlock</button>
+        <button class="btn danger" id="btnGroupDelete" style="width:100%; margin-top:4px;" hidden>Delete</button>
+        <button class="btn" id="btnGroupClear" style="width:100%; margin-top:4px;" hidden>Clear selection</button>
+      </div>
       <div class="tool-options" id="opts-erase" hidden>
         <div class="row">
           <span style="width:52px;">Shape</span>
@@ -442,7 +487,7 @@
       <div class="tool-options" id="opts-reflector" hidden>
         <div class="row"><span style="width:70px;">Diameter</span><input type="number" id="reflectorWidth" min="0.01" max="1" step="0.01" value="0.09"><span>m</span></div>
       </div>
-      <div class="tool-options" id="opts-select" hidden>
+      <div class="tool-options" id="opts-boxerase" hidden>
         <div class="label-sub">Delete affects</div>
         <label class="check-inline"><input type="checkbox" id="selectScan" checked> Scan points</label>
         <label class="check-inline"><input type="checkbox" id="selectRssi" checked> RSSI points</label>
@@ -489,7 +534,7 @@
         <button class="btn danger" id="btnDeleteAllRelations" style="width:100%; margin-top:6px;">Delete all relations</button>
       </div>
       <div class="tool-options" id="opts-pattern" hidden>
-        <div class="tool-hint" id="patternHint" style="margin-top:0;">Click a nav point to start a new pattern from it, or click an existing pattern's seed/instance to select it. Drag a linear instance to override its own step. Right-click an instance/cell (including a faded skipped one) to skip/un-skip it.</div>
+        <div class="tool-hint" id="patternHint" style="margin-top:0;">Click a nav point to start a new pattern from it, or click an existing pattern's seed/instance to select it. Click a path to pattern it onto other paths. Drag a linear instance to override its own step. Right-click an instance/cell (including a faded skipped one) to skip/un-skip it.</div>
         <div id="patDraftBox" hidden>
           <div class="stat-line" style="margin-top:8px;"><span>Seed</span><b id="patDraftSeed" class="mono"></b></div>
           <div class="row" style="gap:8px; margin-top:6px;">
@@ -568,6 +613,17 @@
           <button class="btn" id="btnGridSelUnskipAll" style="width:100%; margin-top:8px;">Un-skip all cells</button>
           <button class="btn danger" id="btnGridSelDelete" style="width:100%; margin-top:6px;">Delete grid pattern</button>
         </div>
+        <div id="pathPatBox" hidden>
+          <div class="label-sub" style="margin-top:8px;">Path pattern</div>
+          <div class="tool-hint" id="pathPatternHint" style="margin-top:0;">Click a path to use it as a pattern source. Other paths you click afterward copy its shape and direction/movestyle, live.</div>
+          <div class="stat-line"><span>Source</span><b id="pathPatSourceLabel" class="mono"></b></div>
+          <div class="stat-line" id="pathPatternTargetCountStat" hidden><span>Targets</span><b id="pathPatternTargetCount" class="mono"></b></div>
+          <div class="stat-line" id="pathPatternSourceStat" hidden><span>Patterned from</span><b id="pathPatternSourceLabel" class="mono"></b></div>
+          <div class="tool-hint" id="pathPatternArmedHint" hidden style="margin-top:4px;">Click other paths to add them as targets. Click empty space or press Done to finish.</div>
+          <button class="btn" id="btnPathPatternDone" style="width:100%; margin-top:4px;" hidden>Done adding targets</button>
+          <button class="btn danger" id="btnPathPatternClear" style="width:100%; margin-top:4px;" hidden>Clear pattern (un-link all targets)</button>
+          <button class="btn danger" id="btnPathPatternDetach" style="width:100%; margin-top:4px;" hidden>Un-pattern this path</button>
+        </div>
       </div>
       <div class="tool-options" id="opts-nav" hidden>
         <div class="row" style="gap:8px;">
@@ -598,8 +654,9 @@
           <button class="btn" id="btnRemovePickupFar" style="width:100%; margin-top:4px;">Remove far LM</button>
           <button class="btn" id="btnUnpairStation" style="width:100%; margin-top:4px;">Unpair</button>
         </div>
-        <div id="newPathSection" hidden>
-        <div class="tool-hint" style="margin-top:8px;">Shift-drag from one nav point to another to add a path with these settings.</div>
+      </div>
+      <div class="tool-options" id="opts-path" hidden>
+        <div class="tool-hint" id="pathToolHint" style="margin-top:0;">Drag from one nav point to another to add a path with these settings. Click an existing path to select/edit it, or drag its handles to reshape it.</div>
         <div class="row" style="gap:8px; margin-top:8px;">
           <span style="width:70px;">New path</span>
           <div class="shape-toggle">
@@ -616,7 +673,6 @@
             <option value="3">3 — Infrared guidance</option>
             <option value="4">4 — Magnetic-stripe guidance</option>
           </select>
-        </div>
         </div>
       </div>
     </div>
@@ -703,6 +759,9 @@
         </select>
       </div>
       </div>
+      <div class="stat-line" id="pathSelPatternSourceStat" hidden><span>Patterned from</span><b id="pathSelPatternSourceLabel" class="mono"></b></div>
+      <div class="stat-line" id="pathSelPatternTargetCountStat" hidden><span>Pattern targets</span><b id="pathSelPatternTargetCount" class="mono"></b></div>
+      <div class="tool-hint" id="pathSelPatternHint" hidden style="margin-top:4px;">Build/edit this path's pattern from the Pattern tool.</div>
       <button class="btn" id="btnSplitPath" style="width:100%; margin-top:6px;">Split into two one-way paths</button>
       <button class="btn danger" id="btnDeletePath" style="width:100%; margin-top:6px;">Delete path</button>
       <button class="btn danger" id="btnDeletePathFwd" style="width:100%; margin-top:6px;">Delete forward only</button>
@@ -759,10 +818,17 @@
   <div class="main-col">
 <header>
   <div class="tgroup">
+    <div class="tgroup-label">Select</div>
+    <div class="tgroup-row">
+      <button class="tool-btn" data-tool="select" title="Select &amp; edit (S)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M5 3l0 16 4-4 3 6 2-1-3-6 6 0z"></path></svg><span class="tool-btn-label">Select (S)</span></button>
+    </div>
+  </div>
+  <div class="sep"></div>
+  <div class="tgroup">
     <div class="tgroup-label">Transform</div>
     <div class="tgroup-row">
       <button class="tool-btn" data-tool="pan" title="Pan (H, or hold Space)"><svg viewBox="0 0 24 24" fill="currentColor" fill-opacity="0.35" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"></path></svg><span class="tool-btn-label">Pan (H)</span></button>
-      <button class="tool-btn" data-tool="move" title="Move layer (V)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M5 3l0 16 4-4 3 6 2-1-3-6 6 0z"></path></svg><span class="tool-btn-label">Move (V)</span></button>
+      <button class="tool-btn" data-tool="move" title="Move layer (V)"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="9" cy="6" r="1.8"></circle><circle cx="15" cy="6" r="1.8"></circle><circle cx="9" cy="12" r="1.8"></circle><circle cx="15" cy="12" r="1.8"></circle><circle cx="9" cy="18" r="1.8"></circle><circle cx="15" cy="18" r="1.8"></circle></svg><span class="tool-btn-label">Move (V)</span></button>
       <button class="tool-btn" data-tool="rotate" title="Rotate layer (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12a8 8 0 1 0 2.6-5.9"></path><path d="M3 3v5h5"></path></svg><span class="tool-btn-label">Rotate (R)</span></button>
       <button class="tool-btn" data-tool="align" title="Draw a line, then align the layer's axis to it (G)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 2v20M17 2v20M9 12h6M15 12l-2-2M15 12l-2 2"></path></svg><span class="tool-btn-label">Align (G)</span></button>
     </div>
@@ -774,7 +840,7 @@
       <button class="tool-btn" data-tool="erase" title="Erase points (E)"><svg viewBox="0 0 24 24" fill="currentColor" fill-opacity="0.35" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 18 10 8 20 8 16 18Z"></path><path d="M9 12h10"></path></svg><span class="tool-btn-label">Erase (E)</span></button>
       <button class="tool-btn" data-tool="draw" title="Draw wall line (L)"><svg viewBox="0 0 24 24" fill="currentColor" fill-opacity="0.35" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M14 4l4 4M3 21l3-1 11-11-3-3L3 17z"></path></svg><span class="tool-btn-label">Draw (L)</span></button>
       <button class="tool-btn" data-tool="reflector" title="Add reflector (K)"><svg viewBox="0 0 24 24" fill="currentColor" fill-opacity="0.35" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"></circle></svg><span class="tool-btn-label">Reflect. (K)</span></button>
-      <button class="tool-btn" data-tool="select" title="Rectangle select and delete (S)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 3"><rect x="4" y="4" width="16" height="16" rx="1"></rect></svg><span class="tool-btn-label">Select (S)</span></button>
+      <button class="tool-btn" data-tool="boxerase" title="Box erase: rectangle select and delete (B)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 3"><rect x="4" y="4" width="16" height="16" rx="1"></rect></svg><span class="tool-btn-label">Box Erase (B)</span></button>
     </div>
   </div>
   <div class="sep"></div>
@@ -783,6 +849,7 @@
     <div class="tgroup-row">
       <button class="tool-btn" data-tool="measure" title="Measure distance (M)"><svg viewBox="0 0 24 24" fill="currentColor" fill-opacity="0.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="9" width="20" height="6" rx="1"></rect><path d="M6 9v3M10 9v3M14 9v3M18 9v3"></path></svg><span class="tool-btn-label">Ruler (M)</span></button>
       <button class="tool-btn" data-tool="nav" title="Add / move nav points, drag curve handles. Shift-drag from one nav point to another to add a path between them (N)"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="9" width="13" height="8" rx="2.5" stroke="currentColor" stroke-width="1"></rect><path d="M17 10.5 21 12.5 17 14.5Z"></path></svg><span class="tool-btn-label">Nav Pts (N)</span></button>
+      <button class="tool-btn" data-tool="path" title="Dedicated path tool: drag between nav points to connect them (no Shift needed), click a path to select/edit it (J)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="19" r="2.4" fill="currentColor" stroke="none"></circle><circle cx="19" cy="5" r="2.4" fill="currentColor" stroke="none"></circle><path d="M6.5 17.5 Q12 12 17.5 6.5"></path></svg><span class="tool-btn-label">Path (J)</span></button>
       <button class="tool-btn" data-tool="area" title="Draw / reshape / rotate reflector areas (A)"><svg viewBox="0 0 24 24" fill="currentColor" fill-opacity="0.35" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 21 9.5 17.8 20 6.2 20 3 9.5Z"></path></svg><span class="tool-btn-label">Area (A)</span></button>
     </div>
   </div>
@@ -837,6 +904,7 @@
         <label class="show-row" title="Patterns"><input type="checkbox" id="showPatterns" checked><span class="show-swatch" style="--sw:#3fd0ff;"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="6" height="6" rx="1"></rect><rect x="15" y="15" width="6" height="6" rx="1"></rect></svg></span><span class="show-row-label">Patterns</span></label>
         <label class="show-row" title="Walls"><input type="checkbox" id="showExtra" checked><span class="show-swatch" style="--sw:#9aa39d;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20L20 4"></path></svg></span><span class="show-row-label">Walls</span></label>
         <label class="show-row" title="Nav points / paths"><input type="checkbox" id="showNav" checked><span class="show-swatch" style="--sw:#7c6cff;"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s6-6.3 6-11a6 6 0 1 0-12 0c0 4.7 6 11 6 11z"></path></svg></span><span class="show-row-label">Nav points / paths</span></label>
+        <label class="show-row" title="Give each nav point's own outgoing paths different colors, so you can tell overlapping paths from the same point apart"><input type="checkbox" id="showColorizePaths"><span class="show-swatch"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round"><path d="M4 20 L12 6" stroke="#e8463a"></path><path d="M9 20 L12 6" stroke="#3fa6ff"></path><path d="M15 20 L12 6" stroke="#2ecc71"></path></svg></span><span class="show-row-label">Colorize paths</span></label>
         <div class="show-row" style="justify-content:space-between;" title="Robot footprint">
           <label style="display:flex; align-items:center; gap:9px; flex:1; min-width:0; cursor:pointer;">
             <input type="checkbox" id="showFootprint">
@@ -905,6 +973,11 @@
     </div>
     <div class="rel-menu" id="relMenu" hidden></div>
     <div class="rel-menu" id="patMenu" hidden></div>
+    <div class="rel-menu" id="isolateMenu" hidden></div>
+    <div class="isolate-popup" id="isolatePopup" hidden>
+      <span id="isolatePopupLabel" class="mono"></span>
+      <button type="button" id="btnShowAllPaths">Show all paths</button>
+    </div>
     <div class="restore-banner" id="restoreBanner" hidden>
       <span id="restoreText"></span>
       <button id="btnRestoreYes">Restore</button>
@@ -934,14 +1007,22 @@ const state = {
   activeLayerId: null,
   nextId: 1,
   colorIdx: 0,
-  tool: 'pan',
-  prevTool: 'pan',
+  tool: 'select',
+  prevTool: 'select',
+  selectFullEdit: false,
+  selectFullEditActive: false,
+  selectBasic: null,
+  groupSelection: [],
+  pathPatterns: [],
+  pathPatternArm: null,
+  isolatedPath: null,
+  isolateMenuFor: null,
   view: { scale: 1, tx: 0, ty: 0 },
   fitted: false,
   eraseRadius: 0.5,
   eraseShape: 'circle',
   eraseTargets: { scan:true, rssi:true, extra:true },
-  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true, areaDims:true, relations:true, patterns:true, footprint:false },
+  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true, areaDims:true, relations:true, patterns:true, footprint:false, colorizePaths:false },
   showOrigin: false,
   uniformLayerColor: true,
   mouse: null,
@@ -1162,6 +1243,7 @@ function renderLayersList(){
   layersListEl.innerHTML = '';
   layerCountEl.textContent = state.layers.length ? ('('+state.layers.length+')') : '';
   emptyHint.hidden = state.layers.length>0;
+  refreshGroupSelectLayerOptions();
   for(let i=state.layers.length-1;i>=0;i--){
     const layer = state.layers[i];
     const row = document.createElement('div');
@@ -1662,6 +1744,7 @@ navPtType.addEventListener('change', ()=>{
   propagateTypeToPatternMembers(layer, pt, newType);
   prunePatterns();
   pruneGridPatterns();
+  prunePathPatterns();
   scheduleAutosave(); renderNavPointPanel(); renderPathPanel(); renderPatternPanel(); requestDraw();
 });
 
@@ -1748,6 +1831,7 @@ btnDeleteNavPoint.addEventListener('click', ()=>{
   deleteNavPoint(layer, pt.instanceName);
   prunePatterns();
   pruneGridPatterns();
+  prunePathPatterns();
   state.selectedNavPoint = null;
   renderNavPointPanel();
   renderPathPanel();
@@ -2018,6 +2102,25 @@ const pathBwdDirection = document.getElementById('pathBwdDirection');
 const pathBwdMovestyle = document.getElementById('pathBwdMovestyle');
 const btnSplitPath = document.getElementById('btnSplitPath');
 const btnDeletePath = document.getElementById('btnDeletePath');
+// Live/interactive — these now live in the Pattern tool's own panel.
+const pathPatBox = document.getElementById('pathPatBox');
+const pathPatSourceLabel = document.getElementById('pathPatSourceLabel');
+const pathPatternHint = document.getElementById('pathPatternHint');
+const pathPatternSourceStat = document.getElementById('pathPatternSourceStat');
+const pathPatternSourceLabel = document.getElementById('pathPatternSourceLabel');
+const pathPatternTargetCountStat = document.getElementById('pathPatternTargetCountStat');
+const pathPatternTargetCount = document.getElementById('pathPatternTargetCount');
+const pathPatternArmedHint = document.getElementById('pathPatternArmedHint');
+const btnPathPatternDone = document.getElementById('btnPathPatternDone');
+const btnPathPatternClear = document.getElementById('btnPathPatternClear');
+const btnPathPatternDetach = document.getElementById('btnPathPatternDetach');
+// Read-only — these stay in the Path tool's "Selected path" panel, just for
+// reference; building/editing a pattern happens in the Pattern tool now.
+const pathSelPatternSourceStat = document.getElementById('pathSelPatternSourceStat');
+const pathSelPatternSourceLabel = document.getElementById('pathSelPatternSourceLabel');
+const pathSelPatternTargetCountStat = document.getElementById('pathSelPatternTargetCountStat');
+const pathSelPatternTargetCount = document.getElementById('pathSelPatternTargetCount');
+const pathSelPatternHint = document.getElementById('pathSelPatternHint');
 const btnDeletePathFwd = document.getElementById('btnDeletePathFwd');
 const btnDeletePathBwd = document.getElementById('btnDeletePathBwd');
 
@@ -2056,7 +2159,7 @@ function populateDirectionSelect(selectEl, val){
 
 function renderPathPanel(){
   const sel = getSelectedPath();
-  const visible = sel && state.tool==='nav';
+  const visible = sel && (state.tool==='nav' || state.tool==='path');
   pathSection.hidden = !visible;
   if(!sel){ state.selectedPath = null; return; }
   if(!visible) return;
@@ -2093,6 +2196,18 @@ function renderPathPanel(){
   btnDeletePathBwd.hidden = !isSplitPair;
   btnDeletePathFwd.disabled = disabled;
   btnDeletePathBwd.disabled = disabled;
+
+  // Building/editing a path pattern now happens in the Pattern tool (see
+  // renderPathPatternToolPanel) — this panel just shows, read-only, whether
+  // the selected path is involved in one at all.
+  const nameA = state.selectedPath.nameA, nameB = state.selectedPath.nameB;
+  const asSource = findPathPatternBySource(layer, nameA, nameB);
+  const asTarget = findPathPatternByTarget(layer, nameA, nameB);
+  pathSelPatternSourceStat.hidden = !asTarget;
+  if(asTarget) pathSelPatternSourceLabel.textContent = asTarget.pattern.source.nameA+' ⇄ '+asTarget.pattern.source.nameB;
+  pathSelPatternTargetCountStat.hidden = !(asSource && asSource.targets.length);
+  if(asSource) pathSelPatternTargetCount.textContent = asSource.targets.length;
+  pathSelPatternHint.hidden = !(asSource || asTarget);
 }
 
 pathFwdDirection.addEventListener('change', ()=>{
@@ -2153,6 +2268,81 @@ btnDeletePathBwd.addEventListener('click', ()=>{
   renderPathPanel();
   scheduleAutosave(); requestDraw();
 });
+
+btnPathPatternDone.addEventListener('click', ()=>{
+  state.pathPatternArm = null;
+  renderPatternPanel(); renderPathPanel();
+  requestDraw();
+});
+btnPathPatternClear.addEventListener('click', ()=>{
+  const sel = state.selectedPath;
+  if(!sel) return;
+  const layer = getLayer(sel.layerId);
+  if(!layer) return;
+  const pat = findPathPatternBySource(layer, sel.nameA, sel.nameB);
+  if(!pat) return;
+  pushUndo(layer);
+  state.pathPatterns = state.pathPatterns.filter(p=>p!==pat);
+  renderPatternPanel(); renderPathPanel();
+  scheduleAutosave(); requestDraw();
+});
+btnPathPatternDetach.addEventListener('click', ()=>{
+  const sel = state.selectedPath;
+  if(!sel) return;
+  const layer = getLayer(sel.layerId);
+  if(!layer) return;
+  const found = findPathPatternByTarget(layer, sel.nameA, sel.nameB);
+  if(!found) return;
+  pushUndo(layer);
+  found.pattern.targets.splice(found.targetIndex, 1);
+  if(!found.pattern.targets.length) state.pathPatterns = state.pathPatterns.filter(p=>p!==found.pattern);
+  renderPatternPanel(); renderPathPanel();
+  scheduleAutosave(); requestDraw();
+});
+// A path exists as two separate curve objects (forward and backward), almost
+// always overlapping on screen, so a click can land on either one — whichever
+// findCurveAt happens to pick. Pattern source/targets need to agree on a
+// single orientation regardless of which copy got clicked, or the
+// chord-relative shape copy in resolvePathPatterns ends up mirrored for
+// whichever ones were clicked on their backward copy. The `direction`
+// property can't be used to tell which copy is "forward" — it's a
+// per-leg, user-configurable robot-travel setting, not a structural
+// signal, and some curves even have the same value on both copies (so it
+// doesn't distinguish them at all). Instead, orient the target so its
+// chord points in roughly the same direction as the source's chord
+// (positive dot product) rather than roughly opposite it — this only
+// cares about actual geometry, so it's unaffected by whatever the
+// direction property happens to hold.
+function alignTargetOrderToSource(layer, sourceNameA, sourceNameB, nameA, nameB){
+  const srcCurve = findCurveByEndpoints(layer, sourceNameA, sourceNameB);
+  const tgtCurve = findCurveByEndpoints(layer, nameA, nameB);
+  const sp0 = srcCurve && srcCurve.startPos && srcCurve.startPos.pos;
+  const sp1 = srcCurve && srcCurve.endPos && srcCurve.endPos.pos;
+  const tp0 = tgtCurve && tgtCurve.startPos && tgtCurve.startPos.pos;
+  const tp1 = tgtCurve && tgtCurve.endPos && tgtCurve.endPos.pos;
+  if(!sp0 || !sp1 || !tp0 || !tp1) return {nameA, nameB};
+  const dot = (sp1.x-sp0.x)*(tp1.x-tp0.x) + (sp1.y-sp0.y)*(tp1.y-tp0.y);
+  return dot>=0 ? {nameA, nameB} : {nameA:nameB, nameB:nameA};
+}
+// While a pattern source is armed, clicking any OTHER existing path (from
+// either the Nav Pts or Path tool's own curve-click handling) adds it as a
+// target instead of just selecting it. Shared by both tools' mousedown
+// blocks rather than duplicated, since "click a path while armed" means
+// the same thing regardless of which tool you clicked it from.
+function tryAddArmedPathPatternTarget(layer, nameA, nameB){
+  const arm = state.pathPatternArm;
+  if(!arm || arm.layerId!==layer.id) return false;
+  if(pathPatternKeyMatches(arm, nameA, nameB)) return false; // clicking the source itself doesn't add it as its own target
+  ({nameA, nameB} = alignTargetOrderToSource(layer, arm.nameA, arm.nameB, nameA, nameB));
+  let pat = findPathPatternBySource(layer, arm.nameA, arm.nameB);
+  if(!pat){ pat = {layerId:layer.id, source:{nameA:arm.nameA, nameB:arm.nameB}, targets:[]}; state.pathPatterns.push(pat); }
+  if(!pat.targets.some(t=>pathPatternKeyMatches(t, nameA, nameB))){
+    pushUndo(layer);
+    pat.targets.push({nameA, nameB});
+    scheduleAutosave();
+  }
+  return true;
+}
 
 const areaSection = document.getElementById('areaSection');
 const areaGroupLabel = document.getElementById('areaGroupLabel');
@@ -2547,21 +2737,105 @@ document.getElementById('areaEdgeOffset').addEventListener('change', (e)=>{
 // ---------------- tools ----------------
 
 const toolButtons = [...document.querySelectorAll('.tool-btn')];
+const optsSelect = document.getElementById('opts-select');
+const selectModeBasic = document.getElementById('selectModeBasic');
+const selectModeFull = document.getElementById('selectModeFull');
+const selectFullEditHint = document.getElementById('selectFullEditHint');
+const selectBasicInfo = document.getElementById('selectBasicInfo');
+const selectBasicLabel = document.getElementById('selectBasicLabel');
+const selectBasicNameRow = document.getElementById('selectBasicNameRow');
+const selectBasicName = document.getElementById('selectBasicName');
+const selectBasicX = document.getElementById('selectBasicX');
+const selectBasicY = document.getElementById('selectBasicY');
+const selectEmptyHint = document.getElementById('selectEmptyHint');
+const groupSelLayer = document.getElementById('groupSelLayer');
+const groupSelNav = document.getElementById('groupSelNav');
+const groupSelPaths = document.getElementById('groupSelPaths');
+const groupSelAreas = document.getElementById('groupSelAreas');
+const groupSelReflectors = document.getElementById('groupSelReflectors');
+const groupSelWalls = document.getElementById('groupSelWalls');
+const btnGroupSelectAll = document.getElementById('btnGroupSelectAll');
+const groupSelResult = document.getElementById('groupSelResult');
+const groupSelCount = document.getElementById('groupSelCount');
+const btnGroupLock = document.getElementById('btnGroupLock');
+const btnGroupUnlock = document.getElementById('btnGroupUnlock');
+const btnGroupDelete = document.getElementById('btnGroupDelete');
+const btnGroupClear = document.getElementById('btnGroupClear');
+function setSelectFullEdit(full){
+  state.selectFullEdit = full;
+  selectModeBasic.classList.toggle('active', !full);
+  selectModeFull.classList.toggle('active', full);
+  renderSelectPanel();
+}
+selectModeBasic.addEventListener('click', ()=>setSelectFullEdit(false));
+selectModeFull.addEventListener('click', ()=>setSelectFullEdit(true));
+selectBasicName.addEventListener('change', ()=>{
+  const t = state.selectBasic;
+  if(!t) return;
+  const layer = getLayer(t.layerId);
+  if(!layer) return;
+  const v = selectBasicName.value.trim();
+  if(!v){ renderSelectPanel(); return; }
+  if(t.kind==='navPoint'){
+    pushUndo(layer);
+    if(renameNavPoint(layer, t.instanceName, v)){ t.instanceName = v; scheduleAutosave(); requestDraw(); }
+  } else if(t.kind==='area'){
+    const area = layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[t.areaIndex];
+    if(area){ pushUndo(layer); area.instanceName = v; scheduleAutosave(); requestDraw(); }
+  }
+  renderSelectPanel();
+});
+function selectBasicApplyPos(){
+  const t = state.selectBasic;
+  if(!t) return;
+  const layer = getLayer(t.layerId);
+  if(!layer) return;
+  const wx = parseFloat(selectBasicX.value), wy = parseFloat(selectBasicY.value);
+  if(isNaN(wx) || isNaN(wy)) return;
+  if(t.kind==='navPoint'){
+    const pt = findNavPointByName(layer, t.instanceName);
+    if(!pt || isNavPointPositionLocked(layer, pt)) return;
+    pushUndo(layer);
+    const [lx,ly] = worldToLayer(layer, wx, wy);
+    pt.pos.x = round3(lx); pt.pos.y = round3(ly);
+    syncCurvesForPoint(layer, pt.instanceName);
+    scheduleAutosave(); requestDraw();
+  } else if(t.kind==='area'){
+    const area = layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[t.areaIndex];
+    if(!area || isAreaLocked(area)) return;
+    pushUndo(layer);
+    const rect = rectFromPosGroup(area.posGroup);
+    const [lx,ly] = worldToLayer(layer, wx, wy);
+    area.posGroup = posGroupFromRect(lx, ly, rect.w, rect.h, rect.rot);
+    scheduleAutosave(); requestDraw();
+  } else if(t.kind==='reflector'){
+    const r = layer.reflectors[t.index];
+    if(!r) return;
+    pushUndo(layer);
+    const [lx,ly] = worldToLayer(layer, wx, wy);
+    r.x = round3(lx); r.y = round3(ly);
+    scheduleAutosave(); requestDraw();
+  }
+}
+selectBasicX.addEventListener('change', selectBasicApplyPos);
+selectBasicY.addEventListener('change', selectBasicApplyPos);
 const optsErase = document.getElementById('opts-erase');
 const optsDraw = document.getElementById('opts-draw');
 const optsReflector = document.getElementById('opts-reflector');
-const optsSelect = document.getElementById('opts-select');
+const optsBoxErase = document.getElementById('opts-boxerase');
 const optsAlign = document.getElementById('opts-align');
 const optsDist = document.getElementById('opts-dist');
 const optsConstraints = document.getElementById('opts-constraints');
 const optsPattern = document.getElementById('opts-pattern');
 const optsNav = document.getElementById('opts-nav');
+const optsPath = document.getElementById('opts-path');
+const pathToolHint = document.getElementById('pathToolHint');
 const toolStatus = document.getElementById('toolStatus');
 const noLayerBanner = document.getElementById('noLayerBanner');
 const canvasEl = document.getElementById('canvas');
 
-const TOOL_LABELS = { pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', select:'Rectangle select', measure:'Ruler', nav:'Nav points', area:'Reflector area', align:'Align to line', dist:'Dimension', constraints:'Constrain', pattern:'Linear pattern' };
-const TOOL_NEEDS_LAYER = { move:true, rotate:true, erase:true, draw:true, reflector:true, select:true, pan:false, measure:false, nav:true, area:true, align:true, dist:false, constraints:false, pattern:true };
+const TOOL_LABELS = { select:'Select', pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', boxerase:'Box erase', measure:'Ruler', nav:'Nav points', path:'Path', area:'Reflector area', align:'Align to line', dist:'Dimension', constraints:'Constrain', pattern:'Linear pattern' };
+const TOOL_NEEDS_LAYER = { select:true, move:true, rotate:true, erase:true, draw:true, reflector:true, boxerase:true, pan:false, measure:false, nav:true, path:true, area:true, align:true, dist:false, constraints:false, pattern:true };
 
 function updateToolStatus(){
   const tool = state.tool;
@@ -2588,17 +2862,23 @@ function setTool(tool){
   if(tool!=='constraints'){ closeRelToolbar(); }
   if(tool!=='pattern' && tool!=='pan'){ state.patDraft = null; state.selectedPattern = null; state.selectedGridPattern = null; }
   closeRelMenu();
+  closeIsolateMenu();
   state.tool = tool;
   toolButtons.forEach(b=>b.classList.toggle('active', b.dataset.tool===tool));
   optsErase.hidden = tool!=='erase';
   optsDraw.hidden = tool!=='draw';
   optsReflector.hidden = tool!=='reflector';
+  optsBoxErase.hidden = tool!=='boxerase';
   optsSelect.hidden = tool!=='select';
   optsAlign.hidden = tool!=='align';
   optsDist.hidden = tool!=='dist';
   optsConstraints.hidden = tool!=='constraints';
   optsPattern.hidden = tool!=='pattern';
   optsNav.hidden = tool!=='nav';
+  optsPath.hidden = !(tool==='nav' || tool==='path');
+  pathToolHint.textContent = tool==='path'
+    ? 'Drag from one nav point to another to add a path with these settings. Click an existing path to select/edit it, or drag its handles to reshape it.'
+    : 'Shift-drag from one nav point to another to add a path with these settings.';
   canvasEl.className = 'tool-'+tool;
   updateToolStatus();
   renderNavPointPanel();
@@ -2610,7 +2890,11 @@ function setTool(tool){
   renderPatternPanel();
   requestDraw();
 }
-toolButtons.forEach(b=>b.addEventListener('click', ()=>setTool(b.dataset.tool)));
+// A manual tool pick (toolbar click or keyboard shortcut) always clears the
+// "I'm here because Select's Full-edit mode sent me" flag — only that kind
+// of hand-off should make an empty-canvas click bounce back to Select.
+function setToolManual(tool){ state.selectFullEditActive = false; setTool(tool); }
+toolButtons.forEach(b=>b.addEventListener('click', ()=>setToolManual(b.dataset.tool)));
 
 function setNewPathDirection(dir){
   state.newPathDirection = dir;
@@ -2757,6 +3041,7 @@ document.getElementById('showPatterns').addEventListener('change', e=>{ state.ty
 document.getElementById('showExtra').addEventListener('change', e=>{ state.typeVisibility.extra = e.target.checked; requestDraw(); });
 document.getElementById('showNav').addEventListener('change', e=>{ state.typeVisibility.nav = e.target.checked; requestDraw(); });
 document.getElementById('showFootprint').addEventListener('change', e=>{ state.typeVisibility.footprint = e.target.checked; requestDraw(); });
+document.getElementById('showColorizePaths').addEventListener('change', e=>{ state.typeVisibility.colorizePaths = e.target.checked; requestDraw(); });
 const showOriginEl = document.getElementById('showOrigin');
 showOriginEl.addEventListener('change', e=>{ state.showOrigin = e.target.checked; requestDraw(); });
 document.getElementById('colorizeLayers').addEventListener('change', e=>{ state.uniformLayerColor = !e.target.checked; requestDraw(); });
@@ -2996,29 +3281,130 @@ function footprintFillForClassName(className){
   return FOOTPRINT_FILL_LM;
 }
 
+// Colorize-paths mode: every curve leaving the SAME nav point gets a
+// different color from the others leaving that same point (cycling this
+// palette by sibling index), so a busy junction with several overlapping
+// outgoing paths is still readable. Two points' paths can reuse the same
+// color — only siblings of one point need to differ from each other.
+const COLORIZE_PATH_PALETTE = ['#e8463a','#3fa6ff','#2ecc71','#f5a623','#9b59b6','#1abc9c','#e84393','#8e8e38'];
+function buildPathColorMap(layer){
+  const map = new Map();
+  const curves = layer.extra && layer.extra.advancedCurveList;
+  if(!Array.isArray(curves)) return map;
+  const bySource = new Map();
+  for(const c of curves){
+    if(!c || !c.startPos) continue;
+    const name = c.startPos.instanceName;
+    if(!bySource.has(name)) bySource.set(name, []);
+    bySource.get(name).push(c);
+  }
+  for(const list of bySource.values()){
+    list.forEach((c,i)=>{ map.set(c, COLORIZE_PATH_PALETTE[i % COLORIZE_PATH_PALETTE.length]); });
+  }
+  return map;
+}
+// Purely a rendering aid — never touches curve data, selection, or hit-
+// testing. If any two DIFFERENT paths' on-screen samples come within a few
+// pixels of each other anywhere along their length, both get nudged a
+// little sideways (perpendicular to their own start->end direction) so two
+// overlapping/near-coincident paths read as two distinct lines instead of
+// one. A cheap bounding-box pre-check keeps this from being O(curves^2 x
+// samples^2) on layers with lots of curves that aren't actually near each
+// other.
+function computeCurveOffsets(layer){
+  const offsets = new Map();
+  const list = layer.extra && layer.extra.advancedCurveList;
+  if(!Array.isArray(list) || list.length<2) return offsets;
+  const CLOSE_PX = 6, OFFSET_PX = 3.5, BBOX_MARGIN = CLOSE_PX+2;
+  const info = [];
+  for(const curve of list){
+    if(!curve.startPos || !curve.endPos || !curve.startPos.pos || !curve.endPos.pos) continue;
+    const pts = curveScreenSamples(layer, curve, 16);
+    if(pts.length<2) continue;
+    const [x1,y1] = pts[0], [x2,y2] = pts[pts.length-1];
+    let dx = x2-x1, dy = y2-y1;
+    const len = Math.hypot(dx,dy) || 1;
+    dx/=len; dy/=len;
+    // Canonicalize the direction before taking its perpendicular: a curve
+    // and its exact reverse (the overwhelmingly common "close pair" case —
+    // a bidirectional path's forward+backward curves) must land on the SAME
+    // perpendicular axis, or +1/-1 sides cancel out instead of separating
+    // them. Flipping into one fixed half-plane makes it direction-agnostic.
+    if(dx<0 || (dx===0 && dy<0)){ dx=-dx; dy=-dy; }
+    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+    for(const [px,py] of pts){ minX=Math.min(minX,px); maxX=Math.max(maxX,px); minY=Math.min(minY,py); maxY=Math.max(maxY,py); }
+    info.push({curve, pts, perpX:-dy, perpY:dx, minX, maxX, minY, maxY});
+  }
+  const sideAssigned = new Map();
+  for(let i=0;i<info.length;i++){
+    const A = info[i];
+    for(let j=i+1;j<info.length;j++){
+      const B = info[j];
+      if(A.minX-BBOX_MARGIN>B.maxX || B.minX-BBOX_MARGIN>A.maxX || A.minY-BBOX_MARGIN>B.maxY || B.minY-BBOX_MARGIN>A.maxY) continue;
+      let minD = Infinity;
+      outer: for(const [ax,ay] of A.pts){
+        for(const [bx,by] of B.pts){
+          const d = Math.hypot(ax-bx, ay-by);
+          if(d<minD) minD = d;
+          if(minD<=CLOSE_PX) break outer;
+        }
+      }
+      if(minD>CLOSE_PX) continue;
+      let sa = sideAssigned.get(A.curve), sb = sideAssigned.get(B.curve);
+      if(sa==null && sb==null){ sa=1; sb=-1; }
+      else if(sa==null){ sa = -sb; }
+      else if(sb==null){ sb = -sa; }
+      sideAssigned.set(A.curve, sa);
+      sideAssigned.set(B.curve, sb);
+    }
+  }
+  for(const {curve, perpX, perpY} of info){
+    const side = sideAssigned.get(curve);
+    if(side) offsets.set(curve, [perpX*OFFSET_PX*side, perpY*OFFSET_PX*side]);
+  }
+  return offsets;
+}
+
 function drawNavPoints(layer, pal){
   const extra = layer.extra;
   if(!extra) return;
   const navColor = state.printFriendly ? NAV_COLOR_PRINT : NAV_COLOR;
   const fillColor = state.uniformLayerColor ? pal.ink : (layer.color||PALETTE[0]);
   const isActiveLayer = layer.id===state.activeLayerId;
+  const colorizePaths = state.typeVisibility.colorizePaths;
+  const pathColorMap = colorizePaths ? buildPathColorMap(layer) : null;
 
-  const showHandles = (state.tool==='nav' && isActiveLayer) || state.tool==='constraints' || state.tool==='dist';
+  const showHandles = ((state.tool==='nav' || state.tool==='path') && isActiveLayer) || state.tool==='constraints' || state.tool==='dist';
+  const isoHere = state.isolatedPath && state.isolatedPath.layerId===layer.id ? state.isolatedPath : null;
+  const curveOffsets = computeCurveOffsets(layer);
   if(Array.isArray(extra.advancedCurveList)){
     for(const item of extra.advancedCurveList){
       const sp = item && item.startPos && item.startPos.pos, ep = item && item.endPos && item.endPos.pos;
       const c1 = item && item.controlPos1, c2 = item && item.controlPos2;
       if(!sp || !ep) continue;
+      if(isoHere && item.startPos && item.endPos){
+        const a = item.startPos.instanceName, b = item.endPos.instanceName;
+        const matches = (a===isoHere.nameA && b===isoHere.nameB) || (a===isoHere.nameB && b===isoHere.nameA);
+        if(!matches) continue;
+      }
+      // [ox,oy]: a tiny purely-visual screen-space nudge (see
+      // computeCurveOffsets) applied to every coordinate this curve draws
+      // at, so two near-coincident paths separate into two visible lines.
+      // It never touches wx/wy (world coords), curve data, or hit-testing.
+      const [ox,oy] = curveOffsets.get(item) || [0,0];
       const [wx1,wy1] = layerToWorld(layer, sp.x, sp.y);
       const [wx2,wy2] = layerToWorld(layer, ep.x, ep.y);
-      const [sx1,sy1] = worldToScreen(wx1,wy1), [sx2,sy2] = worldToScreen(wx2,wy2);
+      const [sx1,sy1] = worldToScreen(wx1,wy1).map((v,i)=>v+(i===0?ox:oy));
+      const [sx2,sy2] = worldToScreen(wx2,wy2).map((v,i)=>v+(i===0?ox:oy));
       let wc1=null, wc2=null;
-      ctx.strokeStyle = navColor; ctx.globalAlpha = 0.6; ctx.lineWidth = 1.8;
+      const curveColor = (colorizePaths && pathColorMap.get(item)) || navColor;
+      ctx.strokeStyle = curveColor; ctx.globalAlpha = 0.6; ctx.lineWidth = colorizePaths ? 2.6 : 1.8;
       ctx.beginPath(); ctx.moveTo(sx1,sy1);
       if(c1 && c2){
         wc1 = layerToWorld(layer, c1.x, c1.y);
         wc2 = layerToWorld(layer, c2.x, c2.y);
-        const [scx1,scy1] = worldToScreen(wc1[0],wc1[1]), [scx2,scy2] = worldToScreen(wc2[0],wc2[1]);
+        const [scx1,scy1] = worldToScreen(wc1[0],wc1[1]).map((v,i)=>v+(i===0?ox:oy));
+        const [scx2,scy2] = worldToScreen(wc2[0],wc2[1]).map((v,i)=>v+(i===0?ox:oy));
         ctx.bezierCurveTo(scx1,scy1,scx2,scy2,sx2,sy2);
       } else {
         ctx.lineTo(sx2,sy2);
@@ -3042,26 +3428,32 @@ function drawNavPoints(layer, pal){
       const dY = 3*mt*mt*(p1[1]-p0[1]) + 6*mt*t*(p2[1]-p1[1]) + 3*t*t*(p3[1]-p2[1]);
       const dLen = Math.hypot(dX,dY)||1;
       const armWorld = 11/state.view.scale;
-      const [amx,amy] = worldToScreen(midX,midY);
-      const [atx,aty] = worldToScreen(midX+(dX/dLen)*armWorld, midY+(dY/dLen)*armWorld);
+      const [amx,amy] = worldToScreen(midX,midY).map((v,i)=>v+(i===0?ox:oy));
+      const [atx,aty] = worldToScreen(midX+(dX/dLen)*armWorld, midY+(dY/dLen)*armWorld).map((v,i)=>v+(i===0?ox:oy));
       const segAngle = Math.atan2(aty-amy, atx-amx);
-      ctx.fillStyle = navColor;
+      ctx.fillStyle = curveColor;
       ctx.beginPath();
       ctx.moveTo(atx,aty);
       ctx.lineTo(atx-Math.cos(segAngle-0.45)*9, aty-Math.sin(segAngle-0.45)*9);
       ctx.lineTo(atx-Math.cos(segAngle+0.45)*9, aty-Math.sin(segAngle+0.45)*9);
       ctx.closePath(); ctx.fill();
 
-      // control points + tangent handles, only while actively editing nav points on this layer
+      // control points + tangent handles, only while actively editing nav points on this layer.
+      // In colorize mode these also get bigger (both the hit-test radius in
+      // findControlHandleAt and the drawn size here) and tinted to match
+      // their own path's color, since the whole point of colorizing is to
+      // tell apart handles belonging to different overlapping paths.
       if(showHandles && c1 && c2){
-        const [scx1,scy1] = worldToScreen(wc1[0],wc1[1]), [scx2,scy2] = worldToScreen(wc2[0],wc2[1]);
+        const [scx1,scy1] = worldToScreen(wc1[0],wc1[1]).map((v,i)=>v+(i===0?ox:oy));
+        const [scx2,scy2] = worldToScreen(wc2[0],wc2[1]).map((v,i)=>v+(i===0?ox:oy));
+        const handleHalf = colorizePaths ? 5.5 : 3.5;
         ctx.strokeStyle = 'rgba(124,108,255,0.55)'; ctx.setLineDash([3,3]); ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(scx1,scy1); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(sx2,sy2); ctx.lineTo(scx2,scy2); ctx.stroke();
         ctx.setLineDash([]);
-        ctx.fillStyle = '#ffffff'; ctx.strokeStyle = navColor; ctx.lineWidth = 1.5;
+        ctx.fillStyle = colorizePaths ? curveColor : '#ffffff'; ctx.strokeStyle = colorizePaths ? '#ffffff' : navColor; ctx.lineWidth = 1.5;
         for(const [hx,hy] of [[scx1,scy1],[scx2,scy2]]){
-          ctx.beginPath(); ctx.rect(hx-3.5,hy-3.5,7,7); ctx.fill(); ctx.stroke();
+          ctx.beginPath(); ctx.rect(hx-handleHalf,hy-handleHalf,handleHalf*2,handleHalf*2); ctx.fill(); ctx.stroke();
         }
       }
     }
@@ -3072,7 +3464,7 @@ function drawNavPoints(layer, pal){
       if(!item || !item.pos) continue;
       const [wx,wy] = layerToWorld(layer, item.pos.x, item.pos.y);
       const [sx,sy] = worldToScreen(wx,wy);
-      const isHover = state.tool==='nav' && isActiveLayer && state.hoverNavPoint===item.instanceName;
+      const isHover = (state.tool==='nav' || state.tool==='path') && isActiveLayer && state.hoverNavPoint===item.instanceName;
       const isSelected = isActiveLayer && state.selectedNavPoint && state.selectedNavPoint.instanceName===item.instanceName;
       const useFootprint = state.typeVisibility.footprint && state.robotFootprint;
       const fp = state.robotFootprint;
@@ -3186,8 +3578,32 @@ function drawNavPoints(layer, pal){
       ctx.font = 'bold 11px "IBM Plex Mono", ui-monospace, monospace';
       ctx.fillStyle = state.printFriendly ? '#111111' : '#ffffff';
       ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
-      const labelReach = useFootprint ? Math.max(boxW,boxH)/2 : boxW/2;
-      ctx.fillText(item.instanceName||'', sx+labelReach+4, sy-labelReach+3);
+      // Anchor the label off the box's REAL screen-space bounding corner,
+      // not a fixed unrotated offset — the box itself is drawn rotated to
+      // the point's heading (and, in footprint mode, off-center per
+      // fromLeft/fromBottom), so a fixed "up-right of center" offset only
+      // happened to look right at worldDir==0. At any other heading it
+      // drifted into whatever was actually up-right on screen, which could
+      // be a neighboring point's own box or dimension lines, instead of
+      // clear space just outside this box.
+      let labelX = sx + boxW/2 + 4, labelY = sy - boxH/2 + 3;
+      if(hasDir || useFootprint){
+        const localCorners = useFootprint
+          ? [[-fp.fromBottom*state.view.scale, -fp.fromLeft*state.view.scale],
+             [-fp.fromBottom*state.view.scale+boxH, -fp.fromLeft*state.view.scale],
+             [-fp.fromBottom*state.view.scale, -fp.fromLeft*state.view.scale+boxW],
+             [-fp.fromBottom*state.view.scale+boxH, -fp.fromLeft*state.view.scale+boxW]]
+          : [[-boxW/2,-boxH/2],[boxW/2,-boxH/2],[-boxW/2,boxH/2],[boxW/2,boxH/2]];
+        const cosA = Math.cos(worldDir), sinA = Math.sin(worldDir);
+        let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+        for(const [lx,ly] of localCorners){
+          const rx = lx*cosA + ly*sinA, ry = -lx*sinA + ly*cosA;
+          minX = Math.min(minX, rx); maxX = Math.max(maxX, rx);
+          minY = Math.min(minY, ry); maxY = Math.max(maxY, ry);
+        }
+        labelX = sx + maxX + 4; labelY = sy + minY + 3;
+      }
+      ctx.fillText(item.instanceName||'', labelX, labelY);
       ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
     }
   }
@@ -4137,6 +4553,7 @@ function draw(){
   resolveFixedPositions();
   resolvePairOffsets();
   resolvePickupOffsets();
+  resolvePathPatterns();
   resolveAnchoredControlPoints();
   const pal = currentPalette();
   ctx.fillStyle = pal.bg;
@@ -4379,6 +4796,10 @@ function draw(){
     ctx.setLineDash([]);
   }
 
+  drawSelectHighlights();
+  drawPathPatternHighlights();
+  updateIsolatePopup();
+
   const barMeters = niceScaleMeters(120);
   document.getElementById('scalebarBar').style.width = (barMeters*state.view.scale)+'px';
   document.getElementById('scalebarLabel').textContent = barMeters>=1000 ? (barMeters/1000)+' km' : barMeters+' m';
@@ -4472,13 +4893,22 @@ function isScreenPointInFootprint(layer, pt, sx, sy, ssx, ssy){
   return lx>=xMin && lx<=xMax && ly>=yMin && ly<=yMax;
 }
 // Drop-in replacement for the plain Math.hypot(ssx-sx,ssy-sy) hit-test every
-// tool uses against a nav point's own screen position: scores an in-footprint
-// click as an exact (zero-distance) hit, otherwise falls back to the usual
-// center-distance so the small-icon radius still works when footprint mode
-// is off (or undefined).
+// tool uses against a nav point's own screen position: a click inside this
+// point's own footprint box always counts as a hit (so you can click
+// anywhere on the drawn robot body, not just its tiny center dot/cross),
+// not just when within the usual small pxThreshold. The offset is pushed
+// deeply negative (always beating the pxThreshold comparison every caller
+// uses) while still carrying the REAL on-screen distance underneath, so
+// that when two points' footprints overlap — the normal case for a dense
+// line of Stations — "nearest wins" still picks whichever point's actual
+// center the click is closest to, instead of whichever point happened to
+// be checked first in the list (the previous flat `return 0` bug, which
+// made the center point you were trying to click unselectable whenever an
+// earlier-listed neighbor's footprint also covered that spot).
 function navHitDistance(layer, pt, ssx, ssy, sx, sy){
-  if(state.typeVisibility.footprint && state.robotFootprint && isScreenPointInFootprint(layer, pt, sx, sy, ssx, ssy)) return 0;
-  return Math.hypot(ssx-sx, ssy-sy);
+  const real = Math.hypot(ssx-sx, ssy-sy);
+  if(state.typeVisibility.footprint && state.robotFootprint && isScreenPointInFootprint(layer, pt, sx, sy, ssx, ssy)) return real - 1e6;
+  return real;
 }
 function findNavPointAt(layer, sx, sy, pxThreshold){
   const list = layer.extra && layer.extra.advancedPointList;
@@ -4676,8 +5106,18 @@ function curveScreenSamples(layer, curve, n){
 function findCurveAt(layer, sx, sy, pxThreshold){
   const list = layer.extra && layer.extra.advancedCurveList;
   if(!Array.isArray(list)) return null;
+  // Mirrors the isolation filter drawNavPoints uses when rendering: once a
+  // path is isolated, every other overlapping path is fully hidden, so
+  // hit-testing must skip them too — otherwise a click can never reach the
+  // isolated path if a hidden one happens to be nearer the cursor.
+  const isoHere = state.isolatedPath && state.isolatedPath.layerId===layer.id ? state.isolatedPath : null;
   let best=null, bestD=pxThreshold;
   for(const curve of list){
+    if(isoHere && curve.startPos && curve.endPos){
+      const a = curve.startPos.instanceName, b = curve.endPos.instanceName;
+      const matches = (a===isoHere.nameA && b===isoHere.nameB) || (a===isoHere.nameB && b===isoHere.nameA);
+      if(!matches) continue;
+    }
     const pts = curveScreenSamples(layer, curve, 48);
     for(let i=1;i<pts.length;i++){
       const d = distToSegmentScreen(sx,sy, pts[i-1][0],pts[i-1][1], pts[i][0],pts[i][1]);
@@ -4686,14 +5126,44 @@ function findCurveAt(layer, sx, sy, pxThreshold){
   }
   return best;
 }
+// Unlike findCurveAt (single nearest hit), this returns EVERY path within
+// range of the click, deduped to one entry per path (a path is a forward +
+// backward curve pair sharing both endpoints, so both would otherwise show
+// up as separate near-identical hits) — the right-click isolate menu needs
+// the full list so two overlapping/close paths can be told apart instead of
+// only ever reaching whichever one findCurveAt happens to pick.
+function findAllCurvesNear(layer, sx, sy, pxThreshold){
+  const list = layer.extra && layer.extra.advancedCurveList;
+  if(!Array.isArray(list)) return [];
+  const byPair = new Map();
+  for(const curve of list){
+    if(!curve.startPos || !curve.endPos) continue;
+    const pts = curveScreenSamples(layer, curve, 48);
+    let bestD = Infinity;
+    for(let i=1;i<pts.length;i++){
+      const d = distToSegmentScreen(sx,sy, pts[i-1][0],pts[i-1][1], pts[i][0],pts[i][1]);
+      if(d<bestD) bestD = d;
+    }
+    if(bestD>pxThreshold) continue;
+    const a = curve.startPos.instanceName, b = curve.endPos.instanceName;
+    const key = [a,b].sort().join('|');
+    const existing = byPair.get(key);
+    if(!existing || bestD<existing.d) byPair.set(key, {nameA:a, nameB:b, d:bestD});
+  }
+  return [...byPair.values()].sort((x,y)=>x.d-y.d);
+}
 
 function findControlHandleAt(layer, curve, sx, sy, pxThreshold){
   if(!curve || !curve.controlPos1 || !curve.controlPos2) return null;
+  // Colorize mode draws these handles bigger (see drawNavPoints) specifically
+  // to make them easier to grab at a busy junction, so the hit radius grows
+  // to match rather than leaving a bigger target with the old small radius.
+  const threshold = pxThreshold + (state.typeVisibility.colorizePaths ? 6 : 0);
   for(const which of ['controlPos1','controlPos2']){
     const cp = curve[which];
     const [wx,wy] = layerToWorld(layer, cp.x, cp.y);
     const [ssx,ssy] = worldToScreen(wx,wy);
-    if(Math.hypot(ssx-sx, ssy-sy) <= pxThreshold) return which;
+    if(Math.hypot(ssx-sx, ssy-sy) <= threshold) return which;
   }
   return null;
 }
@@ -5336,6 +5806,100 @@ function resolveAllGridPatterns(){
     }
   }
 }
+// ---- Path patterns: a source path (identified by its two endpoint names)
+// drives the shape (anchored control-point along/perp, re-pointed at each
+// target's own endpoints) and direction/movestyle of a set of target paths,
+// live — editing the source later re-applies to every target on the next
+// frame, the same "seed keeps driving instances" relationship the point
+// Pattern/Grid systems already have, just for curve shape instead of
+// position. ----
+function pathPatternKeyMatches(key, nameA, nameB){
+  return (key.nameA===nameA && key.nameB===nameB) || (key.nameA===nameB && key.nameB===nameA);
+}
+function findPathPatternBySource(layer, nameA, nameB){
+  return state.pathPatterns.find(p=>p.layerId===layer.id && pathPatternKeyMatches(p.source, nameA, nameB)) || null;
+}
+function findPathPatternByTarget(layer, nameA, nameB){
+  for(const p of state.pathPatterns){
+    if(p.layerId!==layer.id) continue;
+    const idx = p.targets.findIndex(t=>pathPatternKeyMatches(t, nameA, nameB));
+    if(idx>=0) return {pattern:p, targetIndex:idx};
+  }
+  return null;
+}
+// A control point's position expressed relative to its own curve's chord
+// (start->end): t is the fraction along the chord, perp is the
+// perpendicular offset as a fraction of the chord length. Unlike the
+// __cpAnchor system (which is tied to a specific nav point's heading, for
+// Station/Pickup curves), this works for ANY two curves regardless of
+// whether either endpoint has a heading — which is what lets the pattern
+// system copy a plain, un-anchored curve's shape onto a target whose
+// endpoints sit at a completely different distance/angle from each other.
+function chordRelativeControl(p0, p1, cp){
+  const dx = p1.x-p0.x, dy = p1.y-p0.y;
+  const lenSq = dx*dx+dy*dy;
+  if(lenSq<1e-9) return {t:0, perp:0};
+  const len = Math.sqrt(lenSq);
+  const ux = dx/len, uy = dy/len, px = -uy, py = ux;
+  const vx = cp.x-p0.x, vy = cp.y-p0.y;
+  return { t: (vx*ux+vy*uy)/len, perp: (vx*px+vy*py)/len };
+}
+function applyChordRelativeControl(p0, p1, rel){
+  const dx = p1.x-p0.x, dy = p1.y-p0.y;
+  const len = Math.hypot(dx,dy);
+  if(len<1e-9) return {x:round3(p0.x), y:round3(p0.y)};
+  const ux = dx/len, uy = dy/len, px = -uy, py = ux;
+  return { x: round3(p0.x + rel.t*len*ux + rel.perp*len*px), y: round3(p0.y + rel.t*len*uy + rel.perp*len*py) };
+}
+// Copies one leg's shape from a source curve onto a target curve. If the
+// source control point is anchored (Station/Pickup curve — see
+// createPickupSecondPath/setPickupHandleMode), re-point that same anchor at
+// the target's own endpoint name, same as before; resolveAnchoredControlPoints
+// fills in the actual controlPos from it afterward. Otherwise — the common
+// case for a plain hand-drawn path — fall back to a chord-relative copy so
+// the target still ends up with the source's actual shape instead of
+// keeping whatever controlPos it already had.
+function copyCurveShapeLeg(sourceCurve, targetCurve, anchorKey, controlKey, targetPointName){
+  if(!targetCurve) return;
+  const srcAnchor = sourceCurve && sourceCurve[anchorKey];
+  if(srcAnchor){
+    targetCurve[anchorKey] = {pointName:targetPointName, along:srcAnchor.along, perp:srcAnchor.perp};
+    return;
+  }
+  delete targetCurve[anchorKey];
+  const sp = sourceCurve && sourceCurve.startPos && sourceCurve.startPos.pos;
+  const ep = sourceCurve && sourceCurve.endPos && sourceCurve.endPos.pos;
+  const cp = sourceCurve && sourceCurve[controlKey];
+  const tp0 = targetCurve.startPos && targetCurve.startPos.pos;
+  const tp1 = targetCurve.endPos && targetCurve.endPos.pos;
+  if(sp && ep && cp && tp0 && tp1){
+    targetCurve[controlKey] = applyChordRelativeControl(tp0, tp1, chordRelativeControl(sp, ep, cp));
+  }
+}
+function resolvePathPatterns(){
+  for(const pat of state.pathPatterns){
+    const layer = getLayer(pat.layerId);
+    if(!layer) continue;
+    const srcFwd = findCurveByEndpoints(layer, pat.source.nameA, pat.source.nameB);
+    const srcBwd = findCurveByEndpoints(layer, pat.source.nameB, pat.source.nameA);
+    for(const t of pat.targets){
+      const tgtFwd = findCurveByEndpoints(layer, t.nameA, t.nameB);
+      const tgtBwd = findCurveByEndpoints(layer, t.nameB, t.nameA);
+      if(srcFwd && tgtFwd){
+        setIntProperty(tgtFwd, 'direction', getIntProperty(srcFwd, 'direction', 0));
+        setIntProperty(tgtFwd, 'movestyle', getIntProperty(srcFwd, 'movestyle', 0));
+        copyCurveShapeLeg(srcFwd, tgtFwd, '__cpAnchor1', 'controlPos1', t.nameA);
+        copyCurveShapeLeg(srcFwd, tgtFwd, '__cpAnchor2', 'controlPos2', t.nameB);
+      }
+      if(srcBwd && tgtBwd){
+        setIntProperty(tgtBwd, 'direction', getIntProperty(srcBwd, 'direction', 0));
+        setIntProperty(tgtBwd, 'movestyle', getIntProperty(srcBwd, 'movestyle', 0));
+        copyCurveShapeLeg(srcBwd, tgtBwd, '__cpAnchor1', 'controlPos1', t.nameB);
+        copyCurveShapeLeg(srcBwd, tgtBwd, '__cpAnchor2', 'controlPos2', t.nameA);
+      }
+    }
+  }
+}
 function setGridPatternSize(grid, newCountX, newCountY, layer){
   layer = layer || getLayer(grid.layerId);
   if(!layer) return;
@@ -5416,6 +5980,19 @@ function pruneGridPatterns(){
       if(!cell.skipped && !findNavPointByName(layer, cell.name)) cell.skipped = true;
     }
   }
+}
+// Drops a path pattern entirely once its source path is gone, and drops
+// just the individual targets whose path no longer exists — mirrors how
+// pruneGridPatterns treats a missing seed vs. a missing cell.
+function prunePathPatterns(){
+  state.pathPatterns = state.pathPatterns.filter(pat=>{
+    const layer = getLayer(pat.layerId);
+    if(!layer) return false;
+    const srcExists = !!(findCurveByEndpoints(layer, pat.source.nameA, pat.source.nameB) || findCurveByEndpoints(layer, pat.source.nameB, pat.source.nameA));
+    if(!srcExists) return false;
+    pat.targets = pat.targets.filter(t=>!!(findCurveByEndpoints(layer, t.nameA, t.nameB) || findCurveByEndpoints(layer, t.nameB, t.nameA)));
+    return true;
+  });
 }
 
 // ---- grouped resolution (relations that share an axis, plus any Distance
@@ -5795,6 +6372,7 @@ function pickupApForPoint(layer, pt){
 // toggle is on) — used to decide whether direct dragging is allowed.
 function isNavPointPositionLocked(layer, pt){
   if(!pt) return false;
+  if(pt.__locked) return true;
   if(isStationFollower(pt)){
     const ap = getStationPartner(layer, pt);
     return !(ap && ap.__pairedLM && ap.__pairedLM.distanceFree);
@@ -6433,6 +7011,38 @@ function renderPatternPanel(){
     const skippedCount = Object.values(grid.cells).filter(c=>c.skipped).length;
     document.getElementById('gridSelSkipCount').textContent = skippedCount+' / '+total;
   }
+  renderPathPatternToolPanel();
+}
+// Building/editing a path pattern lives entirely in the Pattern tool now:
+// clicking a path (handled in the tool's own mousedown branch) arms it as
+// the source immediately, no separate button — this just reflects whatever
+// state.pathPatternArm / state.selectedPath currently is.
+function renderPathPatternToolPanel(){
+  const sel = state.selectedPath;
+  const layer = sel ? getLayer(sel.layerId) : null;
+  const show = state.tool==='pattern' && (sel || state.pathPatternArm);
+  pathPatBox.hidden = !show;
+  if(!show) return;
+  const globalArmed = !!state.pathPatternArm;
+  const ref = globalArmed ? state.pathPatternArm : sel;
+  pathPatSourceLabel.textContent = ref ? (ref.nameA+' ⇄ '+ref.nameB) : '—';
+  const nameA = sel ? sel.nameA : null, nameB = sel ? sel.nameB : null;
+  const asSource = (layer && nameA) ? findPathPatternBySource(layer, nameA, nameB) : null;
+  const asTarget = (layer && nameA) ? findPathPatternByTarget(layer, nameA, nameB) : null;
+  pathPatternHint.hidden = globalArmed;
+  pathPatternSourceStat.hidden = !asTarget;
+  if(asTarget) pathPatternSourceLabel.textContent = asTarget.pattern.source.nameA+' ⇄ '+asTarget.pattern.source.nameB;
+  pathPatternTargetCountStat.hidden = !((asSource && asSource.targets.length) || (globalArmed && state.pathPatternArm));
+  if(globalArmed && layer){
+    const armedPat = findPathPatternBySource(layer, state.pathPatternArm.nameA, state.pathPatternArm.nameB);
+    pathPatternTargetCount.textContent = armedPat ? armedPat.targets.length : 0;
+  } else if(asSource){
+    pathPatternTargetCount.textContent = asSource.targets.length;
+  }
+  pathPatternArmedHint.hidden = !globalArmed;
+  btnPathPatternDone.hidden = !globalArmed;
+  btnPathPatternClear.hidden = !(asSource && asSource.targets.length && !globalArmed);
+  btnPathPatternDetach.hidden = !(asTarget && !globalArmed);
 }
 document.getElementById('patDraftTypeLinear').addEventListener('click', ()=>{ if(state.patDraft){ state.patDraft.type='linear'; renderPatternPanel(); requestDraw(); } });
 document.getElementById('patDraftTypeGrid').addEventListener('click', ()=>{ if(state.patDraft){ state.patDraft.type='grid'; renderPatternPanel(); requestDraw(); } });
@@ -6639,6 +7249,65 @@ document.addEventListener('pointerdown', (e)=>{
   if(!patMenuEl.contains(e.target)) closePatMenu();
 });
 
+// ---- Isolate path: right-click near one or more paths lists them (so two
+// overlapping/close paths can be told apart), picking one hides every OTHER
+// path on that layer. A small floating popup stays anchored to the
+// isolated path (repositioned every draw()) with a one-click way back. ----
+const isolateMenuEl = document.getElementById('isolateMenu');
+const isolatePopupEl = document.getElementById('isolatePopup');
+const isolatePopupLabel = document.getElementById('isolatePopupLabel');
+const btnShowAllPaths = document.getElementById('btnShowAllPaths');
+function closeIsolateMenu(){ isolateMenuEl.hidden = true; state.isolateMenuFor = null; }
+function openIsolateMenu(layer, candidates, sx, sy){
+  state.isolateMenuFor = {layerId:layer.id, candidates};
+  let html = '<div class="rel-menu-title">'+(candidates.length>1 ? candidates.length+' paths here' : 'Isolate path')+'</div>';
+  for(const c of candidates){
+    html += '<div class="rel-menu-item" data-isolate-pair="'+c.nameA+'|'+c.nameB+'"><span>'+c.nameA+' ⇄ '+c.nameB+'</span></div>';
+  }
+  if(state.isolatedPath && state.isolatedPath.layerId===layer.id){
+    html += '<div class="rel-menu-divider"></div><div class="rel-menu-item" data-isolate-clear="1"><span>Show all paths</span></div>';
+  }
+  isolateMenuEl.innerHTML = html;
+  const mainRect = mainEl.getBoundingClientRect();
+  isolateMenuEl.style.left = Math.min(sx, mainRect.width-180)+'px';
+  isolateMenuEl.style.top = Math.min(sy, mainRect.height-80)+'px';
+  isolateMenuEl.hidden = false;
+}
+isolateMenuEl.addEventListener('click', (e)=>{
+  const clearItem = e.target.closest('.rel-menu-item[data-isolate-clear]');
+  const pairItem = e.target.closest('.rel-menu-item[data-isolate-pair]');
+  if(clearItem){
+    state.isolatedPath = null;
+  } else if(pairItem){
+    const [nameA, nameB] = pairItem.dataset.isolatePair.split('|');
+    const for_ = state.isolateMenuFor;
+    if(for_) state.isolatedPath = {layerId:for_.layerId, nameA, nameB};
+  }
+  closeIsolateMenu();
+  requestDraw();
+});
+document.addEventListener('pointerdown', (e)=>{
+  if(!state.isolateMenuFor) return;
+  if(!isolateMenuEl.contains(e.target)) closeIsolateMenu();
+});
+btnShowAllPaths.addEventListener('click', ()=>{ state.isolatedPath = null; requestDraw(); });
+// Keeps the "Show all paths" popup glued to the isolated path's current
+// on-screen midpoint — called every draw() so it tracks pan/zoom, and
+// self-clears if the isolated path got deleted or its layer disappeared.
+function updateIsolatePopup(){
+  const iso = state.isolatedPath;
+  if(!iso){ isolatePopupEl.hidden = true; return; }
+  const layer = getLayer(iso.layerId);
+  const curve = layer ? (findCurveByEndpoints(layer, iso.nameA, iso.nameB) || findCurveByEndpoints(layer, iso.nameB, iso.nameA)) : null;
+  if(!layer || !curve || !curve.startPos || !curve.endPos){ state.isolatedPath = null; isolatePopupEl.hidden = true; return; }
+  const pts = curveScreenSamples(layer, curve, 24);
+  const [mx,my] = pts[Math.floor(pts.length/2)];
+  isolatePopupEl.style.left = mx+'px';
+  isolatePopupEl.style.top = my+'px';
+  isolatePopupLabel.textContent = iso.nameA+' ⇄ '+iso.nameB;
+  isolatePopupEl.hidden = false;
+}
+
 const relMenuEl = document.getElementById('relMenu');
 function closeRelMenu(){
   relMenuEl.hidden = true;
@@ -6720,16 +7389,22 @@ canvasEl.addEventListener('contextmenu', (e)=>{
   const rect = canvasEl.getBoundingClientRect();
   const sx = e.clientX-rect.left, sy = e.clientY-rect.top;
   const layer = getEditableActiveLayer();
+  // Isolate-path: only in the tools where you're actually working with
+  // paths, and only when the Show popover has paths turned on at all.
+  if(layer && state.typeVisibility.nav && (state.tool==='path' || state.tool==='nav' || state.tool==='select')){
+    const candidates = findAllCurvesNear(layer, sx, sy, 14);
+    if(candidates.length){ e.preventDefault(); closeRelMenu(); closePatMenu(); openIsolateMenu(layer, candidates, sx, sy); return; }
+  }
   const patTarget = layer ? findPatternMenuTargetAt(layer, sx, sy, 14) : null;
   // While actively working the Pattern tool, right-click should skip/un-skip
   // the instance under the cursor — findRelationPointAt matches ANY nearby
   // nav point (not just ones with a relation), so it would otherwise always
   // win here and the pattern menu would be unreachable.
-  if(state.tool==='pattern' && patTarget){ e.preventDefault(); closeRelMenu(); openPatMenu(patTarget, sx, sy); return; }
+  if(state.tool==='pattern' && patTarget){ e.preventDefault(); closeRelMenu(); closeIsolateMenu(); openPatMenu(patTarget, sx, sy); return; }
   const hit = findRelationPointAt(sx, sy, 14);
-  if(hit){ e.preventDefault(); closePatMenu(); openRelMenu(hit, sx, sy); return; }
-  if(patTarget){ e.preventDefault(); closeRelMenu(); openPatMenu(patTarget, sx, sy); return; }
-  closeRelMenu(); closePatMenu();
+  if(hit){ e.preventDefault(); closePatMenu(); closeIsolateMenu(); openRelMenu(hit, sx, sy); return; }
+  if(patTarget){ e.preventDefault(); closeRelMenu(); closeIsolateMenu(); openPatMenu(patTarget, sx, sy); return; }
+  closeRelMenu(); closePatMenu(); closeIsolateMenu();
 });
 document.getElementById('relBtnHFixed').addEventListener('click', ()=>applyRelationFromSelection('horizontal'));
 document.getElementById('relBtnVFixed').addEventListener('click', ()=>applyRelationFromSelection('vertical'));
@@ -7150,6 +7825,275 @@ function findConstrainableTargetAt(sx, sy, pxThreshold){
   return best;
 }
 
+// The Select tool's own hit-test: tries, in order of precision (smallest
+// target first), a nav point, a path/curve, an area body, a reflector, then
+// a manual (wall) line. Returns null if nothing in this layer is under the
+// click. navPoint and area both carry a `tool` field because those two
+// already have a genuine "click an existing instance to select it" pattern
+// in their own dedicated tool — Full-edit mode hands off to that tool for
+// them. Reflectors and manual lines don't have that pattern (their own
+// tools delete-on-click), so they carry `tool:null` and only ever get the
+// lightweight Basic-select treatment, even while Full-edit mode is on.
+function detectSelectTarget(layer, sx, sy){
+  if(!layer) return null;
+  // Each check is gated behind the same Show-popover flag the draw loop
+  // uses for that type, so the Select tool can never click-select something
+  // that isn't actually drawn on screen right now.
+  if(state.typeVisibility.nav){
+    const navHit = findNavPointAt(layer, sx, sy, 14);
+    if(navHit) return {tool:'nav', kind:'navPoint', layerId:layer.id, instanceName:navHit.instanceName};
+    const curveHit = findCurveAt(layer, sx, sy, 14);
+    if(curveHit) return {tool:'nav', kind:'path', layerId:layer.id, nameA:curveHit.startPos.instanceName, nameB:curveHit.endPos.instanceName};
+  }
+  if(state.typeVisibility.areas){
+    const areaIdx = findAreaBodyAt(layer, sx, sy);
+    if(areaIdx>=0) return {tool:'area', kind:'area', layerId:layer.id, areaIndex:areaIdx};
+  }
+  if(state.typeVisibility.reflector){
+    const reflIdx = findReflectorAt(layer, sx, sy, 14);
+    if(reflIdx>=0) return {tool:null, kind:'reflector', layerId:layer.id, index:reflIdx};
+  }
+  if(state.typeVisibility.extra){
+    const lineIdx = findLineBodyAt(layer, sx, sy, 8);
+    if(lineIdx>=0) return {tool:null, kind:'line', layerId:layer.id, index:lineIdx};
+  }
+  return null;
+}
+// Basic-select mode (and Full-edit mode for the types with no dedicated
+// select-to-edit tool) just remembers what was clicked and shows a small
+// read/write Name+X+Y panel for it, without switching state.tool at all.
+function applySelectBasicClick(target){
+  state.selectBasic = target;
+  renderSelectPanel();
+  requestDraw();
+}
+function renderSelectPanel(){
+  selectFullEditHint.hidden = !state.selectFullEdit;
+  const t = state.selectBasic;
+  const info = selectBasicInfo;
+  selectEmptyHint.hidden = !!t;
+  info.hidden = !t;
+  if(!t) return;
+  const layer = getLayer(t.layerId);
+  if(!layer){ state.selectBasic = null; info.hidden = true; selectEmptyHint.hidden = false; return; }
+  selectBasicNameRow.hidden = (t.kind==='reflector' || t.kind==='line' || t.kind==='path');
+  if(t.kind==='navPoint'){
+    const pt = findNavPointByName(layer, t.instanceName);
+    if(!pt){ state.selectBasic = null; renderSelectPanel(); return; }
+    selectBasicLabel.textContent = 'Nav point';
+    if(document.activeElement!==selectBasicName) selectBasicName.value = pt.instanceName;
+    const [wx,wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
+    if(document.activeElement!==selectBasicX) selectBasicX.value = round3(wx);
+    if(document.activeElement!==selectBasicY) selectBasicY.value = round3(wy);
+  } else if(t.kind==='path'){
+    selectBasicLabel.textContent = 'Path: '+t.nameA+' → '+t.nameB;
+    selectBasicX.value = ''; selectBasicY.value = '';
+  } else if(t.kind==='area'){
+    const area = layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[t.areaIndex];
+    if(!area){ state.selectBasic = null; renderSelectPanel(); return; }
+    selectBasicLabel.textContent = 'Area';
+    if(document.activeElement!==selectBasicName) selectBasicName.value = area.instanceName||'';
+    const rect = rectFromPosGroup(area.posGroup);
+    const [wx,wy] = layerToWorld(layer, rect.cx, rect.cy);
+    if(document.activeElement!==selectBasicX) selectBasicX.value = round3(wx);
+    if(document.activeElement!==selectBasicY) selectBasicY.value = round3(wy);
+  } else if(t.kind==='reflector'){
+    const r = layer.reflectors[t.index];
+    if(!r){ state.selectBasic = null; renderSelectPanel(); return; }
+    selectBasicLabel.textContent = 'Reflector';
+    const [wx,wy] = layerToWorld(layer, r.x, r.y);
+    if(document.activeElement!==selectBasicX) selectBasicX.value = round3(wx);
+    if(document.activeElement!==selectBasicY) selectBasicY.value = round3(wy);
+  } else if(t.kind==='line'){
+    const ln = layer.manualLines[t.index];
+    if(!ln){ state.selectBasic = null; renderSelectPanel(); return; }
+    selectBasicLabel.textContent = 'Wall segment';
+    selectBasicX.value = ''; selectBasicY.value = '';
+  }
+}
+
+// ---- Group select: pick every object of chosen types in one layer, then
+// lock/unlock/delete them all in one action. ----
+function refreshGroupSelectLayerOptions(){
+  // layer.id is a number but a <select>'s own .value is always a string, so
+  // every comparison against it needs Number(...) first — this is the same
+  // string/number mismatch this codebase already works around elsewhere
+  // (see the direction/movestyle selects' Number(o.value) checks).
+  const prev = Number(groupSelLayer.value);
+  groupSelLayer.innerHTML = state.layers.map(l=>'<option value="'+l.id+'">'+l.name+'</option>').join('');
+  if(state.layers.some(l=>l.id===prev)) groupSelLayer.value = prev;
+  else if(state.activeLayerId) groupSelLayer.value = state.activeLayerId;
+}
+function collectGroupSelectMatches(){
+  const layer = getLayer(Number(groupSelLayer.value));
+  const out = [];
+  if(!layer) return out;
+  if(groupSelNav.checked){
+    const pts = layer.extra && layer.extra.advancedPointList;
+    if(Array.isArray(pts)) for(const pt of pts) out.push({kind:'navPoint', layerId:layer.id, instanceName:pt.instanceName});
+  }
+  if(groupSelPaths.checked){
+    const curves = layer.extra && layer.extra.advancedCurveList;
+    if(Array.isArray(curves)){
+      const seen = new Set();
+      for(const c of curves){
+        if(!c.startPos || !c.endPos) continue;
+        const key = [c.startPos.instanceName, c.endPos.instanceName].sort().join('|');
+        if(seen.has(key)) continue;
+        seen.add(key);
+        out.push({kind:'path', layerId:layer.id, nameA:c.startPos.instanceName, nameB:c.endPos.instanceName});
+      }
+    }
+  }
+  if(groupSelAreas.checked){
+    const areas = layer.extra && layer.extra.advancedAreaList;
+    if(Array.isArray(areas)) areas.forEach((a,i)=>out.push({kind:'area', layerId:layer.id, areaIndex:i}));
+  }
+  if(groupSelReflectors.checked) layer.reflectors.forEach((r,i)=>out.push({kind:'reflector', layerId:layer.id, index:i}));
+  if(groupSelWalls.checked) layer.manualLines.forEach((l,i)=>out.push({kind:'line', layerId:layer.id, index:i}));
+  return out;
+}
+function renderGroupSelectResult(){
+  const n = state.groupSelection.length;
+  groupSelResult.hidden = n===0;
+  groupSelCount.textContent = n;
+  btnGroupLock.hidden = btnGroupUnlock.hidden = btnGroupDelete.hidden = btnGroupClear.hidden = n===0;
+}
+function groupSelectionByLayer(){
+  const byLayer = new Map();
+  for(const item of state.groupSelection){
+    if(!byLayer.has(item.layerId)) byLayer.set(item.layerId, []);
+    byLayer.get(item.layerId).push(item);
+  }
+  return byLayer;
+}
+function applyGroupLock(locked){
+  for(const [layerId, items] of groupSelectionByLayer()){
+    const layer = getLayer(layerId);
+    if(!layer) continue;
+    pushUndo(layer);
+    for(const item of items){
+      let obj = null;
+      if(item.kind==='navPoint') obj = findNavPointByName(layer, item.instanceName);
+      else if(item.kind==='area') obj = layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[item.areaIndex];
+      else if(item.kind==='reflector') obj = layer.reflectors[item.index];
+      else if(item.kind==='line') obj = layer.manualLines[item.index];
+      // paths carry no position of their own to lock (their shape locks via
+      // the existing per-curve "via Dimension tool" controls instead)
+      if(obj){ if(locked) obj.__locked = true; else delete obj.__locked; }
+    }
+  }
+  scheduleAutosave(); requestDraw(); renderDetailPanel(); renderAreaPanel(); renderNavPointPanel();
+}
+btnGroupSelectAll.addEventListener('click', ()=>{
+  state.groupSelection = collectGroupSelectMatches();
+  renderGroupSelectResult();
+  requestDraw();
+});
+btnGroupClear.addEventListener('click', ()=>{ state.groupSelection = []; renderGroupSelectResult(); requestDraw(); });
+btnGroupLock.addEventListener('click', ()=>applyGroupLock(true));
+btnGroupUnlock.addEventListener('click', ()=>applyGroupLock(false));
+btnGroupDelete.addEventListener('click', ()=>{
+  for(const [layerId, items] of groupSelectionByLayer()){
+    const layer = getLayer(layerId);
+    if(!layer) continue;
+    pushUndo(layer);
+    for(const item of items.filter(i=>i.kind==='navPoint')) deleteNavPoint(layer, item.instanceName);
+    for(const item of items.filter(i=>i.kind==='path')){
+      if(!layer.extra || !Array.isArray(layer.extra.advancedCurveList)) continue;
+      layer.extra.advancedCurveList = layer.extra.advancedCurveList.filter(c=>{
+        if(!c.startPos || !c.endPos) return true;
+        const a=c.startPos.instanceName, b=c.endPos.instanceName;
+        return !((a===item.nameA && b===item.nameB) || (a===item.nameB && b===item.nameA));
+      });
+    }
+    const areaObjs = items.filter(i=>i.kind==='area').map(i=>layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[i.areaIndex]).filter(Boolean);
+    if(areaObjs.length) removeAreasWithIndexFix(layer, a=>areaObjs.includes(a));
+    const reflIdxSet = new Set(items.filter(i=>i.kind==='reflector').map(i=>i.index));
+    if(reflIdxSet.size) removeReflectorsWithIndexFix(layer, (r,i)=>reflIdxSet.has(i));
+    const lineIdxs = items.filter(i=>i.kind==='line').map(i=>i.index).sort((a,b)=>b-a);
+    for(const idx of lineIdxs) layer.manualLines.splice(idx,1);
+  }
+  state.groupSelection = [];
+  renderGroupSelectResult();
+  scheduleAutosave(); requestDraw(); renderDetailPanel(); renderAreaPanel(); renderNavPointPanel(); renderPathPanel();
+});
+// A visible highlight ring/outline for whatever the Select tool currently
+// has picked — a single Basic-select click, and/or the whole group-select
+// batch — so "is this actually selected" is never ambiguous.
+function drawSelectHighlights(){
+  if(state.tool!=='select') return;
+  const items = [];
+  if(state.selectBasic) items.push(state.selectBasic);
+  for(const it of state.groupSelection) items.push(it);
+  if(!items.length) return;
+  ctx.save();
+  ctx.strokeStyle = '#00c2ff'; ctx.lineWidth = 3; ctx.setLineDash([]);
+  for(const item of items){
+    const layer = getLayer(item.layerId);
+    if(!layer) continue;
+    if(item.kind==='navPoint'){
+      const pt = findNavPointByName(layer, item.instanceName);
+      if(!pt) continue;
+      const [wx,wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
+      const [sx,sy] = worldToScreen(wx,wy);
+      ctx.beginPath(); ctx.arc(sx,sy,16,0,Math.PI*2); ctx.stroke();
+    } else if(item.kind==='reflector'){
+      const r = layer.reflectors[item.index];
+      if(!r) continue;
+      const [wx,wy] = layerToWorld(layer, r.x, r.y);
+      const [sx,sy] = worldToScreen(wx,wy);
+      ctx.beginPath(); ctx.arc(sx,sy,14,0,Math.PI*2); ctx.stroke();
+    } else if(item.kind==='area'){
+      const area = layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[item.areaIndex];
+      if(!area || !Array.isArray(area.posGroup)) continue;
+      ctx.beginPath();
+      area.posGroup.forEach((p,i)=>{
+        const [wx,wy] = layerToWorld(layer, p.x, p.y);
+        const [sx,sy] = worldToScreen(wx,wy);
+        if(i===0) ctx.moveTo(sx,sy); else ctx.lineTo(sx,sy);
+      });
+      ctx.closePath(); ctx.stroke();
+    } else if(item.kind==='line'){
+      const ln = layer.manualLines[item.index];
+      if(!ln) continue;
+      const [wx1,wy1] = layerToWorld(layer, ln.x1, ln.y1);
+      const [wx2,wy2] = layerToWorld(layer, ln.x2, ln.y2);
+      const [sx1,sy1] = worldToScreen(wx1,wy1), [sx2,sy2] = worldToScreen(wx2,wy2);
+      ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke();
+    } else if(item.kind==='path'){
+      const curve = findCurveByEndpoints(layer, item.nameA, item.nameB) || findCurveByEndpoints(layer, item.nameB, item.nameA);
+      if(!curve || !curve.startPos || !curve.endPos) continue;
+      const pts = curveScreenSamples(layer, curve, 24);
+      ctx.beginPath();
+      pts.forEach(([sx,sy],i)=>{ if(i===0) ctx.moveTo(sx,sy); else ctx.lineTo(sx,sy); });
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+// While arming/building a path pattern, highlight the source (gold) and
+// its current targets (cyan) so it's obvious what's been picked so far —
+// the whole point of a pick-as-you-click flow is seeing the picks land.
+function drawPathPatternHighlights(){
+  if(!state.pathPatternArm) return;
+  const layer = getLayer(state.pathPatternArm.layerId);
+  if(!layer) return;
+  const highlightCurve = (nameA, nameB, color)=>{
+    const curve = findCurveByEndpoints(layer, nameA, nameB) || findCurveByEndpoints(layer, nameB, nameA);
+    if(!curve || !curve.startPos || !curve.endPos) return;
+    const pts = curveScreenSamples(layer, curve, 24);
+    ctx.save();
+    ctx.beginPath();
+    pts.forEach(([sx,sy],i)=>{ if(i===0) ctx.moveTo(sx,sy); else ctx.lineTo(sx,sy); });
+    ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.globalAlpha = 0.85; ctx.stroke();
+    ctx.restore();
+  };
+  highlightCurve(state.pathPatternArm.nameA, state.pathPatternArm.nameB, '#ffb000');
+  const pat = findPathPatternBySource(layer, state.pathPatternArm.nameA, state.pathPatternArm.nameB);
+  if(pat){ for(const t of pat.targets) highlightCurve(t.nameA, t.nameB, '#00c2ff'); }
+}
+
 function anchorWorldValue(anchor, axis){
   const layer = getLayer(anchor.layerId);
   if(!layer) return null;
@@ -7353,12 +8297,18 @@ function applyRectSelectDelete(layer, rect){
   }
 
   if(removed===0) state.undoStack.pop(); // nothing actually changed, drop the no-op undo entry
-  else { prunePatterns(); pruneGridPatterns(); }
+  else { prunePatterns(); pruneGridPatterns(); prunePathPatterns(); }
   layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
   renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderPatternPanel(); scheduleAutosave(); requestDraw();
 }
 
 canvasEl.addEventListener('pointerdown', (e)=>{
+  // Right-click is handled exclusively by the 'contextmenu' listener below
+  // (isolate-path menu, pattern menu, relation menu) — without this, its
+  // own pointerdown was falling through into ordinary left-click tool
+  // dispatch too, which could (for example) trip Select's Full-edit
+  // hand-off and switch tools on a right-click.
+  if(e.button===2) return;
   if(e.button===1){
     e.preventDefault();
     if(state.tool!=='pan'){ state.prevTool=state.tool; middlePanActive=true; setTool('pan'); }
@@ -7378,6 +8328,21 @@ canvasEl.addEventListener('pointerdown', (e)=>{
   }
 
   const layer = getEditableActiveLayer();
+  if(state.tool==='select' && layer){
+    const target = detectSelectTarget(layer, sx, sy);
+    if(state.selectFullEdit && target && target.tool){
+      // Hand off to that object's own dedicated tool and let THIS SAME
+      // click fall through to its branch below — it re-does its own (cheap)
+      // hit-test at the same sx,sy and finds the same object, so it takes
+      // the "select the existing one" path rather than "create a new one."
+      setTool(target.tool);
+      state.selectFullEditActive = true;
+    } else {
+      if(target) applySelectBasicClick(target);
+      else if(state.selectBasic){ state.selectBasic = null; renderSelectPanel(); requestDraw(); }
+      return;
+    }
+  }
   if(state.tool==='pan'){
     dragging=true; canvasEl.classList.add('dragging'); lastX=e.clientX; lastY=e.clientY;
   } else if(state.tool==='move' && layer){
@@ -7404,7 +8369,9 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       dragging = true;
     } else {
       const bodyIdx = state.lineMode==='edit' ? findLineBodyAt(layer, sx, sy, 8) : -1;
-      if(bodyIdx>=0){
+      if(bodyIdx>=0 && layer.manualLines[bodyIdx] && layer.manualLines[bodyIdx].__locked){
+        // locked: clicking it does nothing instead of deleting it
+      } else if(bodyIdx>=0){
         pushUndo(layer);
         layer.manualLines.splice(bodyIdx, 1);
         state.hoverLineBody = -1;
@@ -7417,17 +8384,21 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     }
   } else if(state.tool==='reflector' && layer){
     const hitIdx = findReflectorAt(layer, sx, sy, 14);
-    pushUndo(layer);
-    if(hitIdx>=0){
-      removeReflectorsWithIndexFix(layer, (r,i)=>i===hitIdx);
-      state.hoverReflector = null;
+    if(hitIdx>=0 && layer.reflectors[hitIdx].__locked){
+      // locked: clicking it does nothing instead of deleting it
     } else {
-      const [wx,wy]=screenToWorld(sx,sy);
-      const [lx,ly]=worldToLayer(layer, wx, wy);
-      layer.reflectors.push({type:'cylinder', width:state.reflectorWidth, x:round3(lx), y:round3(ly), creationMethod:2});
+      pushUndo(layer);
+      if(hitIdx>=0){
+        removeReflectorsWithIndexFix(layer, (r,i)=>i===hitIdx);
+        state.hoverReflector = null;
+      } else {
+        const [wx,wy]=screenToWorld(sx,sy);
+        const [lx,ly]=worldToLayer(layer, wx, wy);
+        layer.reflectors.push({type:'cylinder', width:state.reflectorWidth, x:round3(lx), y:round3(ly), creationMethod:2});
+      }
+      renderDetailPanel(); scheduleAutosave(); requestDraw();
     }
-    renderDetailPanel(); scheduleAutosave(); requestDraw();
-  } else if(state.tool==='select' && layer){
+  } else if(state.tool==='boxerase' && layer){
     const [wx,wy]=screenToWorld(sx,sy);
     state.selectionRect = {x1:wx, y1:wy, x2:wx, y2:wy};
     dragging=true;
@@ -7483,9 +8454,15 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     } else {
       const curveHit = findCurveAt(layer, sx, sy, 14);
       if(curveHit){
+        tryAddArmedPathPatternTarget(layer, curveHit.startPos.instanceName, curveHit.endPos.instanceName);
         state.selectedPath = {layerId:layer.id, nameA:curveHit.startPos.instanceName, nameB:curveHit.endPos.instanceName};
         state.selectedNavPoint = null;
         renderNavPointPanel();
+      } else if(state.selectFullEditActive){
+        // Clicking away from anything, after Select's Full-edit mode sent us
+        // here, bounces back to Select instead of creating a new point.
+        setToolManual('select');
+        return;
       } else {
         const [wx,wy]=screenToWorld(sx,sy);
         const [lx,ly]=worldToLayer(layer, wx, wy);
@@ -7522,6 +8499,44 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     renderNavPointPanel();
     renderPathPanel();
     scheduleAutosave(); requestDraw();
+  } else if(state.tool==='path' && layer){
+    // The dedicated Path tool: a trimmed-down copy of the Nav Pts tool's
+    // curve-only interactions (drag handles, select a path, drag between
+    // two points to connect them) with NO Shift key needed and no "click
+    // empty space creates a point" fallback — clicking empty space here
+    // does nothing, since this tool is only ever about paths.
+    const selPath = getSelectedPath();
+    let cpHit = (selPath && selPath.layer.id===layer.id) ? findPairControlHandleAt(selPath, sx, sy, 14) : null;
+    if(!cpHit){
+      const anyHit = findAnyControlHandleAt(layer, sx, sy, 14);
+      if(anyHit){
+        state.selectedPath = {layerId:layer.id, nameA:anyHit.curve.startPos.instanceName, nameB:anyHit.curve.endPos.instanceName};
+        state.selectedNavPoint = null;
+        cpHit = {curveDir:'forward', which:anyHit.which};
+        renderNavPointPanel(); renderPathPanel();
+      }
+    }
+    const hit = cpHit ? null : findNavPointAt(layer, sx, sy, 14);
+    if(cpHit){
+      pushUndo(layer);
+      state.draggingControlPoint = {layerId:layer.id, nameA:state.selectedPath.nameA, nameB:state.selectedPath.nameB, curveDir:cpHit.curveDir, which:cpHit.which};
+      dragging = true;
+    } else if(hit){
+      state.newPathFrom = {layerId:layer.id, instanceName:hit.instanceName};
+      const [wx,wy]=screenToWorld(sx,sy);
+      state.tempLine = {x1:wx,y1:wy,x2:wx,y2:wy};
+      dragging = true;
+    } else {
+      const curveHit = findCurveAt(layer, sx, sy, 14);
+      if(curveHit){
+        tryAddArmedPathPatternTarget(layer, curveHit.startPos.instanceName, curveHit.endPos.instanceName);
+        state.selectedPath = {layerId:layer.id, nameA:curveHit.startPos.instanceName, nameB:curveHit.endPos.instanceName};
+        state.selectedNavPoint = null;
+        renderNavPointPanel();
+      }
+    }
+    renderPathPanel();
+    requestDraw();
   } else if(state.tool==='area' && layer){
     if(startDimensionDrag(sx, sy)){
       dragging = true;
@@ -7570,6 +8585,11 @@ canvasEl.addEventListener('pointerdown', (e)=>{
           dragging = true;
         }
         renderAreaPanel();
+      } else if(state.selectFullEditActive){
+        // Clicking away from anything, after Select's Full-edit mode sent us
+        // here, bounces back to Select instead of starting a new area.
+        setToolManual('select');
+        return;
       } else {
         const [wx,wy] = screenToWorld(sx,sy);
         state.areaAction = {type:'draw', layerId:layer.id, x1:wx, y1:wy, x2:wx, y2:wy};
@@ -7709,12 +8729,44 @@ canvasEl.addEventListener('pointerdown', (e)=>{
           state.selectedGridPattern = null;
         }
       } else {
-        state.selectedPattern = null;
-        state.selectedGridPattern = null;
-        state.patDraft = null;
+        // No nav point under the click either — check for a path. Clicking
+        // one here arms it as the pattern source right away (no separate
+        // "use as source" button); clicking a path while already armed
+        // adds it as a target instead, same as the Path/Nav tools.
+        const curveHit = findCurveAt(layer, sx, sy, 14);
+        if(curveHit){
+          let nameA = curveHit.startPos.instanceName, nameB = curveHit.endPos.instanceName;
+          if(state.pathPatternArm){
+            tryAddArmedPathPatternTarget(layer, nameA, nameB);
+          } else {
+            // Arming just keeps whatever order the click gave us — it
+            // becomes the reference every target then aligns to, so there's
+            // nothing to canonicalize against yet.
+            state.pathPatternArm = {layerId:layer.id, nameA, nameB};
+          }
+          state.selectedPath = {layerId:layer.id, nameA, nameB};
+          state.selectedNavPoint = null;
+          state.selectedPattern = null;
+          state.selectedGridPattern = null;
+          state.patDraft = null;
+        } else {
+          // A miss here (neither a path nor a nav point) does NOT cancel an
+          // armed pattern. The LM/AP point clusters this tool is normally
+          // used on sit close enough together on screen that a stray click
+          // meant for the next target curve easily lands in a gap instead —
+          // silently clearing the arm then meant that click, and every
+          // click after it, started an unnoticed SECOND pattern from
+          // whatever curve got clicked next (with its own, unrelated
+          // shape), rather than adding more targets to the first one. Use
+          // the Done button or Escape to actually finish.
+          state.selectedPattern = null;
+          state.selectedGridPattern = null;
+          state.patDraft = null;
+        }
       }
     }
     renderPatternPanel();
+    renderPathPanel();
     requestDraw();
   }
 });
@@ -7754,12 +8806,12 @@ canvasEl.addEventListener('pointermove', (e)=>{
     state.hoverLineHandle = null; state.hoverLineBody = -1;
   }
 
-  if(state.tool==='nav' && !dragging){
+  if((state.tool==='nav' || state.tool==='path') && !dragging){
     const hoverLayer = getEditableActiveLayer();
     const hit = hoverLayer ? findNavPointAt(hoverLayer, sx, sy, 14) : null;
     const name = hit ? hit.instanceName : null;
     if(name !== state.hoverNavPoint){ state.hoverNavPoint = name; requestDraw(); }
-  } else if(state.tool!=='nav' && state.hoverNavPoint){
+  } else if(state.tool!=='nav' && state.tool!=='path' && state.hoverNavPoint){
     state.hoverNavPoint = null;
   }
 
@@ -7842,7 +8894,7 @@ canvasEl.addEventListener('pointermove', (e)=>{
     }
   } else if(state.tool==='draw' && state.tempLine){
     state.tempLine.x2=wx; state.tempLine.y2=wy; requestDraw();
-  } else if(state.tool==='select' && state.selectionRect){
+  } else if(state.tool==='boxerase' && state.selectionRect){
     state.selectionRect.x2=wx; state.selectionRect.y2=wy; requestDraw();
   } else if(state.tool==='measure' && state.measure){
     state.measure.x2=wx; state.measure.y2=wy; requestDraw();
@@ -7861,9 +8913,9 @@ canvasEl.addEventListener('pointermove', (e)=>{
       renderNavPointPanel();
       requestDraw();
     }
-  } else if(state.tool==='nav' && state.newPathFrom && state.tempLine){
+  } else if((state.tool==='nav' || state.tool==='path') && state.newPathFrom && state.tempLine){
     state.tempLine.x2=wx; state.tempLine.y2=wy; requestDraw();
-  } else if(state.tool==='nav' && state.draggingControlPoint && layer){
+  } else if((state.tool==='nav' || state.tool==='path') && state.draggingControlPoint && layer){
     const {nameA, nameB, curveDir, which} = state.draggingControlPoint;
     const curve = curveDir==='forward' ? findCurveByEndpoints(layer, nameA, nameB) : findCurveByEndpoints(layer, nameB, nameA);
     const mirror = curveDir==='forward' ? findCurveByEndpoints(layer, nameB, nameA) : findCurveByEndpoints(layer, nameA, nameB);
@@ -7980,7 +9032,7 @@ function endPointer(e){
     }
   }
 
-  if(state.tool==='select' && dragging && state.selectionRect){
+  if(state.tool==='boxerase' && dragging && state.selectionRect){
     const layer = getEditableActiveLayer();
     if(layer) applyRectSelectDelete(layer, state.selectionRect);
     state.selectionRect = null;
@@ -7990,7 +9042,7 @@ function endPointer(e){
     state.draggingAlignHandle = null;
   }
 
-  if(state.tool==='nav' && state.newPathFrom && state.tempLine){
+  if((state.tool==='nav' || state.tool==='path') && state.newPathFrom && state.tempLine){
     const layer = getEditableActiveLayer();
     if(layer){
       const [tsx,tsy] = worldToScreen(state.tempLine.x2, state.tempLine.y2);
@@ -8030,7 +9082,7 @@ function endPointer(e){
     state.draggingNavPoint = null;
     scheduleAutosave();
   }
-  if(state.tool==='nav' && state.draggingControlPoint){
+  if((state.tool==='nav' || state.tool==='path') && state.draggingControlPoint){
     const {layerId, nameA, nameB, curveDir, which} = state.draggingControlPoint;
     const dragLayer = getLayer(layerId);
     if(dragLayer){
@@ -8123,8 +9175,8 @@ canvasEl.addEventListener('dblclick', (e)=>{
 });
 
 const KEYMAP_DEFAULTS = {
-  pan:'h', move:'v', rotate:'r', erase:'e', draw:'l', reflector:'k', select:'s',
-  measure:'m', nav:'n', area:'a', align:'g', dist:'d', constraints:'c', pattern:'p',
+  select:'s', pan:'h', move:'v', rotate:'r', erase:'e', draw:'l', reflector:'k', boxerase:'b',
+  measure:'m', nav:'n', path:'j', area:'a', align:'g', dist:'d', constraints:'c', pattern:'p',
   fitView:'f', relHorizontal:'h', relVertical:'v', relCoincident:'o',
 };
 const KEYMAP_STORAGE_KEY = 'smapEditorKeymap';
@@ -8138,7 +9190,7 @@ function loadKeymap(){
 // Remappable action->key lookup; a future settings UI can write to KEYMAP and
 // persist via localStorage[KEYMAP_STORAGE_KEY] without touching dispatch code.
 const KEYMAP = loadKeymap();
-const TOOL_KEY_ACTIONS = ['pan','move','rotate','erase','draw','reflector','select','measure','nav','area','align','dist','constraints','pattern'];
+const TOOL_KEY_ACTIONS = ['select','pan','move','rotate','erase','draw','reflector','boxerase','measure','nav','path','area','align','dist','constraints','pattern'];
 
 document.addEventListener('keydown', (e)=>{
   const tag = (e.target.tagName||'').toLowerCase();
@@ -8167,12 +9219,14 @@ document.addEventListener('keydown', (e)=>{
     }
   }
   if(e.key==='Escape' && state.relMenuFor){ closeRelMenu(); requestDraw(); return; }
+  if(e.key==='Escape' && state.isolateMenuFor){ closeIsolateMenu(); requestDraw(); return; }
   if(e.key==='Escape' && state.tool==='constraints' && state.relSelection.length){ state.relSelection = []; renderRelPanel(); requestDraw(); return; }
   if(e.key==='Escape' && state.selectedDimension){ state.selectedDimension = null; requestDraw(); return; }
+  if(e.key==='Escape' && state.pathPatternArm){ state.pathPatternArm = null; renderPatternPanel(); renderPathPanel(); requestDraw(); return; }
   if(e.key==='Delete' || e.key==='Backspace'){
     if(state.selectedDimension){ deleteSelectedDimension(); e.preventDefault(); return; }
     if(state.tool==='nav' && state.selectedNavPoint){ btnDeleteNavPoint.click(); e.preventDefault(); return; }
-    if(state.tool==='nav' && state.selectedPath){
+    if((state.tool==='nav' || state.tool==='path') && state.selectedPath){
       const sel = getSelectedPath();
       if(sel && sel.layer.visible){
         pushUndo(sel.layer);
@@ -8194,7 +9248,7 @@ document.addEventListener('keydown', (e)=>{
     if(key===KEYMAP.relVertical){ if(relSelectionValid()) applyRelationFromSelection('vertical'); e.preventDefault(); return; }
     if(key===KEYMAP.relCoincident){ if(relSelectionValid()) applyRelationFromSelection('coincident'); e.preventDefault(); return; }
   }
-  for(const action of TOOL_KEY_ACTIONS){ if(KEYMAP[action]===key){ setTool(action); return; } }
+  for(const action of TOOL_KEY_ACTIONS){ if(KEYMAP[action]===key){ setToolManual(action); return; } }
 });
 document.addEventListener('keyup', (e)=>{
   if(e.code==='Space' && state.tool==='pan' && state.prevTool!=='pan'){ setTool(state.prevTool); }
@@ -8203,8 +9257,8 @@ document.addEventListener('keyup', (e)=>{
 // ---------------- shortcuts rebind panel ----------------
 
 const ACTION_LABELS = {
-  pan:'Pan', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line',
-  reflector:'Add reflector', select:'Rectangle select', measure:'Ruler', nav:'Nav points',
+  select:'Select', pan:'Pan', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line',
+  reflector:'Add reflector', boxerase:'Box erase', measure:'Ruler', nav:'Nav points', path:'Path',
   area:'Reflector area', align:'Align to line', dist:'Dimension', constraints:'Constrain',
   pattern:'Linear pattern', fitView:'Fit view',
   relHorizontal:'Relation: Horizontal (in Constrain)',
@@ -8466,6 +9520,7 @@ function serializeProject(){
     relations: state.relations,
     patterns: state.patterns,
     gridPatterns: state.gridPatterns,
+    pathPatterns: state.pathPatterns,
     robotFootprint: state.robotFootprint,
   };
 }
@@ -8490,11 +9545,14 @@ function loadProjectData(data){
   state.patDraft = null;
   state.gridPatterns = Array.isArray(data.gridPatterns) ? data.gridPatterns : [];
   state.selectedGridPattern = null;
+  state.pathPatterns = Array.isArray(data.pathPatterns) ? data.pathPatterns : [];
+  state.pathPatternArm = null;
   if(data.robotFootprint) state.robotFootprint = data.robotFootprint;
   for(const layer of state.layers){ normalizeCurvePairs(layer); normalizeAreaRects(layer); }
   pruneInvalidRelations();
   prunePatterns();
   pruneGridPatterns();
+  prunePathPatterns();
   renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderRelPanel(); renderPatternPanel();
   if(!state.fitted){ fitView(); state.fitted=true; }
   requestDraw();
@@ -8808,7 +9866,7 @@ function initCollapsibleSections(){
 initCollapsibleSections();
 
 resizeCanvas();
-setTool('pan');
+setTool('select');
 renderLayersList();
 renderDetailPanel();
 renderNavPointPanel();
