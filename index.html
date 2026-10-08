@@ -404,17 +404,22 @@
 
     <div class="section">
       <div class="section-title" data-key="layers"><span>Layers <span id="layerCount" class="mono"></span></span><span class="chev">▾</span></div>
-      <button class="btn primary" id="btnAddLayer" style="width:100%; margin-bottom:10px;">+ Add Layer(s)</button>
+      <button class="btn primary" id="btnAddLayer" style="width:100%; margin-bottom:6px;">+ Add Layer(s)</button>
+      <button class="btn" id="btnAddImageLayer" style="width:100%; margin-bottom:10px;">+ Add Background Image</button>
+      <input type="file" id="fileInputImageLayer" accept="image/png,image/jpeg,image/jpg,.pdf,application/pdf" hidden>
       <div id="layersList"></div>
-      <div class="empty-hint" id="emptyHint">No layers yet. Click <b>+ Add Layer(s)</b> to load one or more .smap files — each becomes its own layer you can move, rotate, and edit independently.</div>
+      <div class="empty-hint" id="emptyHint">No layers yet. Click <b>+ Add Layer(s)</b> to load one or more .smap files, or <b>+ Add Background Image</b> to import a PNG/JPG/PDF site drawing to compare against — each becomes its own layer you can move, rotate, and edit independently.</div>
     </div>
 
     <div class="section" id="detailSection" hidden>
       <div class="section-title" data-key="detail"><span>Selected layer</span><span class="chev">▾</span></div>
-      <div class="stat-line"><span>Source</span><b id="detFile" class="mono"></b></div>
-      <div class="stat-line"><span>Scan pts</span><b id="detPoints" class="mono"></b></div>
-      <div class="stat-line"><span>RSSI pts</span><b id="detRssi" class="mono"></b></div>
-      <div class="stat-line"><span>Reflectors</span><b id="detReflectors" class="mono"></b></div>
+      <div class="stat-line" id="detFileRow"><span>Source</span><b id="detFile" class="mono"></b></div>
+      <div class="stat-line" id="detPointsRow"><span>Scan pts</span><b id="detPoints" class="mono"></b></div>
+      <div class="stat-line" id="detRssiRow"><span>RSSI pts</span><b id="detRssi" class="mono"></b></div>
+      <div class="stat-line" id="detReflectorsRow"><span>Reflectors</span><b id="detReflectors" class="mono"></b></div>
+      <div class="field-row" id="imgScaleRow" hidden><label for="imgScale">Scale (m/px)</label><input type="number" id="imgScale" min="0.0001" step="0.0001"></div>
+      <div class="field-row" id="imgOpacityRow" hidden><label for="imgOpacity">Opacity</label><input type="range" id="imgOpacity" min="0.1" max="1" step="0.05" style="flex:1;"></div>
+      <div class="tool-hint" id="imgExportHint" hidden style="margin-bottom:8px;">Background image — for comparison only. Not included in .smap export, project save, or autosave; re-import it after reloading the page.</div>
       <div style="height:8px;"></div>
       <div class="tool-hint" id="hiddenLayerHint" hidden style="margin-bottom:8px;">This layer is hidden — show it (checkbox above) to move, rotate, or edit it.</div>
       <div class="field-row"><label for="fX">X (m)</label><input type="number" id="fX" step="0.01"></div>
@@ -1194,6 +1199,103 @@ function buildLayer(json, fileName){
   return layer;
 }
 
+// ---- Background image layers: a PNG/JPG/PDF site drawing imported purely
+// for visual comparison against the digitized map. Modeled as a normal
+// layer (same transform/pivot/localBBox the Move/Rotate tools and fitView
+// already understand generically — see layerToWorld/worldToLayer) but with
+// `kind:'image'` and a `drawable` (an HTMLImageElement or, for a rendered
+// PDF page, a canvas) instead of point/curve data. Deliberately excluded
+// from .smap export, project save, and autosave (see serializeProject,
+// buildSmapFromLayers) — it's reference-only and, for a full-res scan,
+// likely too large for localStorage's autosave quota anyway.
+function buildImageLayer(drawable, naturalW, naturalH, fileName, objectUrl){
+  const id = state.nextId++;
+  const color = PALETTE[state.colorIdx % PALETTE.length];
+  state.colorIdx++;
+  const layer = {
+    id, name: fileName || ('image-'+id), fileName: fileName || '',
+    kind: 'image', color, visible: true,
+    header: {}, points: [], rssi: [], reflectors: [], extra: {}, manualLines: [],
+    drawable, naturalW, naturalH, metersPerPixel: 1, opacity: 0.7, objectUrl: objectUrl||null,
+    localBBox: {minX:0, minY:0, maxX:naturalW, maxY:naturalH},
+    pivot: {x:naturalW/2, y:naturalH/2},
+    transform: {tx:0, ty:0, rot:0},
+  };
+  const mpp = defaultImageScaleAndCenter(layer);
+  applyImageScale(layer, mpp.metersPerPixel);
+  if(mpp.center){
+    layer.transform.tx = mpp.center.x-layer.pivot.x;
+    layer.transform.ty = mpp.center.y-layer.pivot.y;
+  }
+  return layer;
+}
+// Rescales an image layer around its own current on-screen center (keeps
+// the pivot's WORLD position fixed, recomputing tx/ty to compensate) rather
+// than around its local (0,0) corner — so typing a new Scale value, or the
+// initial auto-fit below, doesn't also shove the image across the map.
+function applyImageScale(layer, metersPerPixel){
+  if(!(metersPerPixel>0)) return;
+  const pivotWorld = layerToWorld(layer, layer.pivot.x, layer.pivot.y);
+  const w = layer.naturalW*metersPerPixel, h = layer.naturalH*metersPerPixel;
+  layer.metersPerPixel = metersPerPixel;
+  layer.localBBox = {minX:0, minY:0, maxX:w, maxY:h};
+  layer.pivot = {x:w/2, y:h/2};
+  layer.transform.tx = pivotWorld[0]-layer.pivot.x;
+  layer.transform.ty = pivotWorld[1]-layer.pivot.y;
+}
+// Best-effort initial scale: size the image to roughly span the existing
+// (non-image) layers' combined width, centered on them, so it lands
+// somewhere near the real map instead of off at an arbitrary pixel scale
+// the user then has to go hunting for. Falls back to a plain guess (5cm/px,
+// a typical scanned-drawing resolution) when this is the first layer.
+function defaultImageScaleAndCenter(layer){
+  const others = state.layers.filter(l=>l.visible && l.kind!=='image');
+  if(!others.length) return {metersPerPixel:0.05, center:null};
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const l of others){
+    const b = layerWorldBBox(l);
+    minX=Math.min(minX,b.minX); maxX=Math.max(maxX,b.maxX);
+    minY=Math.min(minY,b.minY); maxY=Math.max(maxY,b.maxY);
+  }
+  const w = Math.max(0.5, maxX-minX);
+  return { metersPerPixel: w/layer.naturalW, center: {x:(minX+maxX)/2, y:(minY+maxY)/2} };
+}
+function loadImageFile(file){
+  return new Promise((resolve,reject)=>{
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = ()=>resolve({drawable:img, naturalW:img.naturalWidth, naturalH:img.naturalHeight, url});
+    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('Could not decode image file.')); };
+    img.src = url;
+  });
+}
+let pdfjsLoadPromise = null;
+const PDFJS_VERSION = '6.4.299';
+function ensurePdfJs(){
+  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if(!pdfjsLoadPromise){
+    pdfjsLoadPromise = import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/'+PDFJS_VERSION+'/pdf.min.mjs')
+      .then(mod=>{
+        mod.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/'+PDFJS_VERSION+'/pdf.worker.min.mjs';
+        window.pdfjsLib = mod;
+        return mod;
+      })
+      .catch(err=>{ pdfjsLoadPromise = null; throw new Error('Could not load the PDF renderer (needs internet access to fetch it once) — export the drawing as PNG/JPG instead and import that. '+err.message); });
+  }
+  return pdfjsLoadPromise;
+}
+async function loadPdfFirstPageAsImage(file){
+  const pdfjsLib = await ensurePdfJs();
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+  const page = await pdf.getPage(1);
+  const viewport = page.getViewport({scale:2});
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
+  await page.render({canvasContext:canvas.getContext('2d'), viewport}).promise;
+  return {drawable:canvas, naturalW:canvas.width, naturalH:canvas.height};
+}
+
 function addLayer(layer){
   state.layers.push(layer);
   state.activeLayerId = layer.id;
@@ -1219,6 +1321,7 @@ function deleteLayer(id){
   const layer = getLayer(id);
   if(!layer) return;
   if(!confirm('Delete layer "'+layer.name+'"? This cannot be undone.')) return;
+  if(layer.objectUrl){ try{ URL.revokeObjectURL(layer.objectUrl); }catch(e){} }
   state.layers = state.layers.filter(l=>l.id!==id);
   if(state.activeLayerId===id) state.activeLayerId = state.layers.length ? state.layers[state.layers.length-1].id : null;
   renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); scheduleAutosave(); requestDraw();
@@ -1263,6 +1366,13 @@ function renderLayersList(){
 
     const name = document.createElement('div');
     name.className = 'layer-name'; name.textContent = layer.name; name.title = layer.name;
+    if(layer.kind==='image'){
+      const badge = document.createElement('span');
+      badge.textContent = 'IMG';
+      badge.title = 'Background image — reference only, not included in exports';
+      badge.style.cssText = 'font-size:9px; font-weight:700; color:var(--overlay-dim,#888); border:1px solid var(--line,#444); border-radius:3px; padding:1px 4px; margin-left:6px; flex:none;';
+      name.appendChild(badge);
+    }
 
     function startRename(){
       const input = document.createElement('input');
@@ -1300,21 +1410,60 @@ const fX = document.getElementById('fX'), fY = document.getElementById('fY'), fR
 
 const hiddenLayerHint = document.getElementById('hiddenLayerHint');
 const btnResetTransform = document.getElementById('btnResetTransform');
+const detFileRow = document.getElementById('detFileRow');
+const detPointsRow = document.getElementById('detPointsRow');
+const detRssiRow = document.getElementById('detRssiRow');
+const detReflectorsRow = document.getElementById('detReflectorsRow');
+const imgScaleRow = document.getElementById('imgScaleRow');
+const imgScale = document.getElementById('imgScale');
+const imgOpacityRow = document.getElementById('imgOpacityRow');
+const imgOpacity = document.getElementById('imgOpacity');
+const imgExportHint = document.getElementById('imgExportHint');
+const btnExportThisLayer = document.getElementById('btnExportThisLayer');
 
 function renderDetailPanel(){
   const layer = getActiveLayer();
   detailSection.hidden = !layer;
   if(!layer) return;
+  const isImage = layer.kind==='image';
+  detPointsRow.hidden = isImage;
+  detRssiRow.hidden = isImage;
+  detReflectorsRow.hidden = isImage;
+  imgScaleRow.hidden = !isImage;
+  imgOpacityRow.hidden = !isImage;
+  imgExportHint.hidden = !isImage;
+  btnExportThisLayer.hidden = isImage;
   document.getElementById('detFile').textContent = layer.fileName || '—';
-  document.getElementById('detPoints').textContent = (layer.points.length/2).toLocaleString();
-  document.getElementById('detRssi').textContent = (layer.rssi.length/2).toLocaleString();
-  document.getElementById('detReflectors').textContent = layer.reflectors.length.toLocaleString();
+  if(isImage){
+    if(document.activeElement!==imgScale) imgScale.value = layer.metersPerPixel;
+    imgOpacity.value = typeof layer.opacity==='number' ? layer.opacity : 0.7;
+  } else {
+    document.getElementById('detPoints').textContent = (layer.points.length/2).toLocaleString();
+    document.getElementById('detRssi').textContent = (layer.rssi.length/2).toLocaleString();
+    document.getElementById('detReflectors').textContent = layer.reflectors.length.toLocaleString();
+  }
   fX.value = round3(layer.transform.tx);
   fY.value = round3(layer.transform.ty);
   fRot.value = round3(layer.transform.rot * 180/Math.PI);
   hiddenLayerHint.hidden = layer.visible;
   fX.disabled = fY.disabled = fRot.disabled = btnResetTransform.disabled = !layer.visible;
 }
+imgScale.addEventListener('change', ()=>{
+  const layer = getActiveLayer();
+  if(!layer || layer.kind!=='image') return;
+  const v = parseFloat(imgScale.value);
+  if(!(v>0)){ imgScale.value = layer.metersPerPixel; return; }
+  pushUndo(layer);
+  applyImageScale(layer, v);
+  renderDetailPanel(); // rescaling also moves tx/ty (see applyImageScale) — refresh X/Y, not just this field
+  scheduleAutosave(); requestDraw();
+});
+imgOpacity.addEventListener('input', ()=>{
+  const layer = getActiveLayer();
+  if(!layer || layer.kind!=='image') return;
+  layer.opacity = parseFloat(imgOpacity.value);
+  requestDraw();
+});
 
 let transformFieldsUndoPushed = false;
 function applyTransformFields(){
@@ -2850,7 +2999,21 @@ function updateToolStatus(){
   noLayerBanner.hidden = !banner;
 }
 
+// Tools that write point/curve/area/relation data into the active layer —
+// blocked while a background image layer is active (see IMAGE_BLOCKED_TOOLS
+// below) since several of them (e.g. the Nav tool's "no point here, create
+// one" branch) lazily create an empty layer.extra.advancedPointList the
+// first time they're used, which would otherwise quietly start stashing
+// real map data inside what's supposed to be a reference-only image layer.
+// Pan/Move/Rotate/Align/Select stay available — they only touch
+// transform/pivot, which a image layer has same as any other.
+const IMAGE_BLOCKED_TOOLS = new Set(['erase','draw','reflector','boxerase','nav','path','area','dist','constraints','pattern']);
 function setTool(tool){
+  const activeForGuard = getActiveLayer();
+  if(activeForGuard && activeForGuard.kind==='image' && IMAGE_BLOCKED_TOOLS.has(tool)){
+    alert('This is a background image layer (reference only) — select a data layer first to use this tool. You can still Move, Rotate, Pan, or Select with it active.');
+    return;
+  }
   if(tool!=='area'){ state.selectedAreaEdge = null; }
   if(tool!=='dist'){
     state.distTarget = null; state.distHoverTarget = null; state.distPickHover = null;
@@ -3062,6 +3225,13 @@ function pushUndo(layer){
     manualLines: layer.manualLines.map(l=>({...l})),
     extra: JSON.parse(JSON.stringify(layer.extra||{})),
     transform: {...layer.transform},
+    // Harmless/unused for a normal layer (these never change on it); an
+    // image layer's Scale field changes all three together with transform
+    // (see applyImageScale), so they need to travel with it or undo would
+    // restore the old position while leaving the new scale in place.
+    metersPerPixel: layer.metersPerPixel,
+    pivot: layer.pivot ? {...layer.pivot} : undefined,
+    localBBox: layer.localBBox ? {...layer.localBBox} : undefined,
     relations: JSON.parse(JSON.stringify(state.relations)),
     patterns: JSON.parse(JSON.stringify(state.patterns)),
     gridPatterns: JSON.parse(JSON.stringify(state.gridPatterns)),
@@ -3076,10 +3246,19 @@ function undo(){
   layer.points = entry.points; layer.rssi = entry.rssi; layer.reflectors = entry.reflectors; layer.extra = entry.extra;
   layer.manualLines = entry.manualLines;
   if(entry.transform) layer.transform = entry.transform;
+  if(layer.kind==='image'){
+    if(entry.metersPerPixel!=null) layer.metersPerPixel = entry.metersPerPixel;
+    if(entry.pivot) layer.pivot = entry.pivot;
+    if(entry.localBBox) layer.localBBox = entry.localBBox;
+  }
   if(entry.relations) state.relations = entry.relations;
   if(entry.patterns) state.patterns = entry.patterns;
   if(entry.gridPatterns) state.gridPatterns = entry.gridPatterns;
-  layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
+  // Image layers have no points to derive a bbox from — theirs is sized
+  // from naturalW/H * metersPerPixel instead (see applyImageScale) and
+  // would otherwise get clobbered down to a zero-size box here, since an
+  // image layer's undo entries only ever carry a transform change.
+  if(layer.kind!=='image') layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
   renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderRelPanel(); renderPatternPanel(); scheduleAutosave(); requestDraw();
 }
 
@@ -3142,6 +3321,56 @@ function currentPalette(){
   return state.printFriendly
     ? { bg:'#f7f8fa', extra:'#555555', reflector:'#b6371e', rssi:'#8a6d1a', dotAlpha:1, ink:'#111111' }
     : { bg:'#0e1113', extra:EXTRA_COLOR, reflector:REFLECTOR_COLOR, rssi:RSSI_MUTE, dotAlpha:0.9, ink:'#dfe7e2' };
+}
+
+// Draws a background image layer by mapping its pixel rect onto the screen
+// through three corner points (local pixel-space (0,0), (naturalW,0),
+// (0,naturalH), each run through the normal layerToWorld->worldToScreen
+// pipeline so it rotates/pans/zooms exactly like every other layer), then
+// solving the 2x3 affine matrix that sends those three pixel corners to
+// their three screen points and handing it straight to ctx.setTransform —
+// one drawImage call then stretches/rotates the whole bitmap correctly
+// instead of hand-walking translate/rotate/scale calls.
+function drawImageLayer(layer){
+  if(!layer.drawable) return;
+  const mpp = layer.metersPerPixel;
+  // Every other layer's local space is Y-up, matching world meters —
+  // layerToWorld is a plain rotate+translate with no Y flip, and the one
+  // Y flip in the whole pipeline happens once, in worldToScreen (world-Y-up
+  // -> screen-Y-down). A pixel row `py` is natively Y-DOWN (row 0 = top of
+  // the source image), so feeding it straight in as a local Y put it out of
+  // step with that convention: increasing py (moving down the source image)
+  // increased local/world Y, which worldToScreen then flips into DEcreasing
+  // screen Y — the image rendered upside-down. Flipping it here to
+  // (naturalH-py) before converting keeps image layers on the same Y-up
+  // local convention as everything else.
+  const toScreen = (px,py)=>{
+    const [wx,wy] = layerToWorld(layer, px*mpp, (layer.naturalH-py)*mpp);
+    return worldToScreen(wx,wy);
+  };
+  const [ox,oy] = toScreen(0,0);
+  const [xx,xy] = toScreen(layer.naturalW,0);
+  const [yx,yy] = toScreen(0,layer.naturalH);
+  const a=(xx-ox)/layer.naturalW, b=(xy-oy)/layer.naturalW;
+  const c=(yx-ox)/layer.naturalH, d=(yy-oy)/layer.naturalH;
+  ctx.save();
+  // transform() COMPOSES with the canvas's existing DPI-scale baseline
+  // (set once in resizeCanvas via setTransform(dpr,...) and relied on by
+  // every other draw*() function drawing in plain CSS-pixel coordinates) —
+  // setTransform here would instead replace it and throw off scale on any
+  // non-1x display.
+  ctx.transform(a,b,c,d,ox,oy);
+  ctx.globalAlpha = (typeof layer.opacity==='number') ? layer.opacity : 1;
+  ctx.drawImage(layer.drawable, 0, 0);
+  ctx.restore();
+  // Frame the bounds in the layer's own color (matches the layer-row color
+  // swatch) so the image is still placeable/visible even at low opacity or
+  // once zoomed out past where its content reads clearly.
+  const [cx,cy] = [xx+yx-ox, xy+yy-oy];
+  ctx.save();
+  ctx.strokeStyle = layer.color||'#888888'; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.9;
+  ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(xx,xy); ctx.lineTo(cx,cy); ctx.lineTo(yx,yy); ctx.closePath(); ctx.stroke();
+  ctx.restore();
 }
 
 function drawExtra(layer, pal){
@@ -4566,6 +4795,7 @@ function draw(){
 
   for(const layer of state.layers){
     if(!layer.visible) continue;
+    if(layer.kind==='image'){ drawImageLayer(layer); continue; }
     if(state.typeVisibility.extra) drawExtra(layer, pal);
     if(state.typeVisibility.extra) drawManualLines(layer, pal);
     if(state.typeVisibility.nav) drawNavPoints(layer, pal);
@@ -5635,6 +5865,56 @@ function setPatternCount(pat, newCount, layer){
   resolveAllPatterns();
   syncPatternPaths(pat, layer);
 }
+// Renames a batch of nav points to their desired final names without
+// transient collisions. Processing order matters — e.g. shifting a run of
+// names down by one (closing a gap) only works lowest-first, while shifting
+// up (opening one) only works highest-first — so instead of reasoning about
+// direction, just keep renaming whichever entries' target name is free
+// right now; freeing one target can unblock the next one in line. Pattern
+// sizes are small, so the O(n^2) worst case here is a non-issue.
+function applyRenameWorklist(layer, desiredPairs){
+  let remaining = desiredPairs.filter(p=>p.oldName!==p.newName);
+  let guard = remaining.length+5;
+  while(remaining.length && guard-->0){
+    const ready = remaining.filter(p=>!findNavPointByName(layer, p.newName));
+    if(!ready.length) break; // a target name collides with something outside this pattern — leave it, don't loop forever
+    for(const p of ready) renameNavPoint(layer, p.oldName, p.newName);
+    remaining = remaining.filter(p=>!ready.includes(p));
+  }
+}
+// Prefix+number to count up from, for naming a pattern/grid's instances.
+// Read straight off the seed's own name (whatever non-digit text precedes
+// its trailing number) rather than its className's "default" prefix
+// (NAV_POINT_TYPE_PREFIX) — a seed that's been manually renamed to
+// something that doesn't match its type's usual prefix should still get
+// instances that look like ITS name, not like a generic LocationMark/
+// ActionPoint/ChargePoint default. Only falls back to the className
+// default (base 0) if the seed's name has no trailing number to read at
+// all (e.g. a custom name like "Dock").
+function patternNamingBase(seedPt){
+  const m = /^(.*?)(\d+)$/.exec(seedPt.instanceName||'');
+  if(m) return {prefix:m[1], base:parseInt(m[2],10)};
+  return {prefix: NAV_POINT_TYPE_PREFIX[seedPt.className] || 'LM', base:0};
+}
+// Keeps a linear pattern's MATERIALIZED (non-skipped) instance names tight
+// and sequential relative to the seed — a skipped slot never "uses up" a
+// number, so skipping or un-skipping any instance renumbers every
+// non-skipped instance after it. Reuses renameNavPoint so every reference
+// (curves, relations, constraints, other patterns) follows along, same as
+// a manual rename from the nav point panel would.
+function renumberPatternInstances(pat, layer){
+  const seedPt = findNavPointByName(layer, pat.seedName);
+  if(!seedPt) return;
+  const {prefix, base} = patternNamingBase(seedPt);
+  let rank = 0;
+  const desired = [];
+  for(const inst of pat.instances){
+    if(inst.skipped) continue;
+    rank++;
+    desired.push({oldName:inst.name, newName:prefix+(base+rank)});
+  }
+  applyRenameWorklist(layer, desired);
+}
 function togglePatternInstanceSkip(pat, index){
   const layer = getLayer(pat.layerId);
   if(!layer) return;
@@ -5649,6 +5929,7 @@ function togglePatternInstanceSkip(pat, index){
     deleteNavPoint(layer, inst.name);
     inst.skipped = true;
   }
+  renumberPatternInstances(pat, layer);
   resolveAllPatterns();
   syncPatternPaths(pat, layer);
 }
@@ -5922,6 +6203,26 @@ function setGridPatternSize(grid, newCountX, newCountY, layer){
   grid.countX = newCountX; grid.countY = newCountY;
   resolveAllGridPatterns();
 }
+// Grid analog of renumberPatternInstances — row-major rank over grid.cells
+// (matching the iteration order used everywhere else: draw, setGridPatternSize),
+// (0,0) excluded since that's always the seed itself, never a cells entry.
+function renumberGridCells(grid, layer){
+  const seedPt = findNavPointByName(layer, grid.seedName);
+  if(!seedPt) return;
+  const {prefix, base} = patternNamingBase(seedPt);
+  let rank = 0;
+  const desired = [];
+  for(let row=0; row<grid.countY; row++){
+    for(let col=0; col<grid.countX; col++){
+      if(row===0 && col===0) continue;
+      const cell = grid.cells[gridCellKey(row,col)];
+      if(!cell || cell.skipped) continue;
+      rank++;
+      desired.push({oldName:cell.name, newName:prefix+(base+rank)});
+    }
+  }
+  applyRenameWorklist(layer, desired);
+}
 function toggleGridCellSkip(grid, row, col){
   const layer = getLayer(grid.layerId);
   if(!layer) return;
@@ -5937,6 +6238,7 @@ function toggleGridCellSkip(grid, row, col){
     deleteNavPoint(layer, cell.name);
     cell.skipped = true;
   }
+  renumberGridCells(grid, layer);
   resolveAllGridPatterns();
 }
 function deleteGridPattern(grid){
@@ -9387,6 +9689,20 @@ document.getElementById('fileInputLayers').addEventListener('change', (e)=>{
   e.target.value = '';
 });
 
+document.getElementById('btnAddImageLayer').addEventListener('click', ()=>document.getElementById('fileInputImageLayer').click());
+document.getElementById('fileInputImageLayer').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  const isPdf = file.type==='application/pdf' || /\.pdf$/i.test(file.name);
+  try{
+    const {drawable, naturalW, naturalH, url} = isPdf ? await loadPdfFirstPageAsImage(file) : await loadImageFile(file);
+    addLayer(buildImageLayer(drawable, naturalW, naturalH, file.name, url));
+  }catch(err){
+    alert('Could not load '+file.name+': '+err.message);
+  }
+});
+
 function downloadBlob(blob, filename){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -9477,7 +9793,9 @@ function safeFileName(name){
 }
 
 function exportMergedSmap(){
-  const visible = state.layers.filter(l=>l.visible);
+  // Background image layers are reference-only — never part of the real
+  // map data, so they're left out of every .smap export path.
+  const visible = state.layers.filter(l=>l.visible && l.kind!=='image');
   if(!visible.length){ alert('No visible layers to export.'); return; }
   const mapName = 'stitched_'+new Date().toISOString().replace(/[:.]/g,'-');
   const out = buildSmapFromLayers(visible, mapName);
@@ -9491,15 +9809,16 @@ function exportLayerSmap(layer){
 }
 
 function exportAllLayersSeparately(){
-  if(!state.layers.length){ alert('No layers to export.'); return; }
-  state.layers.forEach((layer,i)=>{
+  const layers = state.layers.filter(l=>l.kind!=='image');
+  if(!layers.length){ alert('No layers to export.'); return; }
+  layers.forEach((layer,i)=>{
     setTimeout(()=>exportLayerSmap(layer), i*150);
   });
 }
 document.getElementById('btnExportLayers').addEventListener('click', exportAllLayersSeparately);
 document.getElementById('btnExportThisLayer').addEventListener('click', ()=>{
   const layer = getActiveLayer();
-  if(layer) exportLayerSmap(layer);
+  if(layer && layer.kind!=='image') exportLayerSmap(layer);
 });
 
 document.getElementById('btnExportPng').addEventListener('click', ()=>{
@@ -9510,7 +9829,11 @@ function serializeProject(){
   return {
     kind: 'smap-editor-project', version: 1,
     savedAt: new Date().toISOString(),
-    layers: state.layers.map(l=>({
+    // Background image layers carry a DOM element (drawable) that can't
+    // round-trip through JSON, and a full-res scan would likely blow
+    // through localStorage's autosave quota anyway — they're session-only,
+    // left out of project save/autosave same as .smap export.
+    layers: state.layers.filter(l=>l.kind!=='image').map(l=>({
       id:l.id, name:l.name, fileName:l.fileName, color:l.color, visible:l.visible,
       header:l.header, points:l.points, rssi:l.rssi, reflectors:l.reflectors, extra:l.extra,
       manualLines:l.manualLines, localBBox:l.localBBox, pivot:l.pivot, transform:l.transform,
