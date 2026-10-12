@@ -418,6 +418,7 @@
       <div class="stat-line" id="detRssiRow"><span>RSSI pts</span><b id="detRssi" class="mono"></b></div>
       <div class="stat-line" id="detReflectorsRow"><span>Reflectors</span><b id="detReflectors" class="mono"></b></div>
       <div class="field-row" id="imgScaleRow" hidden><label for="imgScale">Scale (m/px)</label><input type="number" id="imgScale" min="0.0001" step="0.0001"></div>
+      <button class="btn" id="btnCalibrateImage" style="width:100%; margin-top:6px;" hidden>Set scale by drawing a line</button>
       <div class="field-row" id="imgOpacityRow" hidden><label for="imgOpacity">Opacity</label><input type="range" id="imgOpacity" min="0.1" max="1" step="0.05" style="flex:1;"></div>
       <div class="tool-hint" id="imgExportHint" hidden style="margin-bottom:8px;">Background image — for comparison only. Not included in .smap export, project save, or autosave; re-import it after reloading the page.</div>
       <div style="height:8px;"></div>
@@ -512,6 +513,13 @@
         </div>
         <button class="btn primary" id="btnAlignConfirm" style="width:100%; margin-top:8px;" disabled>Confirm</button>
         <button class="btn" id="btnAlignClear" style="width:100%; margin-top:6px;">Clear line</button>
+      </div>
+      <div class="tool-options" id="opts-calibrateImage" hidden>
+        <div class="tool-hint" style="margin-top:0;">Drag a line across something in the image whose real-world length you know (a door, a rack bay, a dimension on the drawing), then enter that length below.</div>
+        <div class="stat-line"><span>Line length (current scale)</span><b id="calibrateLineLength" class="mono">–</b></div>
+        <div class="field-row"><label for="calibrateRealLength">Real length (m)</label><input type="number" id="calibrateRealLength" min="0.0001" step="0.01"></div>
+        <button class="btn primary" id="btnCalibrateApply" style="width:100%; margin-top:8px;" disabled>Apply</button>
+        <button class="btn" id="btnCalibrateClear" style="width:100%; margin-top:6px;">Clear line</button>
       </div>
       <div class="tool-options" id="opts-dist" hidden>
         <div class="row">
@@ -1089,6 +1097,8 @@ const state = {
   alignLine: null,
   alignAxis: 'x',
   draggingAlignHandle: null,
+  calibrateLine: null,
+  draggingCalibrateHandle: null,
   printFriendly: false,
   undoStack: [],
 };
@@ -1420,6 +1430,7 @@ const imgOpacityRow = document.getElementById('imgOpacityRow');
 const imgOpacity = document.getElementById('imgOpacity');
 const imgExportHint = document.getElementById('imgExportHint');
 const btnExportThisLayer = document.getElementById('btnExportThisLayer');
+const btnCalibrateImageRef = document.getElementById('btnCalibrateImage');
 
 function renderDetailPanel(){
   const layer = getActiveLayer();
@@ -1430,6 +1441,7 @@ function renderDetailPanel(){
   detRssiRow.hidden = isImage;
   detReflectorsRow.hidden = isImage;
   imgScaleRow.hidden = !isImage;
+  btnCalibrateImageRef.hidden = !isImage;
   imgOpacityRow.hidden = !isImage;
   imgExportHint.hidden = !isImage;
   btnExportThisLayer.hidden = isImage;
@@ -2973,6 +2985,7 @@ const optsDraw = document.getElementById('opts-draw');
 const optsReflector = document.getElementById('opts-reflector');
 const optsBoxErase = document.getElementById('opts-boxerase');
 const optsAlign = document.getElementById('opts-align');
+const optsCalibrateImage = document.getElementById('opts-calibrateImage');
 const optsDist = document.getElementById('opts-dist');
 const optsConstraints = document.getElementById('opts-constraints');
 const optsPattern = document.getElementById('opts-pattern');
@@ -2983,8 +2996,8 @@ const toolStatus = document.getElementById('toolStatus');
 const noLayerBanner = document.getElementById('noLayerBanner');
 const canvasEl = document.getElementById('canvas');
 
-const TOOL_LABELS = { select:'Select', pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', boxerase:'Box erase', measure:'Ruler', nav:'Nav points', path:'Path', area:'Reflector area', align:'Align to line', dist:'Dimension', constraints:'Constrain', pattern:'Linear pattern' };
-const TOOL_NEEDS_LAYER = { select:true, move:true, rotate:true, erase:true, draw:true, reflector:true, boxerase:true, pan:false, measure:false, nav:true, path:true, area:true, align:true, dist:false, constraints:false, pattern:true };
+const TOOL_LABELS = { select:'Select', pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', boxerase:'Box erase', measure:'Ruler', nav:'Nav points', path:'Path', area:'Reflector area', align:'Align to line', calibrateImage:'Calibrate image scale', dist:'Dimension', constraints:'Constrain', pattern:'Linear pattern' };
+const TOOL_NEEDS_LAYER = { select:true, move:true, rotate:true, erase:true, draw:true, reflector:true, boxerase:true, pan:false, measure:false, nav:true, path:true, area:true, align:true, calibrateImage:true, dist:false, constraints:false, pattern:true };
 
 function updateToolStatus(){
   const tool = state.tool;
@@ -3034,6 +3047,7 @@ function setTool(tool){
   optsBoxErase.hidden = tool!=='boxerase';
   optsSelect.hidden = tool!=='select';
   optsAlign.hidden = tool!=='align';
+  optsCalibrateImage.hidden = tool!=='calibrateImage';
   optsDist.hidden = tool!=='dist';
   optsConstraints.hidden = tool!=='constraints';
   optsPattern.hidden = tool!=='pattern';
@@ -3048,6 +3062,7 @@ function setTool(tool){
   renderPathPanel();
   renderAreaPanel();
   renderAlignPanel();
+  renderCalibratePanel();
   updateDistHint();
   renderRelPanel();
   renderPatternPanel();
@@ -3192,6 +3207,47 @@ btnAlignConfirm.addEventListener('click', ()=>{
   layer.transform.rot += delta;
   renderDetailPanel();
   scheduleAutosave(); requestDraw();
+});
+
+// ---- Calibrate a background image's scale by drawing a line across
+// something of known real-world length, same drag-a-line interaction as
+// Align. Since world distance = pixel distance * metersPerPixel for an
+// (unsheared) image layer, the ratio of the length you type to the line's
+// CURRENT world length is a pure scale-correction factor — applying it to
+// metersPerPixel is enough; no separate pixel-space math needed. ----
+const calibrateLineLengthEl = document.getElementById('calibrateLineLength');
+const calibrateRealLengthEl = document.getElementById('calibrateRealLength');
+const btnCalibrateApply = document.getElementById('btnCalibrateApply');
+const btnCalibrateClear = document.getElementById('btnCalibrateClear');
+const btnCalibrateImage = document.getElementById('btnCalibrateImage');
+function calibrateLineWorldLength(){
+  if(!state.calibrateLine) return 0;
+  const {x1,y1,x2,y2} = state.calibrateLine;
+  return Math.hypot(x2-x1, y2-y1);
+}
+function renderCalibratePanel(){
+  const len = calibrateLineWorldLength();
+  calibrateLineLengthEl.textContent = state.calibrateLine ? round3(len)+' m' : '–';
+  const layer = getActiveLayer();
+  btnCalibrateApply.disabled = !state.calibrateLine || len<1e-6 || !layer || layer.kind!=='image';
+}
+btnCalibrateClear.addEventListener('click', ()=>{ state.calibrateLine = null; renderCalibratePanel(); requestDraw(); });
+btnCalibrateApply.addEventListener('click', ()=>{
+  const layer = getActiveLayer();
+  const len = calibrateLineWorldLength();
+  const real = parseFloat(calibrateRealLengthEl.value);
+  if(!layer || layer.kind!=='image' || !state.calibrateLine || len<1e-6 || !(real>0)) return;
+  pushUndo(layer);
+  applyImageScale(layer, layer.metersPerPixel*(real/len));
+  state.calibrateLine = null;
+  renderDetailPanel();
+  renderCalibratePanel();
+  scheduleAutosave(); requestDraw();
+});
+btnCalibrateImage.addEventListener('click', ()=>{
+  const layer = getActiveLayer();
+  if(!layer || layer.kind!=='image') return;
+  setToolManual('calibrateImage');
 });
 
 document.getElementById('showScan').addEventListener('change', e=>{ state.typeVisibility.scan = e.target.checked; requestDraw(); });
@@ -3632,9 +3688,15 @@ function drawNavPoints(layer, pal){
       if(c1 && c2){
         wc1 = layerToWorld(layer, c1.x, c1.y);
         wc2 = layerToWorld(layer, c2.x, c2.y);
-        const [scx1,scy1] = worldToScreen(wc1[0],wc1[1]).map((v,i)=>v+(i===0?ox:oy));
-        const [scx2,scy2] = worldToScreen(wc2[0],wc2[1]).map((v,i)=>v+(i===0?ox:oy));
-        ctx.bezierCurveTo(scx1,scy1,scx2,scy2,sx2,sy2);
+        // DegenerateBezier draws as a sampled quintic (doubled control
+        // points); other curve classNames (e.g. BezierPath) stay a plain
+        // cubic -- see curveBezierPoint/degenerateBezierPoint for why.
+        const DRAW_SAMPLES = 32;
+        for(let i=1;i<=DRAW_SAMPLES;i++){
+          const [wx,wy] = curveBezierPoint(item, [wx1,wy1], wc1, wc2, [wx2,wy2], i/DRAW_SAMPLES);
+          const [sx,sy] = worldToScreen(wx,wy).map((v,idx)=>v+(idx===0?ox:oy));
+          ctx.lineTo(sx,sy);
+        }
       } else {
         ctx.lineTo(sx2,sy2);
       }
@@ -3650,11 +3712,13 @@ function drawNavPoints(layer, pal){
       const p0=[wx1,wy1], p3=[wx2,wy2];
       const p1 = wc1 || p0, p2 = wc2 || p3;
       const t = 0.5;
-      const mt = 1-t;
-      const midX = mt*mt*mt*p0[0] + 3*mt*mt*t*p1[0] + 3*mt*t*t*p2[0] + t*t*t*p3[0];
-      const midY = mt*mt*mt*p0[1] + 3*mt*mt*t*p1[1] + 3*mt*t*t*p2[1] + t*t*t*p3[1];
-      const dX = 3*mt*mt*(p1[0]-p0[0]) + 6*mt*t*(p2[0]-p1[0]) + 3*t*t*(p3[0]-p2[0]);
-      const dY = 3*mt*mt*(p1[1]-p0[1]) + 6*mt*t*(p2[1]-p1[1]) + 3*t*t*(p3[1]-p2[1]);
+      const [midX, midY] = curveBezierPoint(item, p0,p1,p2,p3,t);
+      // tangent via central difference on the same point function, rather
+      // than a separately hand-derived derivative formula per curve type
+      const TH = 0.001;
+      const [ax,ay] = curveBezierPoint(item, p0,p1,p2,p3, t-TH);
+      const [bx,by] = curveBezierPoint(item, p0,p1,p2,p3, t+TH);
+      const dX = bx-ax, dY = by-ay;
       const dLen = Math.hypot(dX,dY)||1;
       const armWorld = 11/state.view.scale;
       const [amx,amy] = worldToScreen(midX,midY).map((v,i)=>v+(i===0?ox:oy));
@@ -3676,9 +3740,15 @@ function drawNavPoints(layer, pal){
         const [scx1,scy1] = worldToScreen(wc1[0],wc1[1]).map((v,i)=>v+(i===0?ox:oy));
         const [scx2,scy2] = worldToScreen(wc2[0],wc2[1]).map((v,i)=>v+(i===0?ox:oy));
         const handleHalf = colorizePaths ? 5.5 : 3.5;
-        ctx.strokeStyle = 'rgba(124,108,255,0.55)'; ctx.setLineDash([3,3]); ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(124,108,255,0.55)'; ctx.lineWidth = 1;
+        // RoboShop's handle convention: a solid leg from each endpoint to
+        // its own control point, then a dashed line connecting the two
+        // control points to each other (not each one back to the far
+        // endpoint) -- matches how roboshop.png showed the handles.
         ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(scx1,scy1); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(sx2,sy2); ctx.lineTo(scx2,scy2); ctx.stroke();
+        ctx.setLineDash([3,3]);
+        ctx.beginPath(); ctx.moveTo(scx1,scy1); ctx.lineTo(scx2,scy2); ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle = colorizePaths ? curveColor : '#ffffff'; ctx.strokeStyle = colorizePaths ? '#ffffff' : navColor; ctx.lineWidth = 1.5;
         for(const [hx,hy] of [[scx1,scy1],[scx2,scy2]]){
@@ -5004,6 +5074,21 @@ function draw(){
     ctx.strokeStyle = '#000000'; ctx.stroke();
   }
 
+  if(state.calibrateLine){
+    const {x1,y1,x2,y2} = state.calibrateLine;
+    const [sx1,sy1] = worldToScreen(x1,y1);
+    const [sx2,sy2] = worldToScreen(x2,y2);
+    const calColor = '#3fd0ff';
+    ctx.strokeStyle = calColor; ctx.lineWidth = 2.5; ctx.setLineDash([2,0]);
+    ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke();
+    ctx.fillStyle = calColor;
+    ctx.beginPath(); ctx.arc(sx1,sy1,6,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#000000'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = calColor;
+    ctx.beginPath(); ctx.arc(sx2,sy2,6,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#000000'; ctx.stroke();
+  }
+
   drawDimensionAnnotations();
   drawDistToolHighlights();
   drawRelations();
@@ -5314,6 +5399,51 @@ function findCurveByEndpoints(layer, startName, endName){
   return list.find(c => c.startPos && c.endPos && c.startPos.instanceName===startName && c.endPos.instanceName===endName) || null;
 }
 
+// RoboShop (RobomapItemBezier::bezierPath, case 5 "DegenerateBezier") does
+// NOT render this as a textbook cubic through [P0,C1,C2,P3]. It duplicates
+// each control point and evaluates a QUINTIC bezier through the 6 points
+// [P0,C1,C1,C2,C2,P3] -- confirmed against SEER's decompiled source and
+// verified against screenshots of RoboShop's actual rendering across 13
+// test geometries (it matches the real curve far more closely than any
+// scaled/unscaled cubic does). Using the textbook cubic here would make
+// this editor's preview visibly diverge from what RoboShop/the robot
+// actually follows, especially on sharper turns with longer handles.
+function degenerateBezierPoint(p0, c1, c2, p3, t){
+  const mt = 1-t;
+  const mt2 = mt*mt, mt3 = mt2*mt, mt4 = mt3*mt;
+  const t2 = t*t, t3 = t2*t, t4 = t3*t;
+  const b0 = mt4*mt;                 // (1-t)^5
+  const b1 = 5*mt4*t + 10*mt3*t2;    // combined weight on C1 (P1=P2=C1)
+  const b2 = 10*mt2*t3 + 5*mt*t4;    // combined weight on C2 (P3=P4=C2)
+  const b5 = t4*t;                   // t^5
+  return [
+    b0*p0[0] + b1*c1[0] + b2*c2[0] + b5*p3[0],
+    b0*p0[1] + b1*c1[1] + b2*c2[1] + b5*p3[1],
+  ];
+}
+
+// RoboShop's plain "BezierPath" curve type (case 1 in the same switch) IS a
+// textbook cubic through [P0,C1,C2,P3] (QPainterPath::cubicTo) -- only
+// "DegenerateBezier" (case 5) uses the doubled-point quintic above. Both
+// classNames reuse the same controlPos1/controlPos2 field names in the
+// .smap format (e.g. example_areas.smap and more_location_types.smap are
+// BezierPath, not DegenerateBezier), so className must be checked here
+// rather than assuming every curve with control points is a quintic.
+function cubicBezierPoint(p0, c1, c2, p3, t){
+  const mt = 1-t;
+  const b0 = mt*mt*mt, b1 = 3*mt*mt*t, b2 = 3*mt*t*t, b3 = t*t*t;
+  return [
+    b0*p0[0] + b1*c1[0] + b2*c2[0] + b3*p3[0],
+    b0*p0[1] + b1*c1[1] + b2*c2[1] + b3*p3[1],
+  ];
+}
+
+function curveBezierPoint(curve, p0, c1, c2, p3, t){
+  return (curve && curve.className==='DegenerateBezier')
+    ? degenerateBezierPoint(p0,c1,c2,p3,t)
+    : cubicBezierPoint(p0,c1,c2,p3,t);
+}
+
 function curveScreenSamples(layer, curve, n){
   const sp = curve.startPos && curve.startPos.pos, ep = curve.endPos && curve.endPos.pos;
   if(!sp || !ep) return [];
@@ -5325,9 +5455,7 @@ function curveScreenSamples(layer, curve, n){
   if(c1 && c2){ p1 = layerToWorld(layer, c1.x, c1.y); p2 = layerToWorld(layer, c2.x, c2.y); }
   const pts = [];
   for(let i=0;i<=n;i++){
-    const t=i/n, mt=1-t;
-    const x = mt*mt*mt*p0[0] + 3*mt*mt*t*p1[0] + 3*mt*t*t*p2[0] + t*t*t*p3[0];
-    const y = mt*mt*mt*p0[1] + 3*mt*mt*t*p1[1] + 3*mt*t*t*p2[1] + t*t*t*p3[1];
+    const [x,y] = curveBezierPoint(curve, p0,p1,p2,p3, i/n);
     pts.push(worldToScreen(x,y));
   }
   return pts;
@@ -8720,6 +8848,18 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       dragging = true;
       renderAlignPanel();
     }
+  } else if(state.tool==='calibrateImage'){
+    const handleHit = state.calibrateLine ? findLineEndpointHit(state.calibrateLine, sx, sy, 12) : null;
+    if(handleHit){
+      state.draggingCalibrateHandle = handleHit;
+      dragging = true;
+    } else {
+      const [wx,wy]=screenToWorld(sx,sy);
+      state.calibrateLine = {x1:wx, y1:wy, x2:wx, y2:wy};
+      state.draggingCalibrateHandle = 'end';
+      dragging = true;
+      renderCalibratePanel();
+    }
   } else if(state.tool==='nav' && layer){
     const selPath = getSelectedPath();
     let cpHit = (selPath && selPath.layer.id===layer.id) ? findPairControlHandleAt(selPath, sx, sy, 14) : null;
@@ -9205,6 +9345,11 @@ canvasEl.addEventListener('pointermove', (e)=>{
     else { state.alignLine.x2=wx; state.alignLine.y2=wy; }
     renderAlignPanel();
     requestDraw();
+  } else if(state.tool==='calibrateImage' && state.draggingCalibrateHandle && state.calibrateLine){
+    if(state.draggingCalibrateHandle==='start'){ state.calibrateLine.x1=wx; state.calibrateLine.y1=wy; }
+    else { state.calibrateLine.x2=wx; state.calibrateLine.y2=wy; }
+    renderCalibratePanel();
+    requestDraw();
   } else if(state.tool==='nav' && state.draggingNavPoint && layer){
     const pt = findNavPointByName(layer, state.draggingNavPoint.instanceName);
     if(pt){
@@ -9342,6 +9487,10 @@ function endPointer(e){
 
   if(state.tool==='align' && state.draggingAlignHandle){
     state.draggingAlignHandle = null;
+  }
+
+  if(state.tool==='calibrateImage' && state.draggingCalibrateHandle){
+    state.draggingCalibrateHandle = null;
   }
 
   if((state.tool==='nav' || state.tool==='path') && state.newPathFrom && state.tempLine){
@@ -9714,6 +9863,84 @@ function downloadJSON(obj, filename){
   downloadBlob(new Blob([JSON.stringify(obj)], {type:'application/json'}), filename);
 }
 
+// Each layer numbers its own nav points independently (generateNavPointName
+// only ever scans ITS OWN layer's advancedPointList), so two different
+// layers that each contain a Linear/Grid pattern very plausibly both
+// produce "LM1", "LM2", ... — perfectly fine while they're separate layers,
+// but merging multiple layers into one exported .smap (exportMergedSmap)
+// previously just concatenated their point/curve lists with no collision
+// check, so a name shared by two different layers' points would land twice
+// in the same file. RoboShop then has two different points with one name,
+// and any bidirectional path between a pair of them doubles into 4 curve
+// records instead of 2 for that reason alone — or, if RoboShop resolves
+// the name to whichever of the two it picks, a path that should be short
+// and local can render stretching all the way to the OTHER same-named
+// point's location instead. dedupeMergedPointNames below renames the
+// later occurrence before it gets merged in, so two different points
+// never share a name in the output.
+function uniqueMergedName(name, usedNames){
+  const m = /^(.*?)(\d+)$/.exec(name);
+  const prefix = m ? m[1] : (name+'_');
+  let n = m ? parseInt(m[2],10) : 1;
+  let candidate;
+  do{ n++; candidate = prefix+n; } while(usedNames.has(candidate));
+  return candidate;
+}
+function samePos(a, b){
+  // Tight on purpose: both a point's own pos and a curve's cached endpoint
+  // pos always go through round3() (fixed 0.001 grid), so genuinely-the-
+  // same position should match almost exactly — this only needs enough
+  // slack for float noise, not for "close enough." A looser tolerance here
+  // (0.005 was tried first) makes genuinely different duplicate points
+  // that happen to sit a couple mm apart look like the same point, which
+  // is exactly the corruption pattern this is meant to tell apart.
+  return a && b && Math.abs(a.x-b.x)<0.0005 && Math.abs(a.y-b.y)<0.0005;
+}
+// Renames ONE SPECIFIC point object (pt) from oldName to newName, fixing up
+// only the curves that actually belong to IT. A name collision can also
+// occur WITHIN a single layer's own already-exported data — e.g. a layer
+// built by re-importing an earlier, already-duplicate-corrupted export —
+// not just across layers, so by the time this runs there can be more than
+// one point still named oldName. Curves only reference points by name
+// string, so name alone can't tell two same-named points apart; position
+// can, since every curve carries a denormalized copy of each endpoint's
+// position. Matching on name AND position (not name alone, which is what
+// the first version of this fix did) is what keeps a collision between two
+// points from renaming BOTH of them onto the same new name and cascading
+// into a worse pileup than the one being fixed.
+function renamePointInstance(extra, pt, oldName, newName){
+  if(pt.className==='ChargePoint' && Array.isArray(pt.property)){
+    const prop = pt.property.find(p=>p && p.key==='prepoint');
+    if(prop && prop.stringValue===oldName){
+      prop.stringValue = newName;
+      try{ prop.value = b64EncodeUtf8(newName); }catch(e){}
+    }
+  }
+  const curves = extra.advancedCurveList;
+  if(!Array.isArray(curves)) return;
+  for(const c of curves){
+    let changed = false;
+    if(c.startPos && c.startPos.instanceName===oldName && samePos(c.startPos.pos, pt.pos)){ c.startPos.instanceName = newName; changed = true; }
+    if(c.endPos && c.endPos.instanceName===oldName && samePos(c.endPos.pos, pt.pos)){ c.endPos.instanceName = newName; changed = true; }
+    if(changed && c.startPos && c.endPos) c.instanceName = c.startPos.instanceName+'-'+c.endPos.instanceName;
+  }
+}
+function dedupeMergedPointNames(extra, usedNames){
+  const points = extra.advancedPointList;
+  if(!Array.isArray(points)) return;
+  for(const pt of points){
+    const name = pt.instanceName;
+    if(!name) continue;
+    if(usedNames.has(name)){
+      const renamed = uniqueMergedName(name, usedNames);
+      renamePointInstance(extra, pt, name, renamed);
+      pt.instanceName = renamed;
+      usedNames.add(renamed);
+    } else {
+      usedNames.add(name);
+    }
+  }
+}
 function buildSmapFromLayers(layers, mapName){
   resolveAllConstraints();
   resolveAllRelations();
@@ -9721,6 +9948,7 @@ function buildSmapFromLayers(layers, mapName){
   resolveAllGridPatterns();
   const normalPosList = [], rssiPosList = [], reflectorPosList = [];
   const mergedExtra = {};
+  const mergedPointNames = new Set();
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   let finestRes = Infinity;
 
@@ -9761,6 +9989,7 @@ function buildSmapFromLayers(layers, mapName){
       }
     }
     const transformedExtra = transformDeepClone(layer.extra, layer);
+    dedupeMergedPointNames(transformedExtra, mergedPointNames);
     for(const key of Object.keys(transformedExtra)){
       if(Array.isArray(transformedExtra[key])){
         if(!Array.isArray(mergedExtra[key])) mergedExtra[key] = [];
