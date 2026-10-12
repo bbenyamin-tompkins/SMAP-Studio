@@ -566,8 +566,9 @@
                 <button type="button" class="shape-btn" id="patDraftAxisBoth">Both</button>
               </div>
             </div>
-            <div class="field-row" id="patDraftDxRow"><label for="patDraftDx">dx</label><input type="number" id="patDraftDx" step="0.01" value="1"></div>
-            <div class="field-row" id="patDraftDyRow" hidden><label for="patDraftDy">dy</label><input type="number" id="patDraftDy" step="0.01" value="0"></div>
+            <div class="field-row" id="patDraftDxRow"><input type="checkbox" id="patDraftDxOn" title="Editable (uncheck to compute dx from dy + angle)" style="margin-right:4px;"><label for="patDraftDx">dx</label><input type="number" id="patDraftDx" step="0.01" value="1"></div>
+            <div class="field-row" id="patDraftDyRow" hidden><input type="checkbox" id="patDraftDyOn" title="Editable (uncheck to compute dy from dx + angle)" style="margin-right:4px;"><label for="patDraftDy">dy</label><input type="number" id="patDraftDy" step="0.01" value="0"></div>
+            <div class="field-row" id="patDraftAngleRow" hidden><input type="checkbox" id="patDraftAngleOn" title="Editable (uncheck to compute angle from dx + dy)" style="margin-right:4px;"><label for="patDraftAngle">Angle (°)</label><input type="number" id="patDraftAngle" step="0.5"></div>
             <div class="field-row"><label for="patDraftCount">Count</label><input type="number" id="patDraftCount" step="1" min="1" value="3"></div>
             <label class="check-inline" style="margin-top:4px;"><input type="checkbox" id="patDraftConnected"> Connect nav points with paths</label>
             <div class="field-row" id="patDraftConnectDirRow" hidden>
@@ -598,8 +599,9 @@
               <button type="button" class="shape-btn" id="patSelAxisBoth">Both</button>
             </div>
           </div>
-          <div class="field-row" id="patSelDxRow"><label for="patSelDx">dx</label><input type="number" id="patSelDx" step="0.01"></div>
-          <div class="field-row" id="patSelDyRow"><label for="patSelDy">dy</label><input type="number" id="patSelDy" step="0.01"></div>
+          <div class="field-row" id="patSelDxRow"><input type="checkbox" id="patSelDxOn" title="Editable (uncheck to compute dx from dy + angle)" style="margin-right:4px;"><label for="patSelDx">dx</label><input type="number" id="patSelDx" step="0.01"></div>
+          <div class="field-row" id="patSelDyRow"><input type="checkbox" id="patSelDyOn" title="Editable (uncheck to compute dy from dx + angle)" style="margin-right:4px;"><label for="patSelDy">dy</label><input type="number" id="patSelDy" step="0.01"></div>
+          <div class="field-row" id="patSelAngleRow" hidden><input type="checkbox" id="patSelAngleOn" title="Editable (uncheck to compute angle from dx + dy)" style="margin-right:4px;"><label for="patSelAngle">Angle (°)</label><input type="number" id="patSelAngle" step="0.5"></div>
           <div class="field-row"><label for="patSelCount">Count</label><input type="number" id="patSelCount" step="1" min="0"></div>
           <label class="check-inline" style="margin-top:4px;"><input type="checkbox" id="patSelConnected"> Connect nav points with paths</label>
           <div class="field-row" id="patSelConnectDirRow" hidden>
@@ -1556,6 +1558,7 @@ function getSelectedNavPoint(){
 
 function renameNavPoint(layer, oldName, newName){
   if(!newName || oldName===newName) return false;
+  if(!isValidNavPointName(newName)) return false;
   if(findNavPointByName(layer, newName)) return false;
   const pt = findNavPointByName(layer, oldName);
   if(!pt) return false;
@@ -1657,8 +1660,11 @@ function renderNavPointPanel(){
   navY.value = round3(wy);
   const hasDir = typeof pt.dir === 'number' && !pt.ignoreDir;
   navHasDir.checked = hasDir;
+  // pt.dir is already layer-relative; show it as-is rather than combining
+  // with layer.transform.rot, so rotating the layer doesn't change a
+  // point's displayed heading even though its world-absolute angle does.
   const localDir = typeof pt.dir === 'number' ? pt.dir : 0;
-  navRot.value = round3((localDir + layer.transform.rot) * 180/Math.PI);
+  navRot.value = round3(localDir * 180/Math.PI);
   const disabled = !layer.visible;
   const isFollower = isStationFollower(pt);
   const isDriver = isStationDriver(pt);
@@ -1943,6 +1949,11 @@ navPtName.addEventListener('change', ()=>{
   const oldName = pt.instanceName;
   const newName = navPtName.value.trim();
   if(!newName || newName===oldName){ renderNavPointPanel(); return; }
+  if(!isValidNavPointName(newName)){
+    alert('Point names must start with '+Object.values(NAV_POINT_TYPE_PREFIX).join('/')+' followed by a number (e.g. "LM3") — RoboShop fails to load routes otherwise.');
+    renderNavPointPanel();
+    return;
+  }
   pushUndo(layer);
   if(renameNavPoint(layer, oldName, newName)){
     state.selectedNavPoint.instanceName = newName;
@@ -1971,8 +1982,8 @@ function applyNavPointFields(){
   const [lx, ly] = worldToLayer(layer, wx, wy);
   pt.pos.x = round3(lx); pt.pos.y = round3(ly);
   if(navHasDir.checked){
-    const worldDirDeg = parseFloat(navRot.value)||0;
-    pt.dir = (worldDirDeg*Math.PI/180) - layer.transform.rot;
+    const localDirDeg = parseFloat(navRot.value)||0;
+    pt.dir = localDirDeg*Math.PI/180;
     if(isStationFollower(pt)) propagateLmOverrideToPatternMembers(layer, pt);
     else propagateHeadingToPatternMembers(layer, pt);
   }
@@ -2938,6 +2949,11 @@ selectBasicName.addEventListener('change', ()=>{
   const v = selectBasicName.value.trim();
   if(!v){ renderSelectPanel(); return; }
   if(t.kind==='navPoint'){
+    if(!isValidNavPointName(v)){
+      alert('Point names must start with '+Object.values(NAV_POINT_TYPE_PREFIX).join('/')+' followed by a number (e.g. "LM3") — RoboShop fails to load routes otherwise.');
+      renderSelectPanel();
+      return;
+    }
     pushUndo(layer);
     if(renameNavPoint(layer, t.instanceName, v)){ t.instanceName = v; scheduleAutosave(); requestDraw(); }
   } else if(t.kind==='area'){
@@ -2971,7 +2987,7 @@ function selectBasicApplyPos(){
     scheduleAutosave(); requestDraw();
   } else if(t.kind==='reflector'){
     const r = layer.reflectors[t.index];
-    if(!r) return;
+    if(!r || r.__locked || r.__fixed) return;
     pushUndo(layer);
     const [lx,ly] = worldToLayer(layer, wx, wy);
     r.x = round3(lx); r.y = round3(ly);
@@ -3086,6 +3102,14 @@ document.getElementById('newPathDirBwd').addEventListener('click', ()=>setNewPat
 document.getElementById('newPathMovestyle').addEventListener('change', e=>{ state.newPathMovestyle = parseInt(e.target.value,10)||0; });
 
 const NAV_POINT_TYPE_PREFIX = { LocationMark:'LM', ChargePoint:'CP', ActionPoint:'AP' };
+// RoboShop silently fails to load any route whose point names don't start
+// with one of its recognized prefixes followed by a number (confirmed
+// first-hand: a synthetic test file named "A"/"B" loaded the points but not
+// the paths between them). Accepts any of the known prefixes rather than
+// strictly the current point's own type, since e.g. renaming across types
+// isn't otherwise restricted and shouldn't suddenly be blocked here.
+const NAV_POINT_NAME_RE = new RegExp('^(?:'+Object.values(NAV_POINT_TYPE_PREFIX).join('|')+')[0-9]+$');
+function isValidNavPointName(name){ return NAV_POINT_NAME_RE.test(name); }
 state.newStationDistanceFree = false;
 state.newPickupAlongFree = false;
 state.newPickupPerpFree = false;
@@ -3588,68 +3612,6 @@ function buildPathColorMap(layer){
   }
   return map;
 }
-// Purely a rendering aid — never touches curve data, selection, or hit-
-// testing. If any two DIFFERENT paths' on-screen samples come within a few
-// pixels of each other anywhere along their length, both get nudged a
-// little sideways (perpendicular to their own start->end direction) so two
-// overlapping/near-coincident paths read as two distinct lines instead of
-// one. A cheap bounding-box pre-check keeps this from being O(curves^2 x
-// samples^2) on layers with lots of curves that aren't actually near each
-// other.
-function computeCurveOffsets(layer){
-  const offsets = new Map();
-  const list = layer.extra && layer.extra.advancedCurveList;
-  if(!Array.isArray(list) || list.length<2) return offsets;
-  const CLOSE_PX = 6, OFFSET_PX = 3.5, BBOX_MARGIN = CLOSE_PX+2;
-  const info = [];
-  for(const curve of list){
-    if(!curve.startPos || !curve.endPos || !curve.startPos.pos || !curve.endPos.pos) continue;
-    const pts = curveScreenSamples(layer, curve, 16);
-    if(pts.length<2) continue;
-    const [x1,y1] = pts[0], [x2,y2] = pts[pts.length-1];
-    let dx = x2-x1, dy = y2-y1;
-    const len = Math.hypot(dx,dy) || 1;
-    dx/=len; dy/=len;
-    // Canonicalize the direction before taking its perpendicular: a curve
-    // and its exact reverse (the overwhelmingly common "close pair" case —
-    // a bidirectional path's forward+backward curves) must land on the SAME
-    // perpendicular axis, or +1/-1 sides cancel out instead of separating
-    // them. Flipping into one fixed half-plane makes it direction-agnostic.
-    if(dx<0 || (dx===0 && dy<0)){ dx=-dx; dy=-dy; }
-    let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-    for(const [px,py] of pts){ minX=Math.min(minX,px); maxX=Math.max(maxX,px); minY=Math.min(minY,py); maxY=Math.max(maxY,py); }
-    info.push({curve, pts, perpX:-dy, perpY:dx, minX, maxX, minY, maxY});
-  }
-  const sideAssigned = new Map();
-  for(let i=0;i<info.length;i++){
-    const A = info[i];
-    for(let j=i+1;j<info.length;j++){
-      const B = info[j];
-      if(A.minX-BBOX_MARGIN>B.maxX || B.minX-BBOX_MARGIN>A.maxX || A.minY-BBOX_MARGIN>B.maxY || B.minY-BBOX_MARGIN>A.maxY) continue;
-      let minD = Infinity;
-      outer: for(const [ax,ay] of A.pts){
-        for(const [bx,by] of B.pts){
-          const d = Math.hypot(ax-bx, ay-by);
-          if(d<minD) minD = d;
-          if(minD<=CLOSE_PX) break outer;
-        }
-      }
-      if(minD>CLOSE_PX) continue;
-      let sa = sideAssigned.get(A.curve), sb = sideAssigned.get(B.curve);
-      if(sa==null && sb==null){ sa=1; sb=-1; }
-      else if(sa==null){ sa = -sb; }
-      else if(sb==null){ sb = -sa; }
-      sideAssigned.set(A.curve, sa);
-      sideAssigned.set(B.curve, sb);
-    }
-  }
-  for(const {curve, perpX, perpY} of info){
-    const side = sideAssigned.get(curve);
-    if(side) offsets.set(curve, [perpX*OFFSET_PX*side, perpY*OFFSET_PX*side]);
-  }
-  return offsets;
-}
-
 function drawNavPoints(layer, pal){
   const extra = layer.extra;
   if(!extra) return;
@@ -3661,7 +3623,6 @@ function drawNavPoints(layer, pal){
 
   const showHandles = ((state.tool==='nav' || state.tool==='path') && isActiveLayer) || state.tool==='constraints' || state.tool==='dist';
   const isoHere = state.isolatedPath && state.isolatedPath.layerId===layer.id ? state.isolatedPath : null;
-  const curveOffsets = computeCurveOffsets(layer);
   if(Array.isArray(extra.advancedCurveList)){
     for(const item of extra.advancedCurveList){
       const sp = item && item.startPos && item.startPos.pos, ep = item && item.endPos && item.endPos.pos;
@@ -3672,11 +3633,9 @@ function drawNavPoints(layer, pal){
         const matches = (a===isoHere.nameA && b===isoHere.nameB) || (a===isoHere.nameB && b===isoHere.nameA);
         if(!matches) continue;
       }
-      // [ox,oy]: a tiny purely-visual screen-space nudge (see
-      // computeCurveOffsets) applied to every coordinate this curve draws
-      // at, so two near-coincident paths separate into two visible lines.
-      // It never touches wx/wy (world coords), curve data, or hit-testing.
-      const [ox,oy] = curveOffsets.get(item) || [0,0];
+      // Always centered, no perpendicular nudge -- see removed
+      // computeCurveOffsets for why that nudge was inconsistent and is gone.
+      const ox=0, oy=0;
       const [wx1,wy1] = layerToWorld(layer, sp.x, sp.y);
       const [wx2,wy2] = layerToWorld(layer, ep.x, ep.y);
       const [sx1,sy1] = worldToScreen(wx1,wy1).map((v,i)=>v+(i===0?ox:oy));
@@ -5157,6 +5116,7 @@ function findLineHandleAt(layer, sx, sy, pxThreshold){
   let best=null, bestD=pxThreshold;
   for(let i=0;i<layer.manualLines.length;i++){
     const ln = layer.manualLines[i];
+    if(ln.__locked) continue;
     for(const which of ['start','end']){
       const lx = which==='start' ? ln.x1 : ln.x2, ly = which==='start' ? ln.y1 : ln.y2;
       const [wx,wy] = layerToWorld(layer, lx, ly);
@@ -5808,6 +5768,69 @@ function pruneInvalidRelations(){
   state.relations = state.relations.filter(rel=>{
     rel.participants = (rel.participants||[]).filter(p=>getRelationParticipantWorldPoint(p)!=null);
     return rel.participants.length>=2;
+  });
+}
+
+// Only dx/dy are persisted on a linear pattern/draft; angle is always
+// derived from them for display (missing='angle'), or used to solve for
+// whichever of dx/dy is being treated as dependent (missing='dx'/'dy').
+// Degenerate angles (0/180 solving dx from dy, or ±90 solving dy from dx)
+// leave the requested field unchanged rather than producing NaN/Infinity.
+function computeMissingLinearPatternField(dx, dy, angleDeg, missing){
+  if(missing==='angle') return Math.atan2(dy, dx) * 180/Math.PI;
+  const angleRad = angleDeg*Math.PI/180;
+  if(missing==='dx') return Math.abs(Math.sin(angleRad))<1e-9 ? dx : dy/Math.tan(angleRad);
+  if(missing==='dy') return Math.abs(Math.cos(angleRad))<1e-9 ? dy : dx*Math.tan(angleRad);
+  return 0;
+}
+// Linear pattern "both" mode: dx, dy, and angle are mutually redundant, but
+// rather than inferring which one to treat as dependent from edit history
+// (confusing in practice), __patSolveFor explicitly names ONE field as the
+// computed/disabled one; the other two are always directly editable, and
+// every edit just re-solves the designated field from the other two's
+// current (live, as-displayed) values.
+function applyLinearPatternFieldEdit(target, dx, dy, angleDeg){
+  const solveFor = target.__patSolveFor || 'angle';
+  if(solveFor==='dx'){
+    target.dy = dy;
+    target.dx = computeMissingLinearPatternField(dx, dy, angleDeg, 'dx');
+  } else if(solveFor==='dy'){
+    target.dx = dx;
+    target.dy = computeMissingLinearPatternField(dx, dy, angleDeg, 'dy');
+  } else { // solveFor === 'angle': dx/dy are both live-edited, angle is
+    target.dx = dx;              // purely derived for display, nothing to store.
+    target.dy = dy;
+  }
+}
+// Reflects target.__patSolveFor into the dx/dy/angle checkboxes+inputs for
+// one panel (prefix 'patDraft' or 'patSel'). The computed field's checkbox
+// is disabled rather than independently uncheckable -- with exactly one
+// field always excluded, "check the excluded one" is ambiguous about which
+// of the other two should give up its slot, so the only interactive action
+// is unchecking one of the two currently-included fields (handled by
+// wireLinearSolveForCheckbox below, which has an unambiguous target: the
+// field just unchecked becomes __patSolveFor, and whichever field that
+// replaces regains its checked+enabled state on the next render.
+function renderLinearSolveForUI(prefix, target){
+  const dxOn = document.getElementById(prefix+'DxOn'), dyOn = document.getElementById(prefix+'DyOn'), angleOn = document.getElementById(prefix+'AngleOn');
+  const dxEl = document.getElementById(prefix+'Dx'), dyEl = document.getElementById(prefix+'Dy'), angleEl = document.getElementById(prefix+'Angle');
+  const solveFor = target.__patSolveFor || 'angle';
+  dxOn.checked = solveFor!=='dx'; dxOn.disabled = solveFor==='dx';
+  dyOn.checked = solveFor!=='dy'; dyOn.disabled = solveFor==='dy';
+  angleOn.checked = solveFor!=='angle'; angleOn.disabled = solveFor==='angle';
+  dxEl.disabled = solveFor==='dx';
+  dyEl.disabled = solveFor==='dy';
+  angleEl.disabled = solveFor==='angle';
+  if(document.activeElement!==angleEl) angleEl.value = round3(computeMissingLinearPatternField(target.dx, target.dy, 0, 'angle'));
+}
+// Wires one field's "editable" checkbox: unchecking it (the only meaningful
+// click, since the box is disabled whenever it'd otherwise need checking)
+// makes this field the new computed/disabled one.
+function wireLinearSolveForCheckbox(prefix, field, getTarget, onChange){
+  document.getElementById(prefix+(field==='dx'?'DxOn':field==='dy'?'DyOn':'AngleOn')).addEventListener('change', e=>{
+    const target = getTarget(); if(!target) return;
+    if(!e.target.checked) target.__patSolveFor = field;
+    onChange(target);
   });
 }
 
@@ -6802,7 +6825,7 @@ function pickupApForPoint(layer, pt){
 // toggle is on) — used to decide whether direct dragging is allowed.
 function isNavPointPositionLocked(layer, pt){
   if(!pt) return false;
-  if(pt.__locked) return true;
+  if(pt.__locked || pt.__fixed) return true;
   if(isStationFollower(pt)){
     const ap = getStationPartner(layer, pt);
     return !(ap && ap.__pairedLM && ap.__pairedLM.distanceFree);
@@ -7396,7 +7419,9 @@ function renderPatternPanel(){
     document.getElementById('patDraftAxisBoth').classList.toggle('active', draft.axis==='both');
     document.getElementById('patDraftDxRow').hidden = draft.axis==='y';
     document.getElementById('patDraftDyRow').hidden = draft.axis==='x';
+    document.getElementById('patDraftAngleRow').hidden = draft.axis!=='both';
     const dxEl = document.getElementById('patDraftDx'), dyEl = document.getElementById('patDraftDy'), cntEl = document.getElementById('patDraftCount');
+    renderLinearSolveForUI('patDraft', draft);
     if(document.activeElement!==dxEl) dxEl.value = draft.dx;
     if(document.activeElement!==dyEl) dyEl.value = draft.dy;
     if(document.activeElement!==cntEl) cntEl.value = draft.count;
@@ -7417,7 +7442,9 @@ function renderPatternPanel(){
     document.getElementById('patSelAxisBoth').classList.toggle('active', pat.axis==='both');
     document.getElementById('patSelDxRow').hidden = pat.axis==='y';
     document.getElementById('patSelDyRow').hidden = pat.axis==='x';
+    document.getElementById('patSelAngleRow').hidden = pat.axis!=='both';
     const dxEl = document.getElementById('patSelDx'), dyEl = document.getElementById('patSelDy'), cntEl = document.getElementById('patSelCount');
+    renderLinearSolveForUI('patSel', pat);
     if(document.activeElement!==dxEl) dxEl.value = pat.dx;
     if(document.activeElement!==dyEl) dyEl.value = pat.dy;
     if(document.activeElement!==cntEl) cntEl.value = pat.count;
@@ -7479,8 +7506,20 @@ document.getElementById('patDraftTypeGrid').addEventListener('click', ()=>{ if(s
 document.getElementById('patDraftAxisX').addEventListener('click', ()=>{ if(state.patDraft){ state.patDraft.axis='x'; renderPatternPanel(); requestDraw(); } });
 document.getElementById('patDraftAxisY').addEventListener('click', ()=>{ if(state.patDraft){ state.patDraft.axis='y'; renderPatternPanel(); requestDraw(); } });
 document.getElementById('patDraftAxisBoth').addEventListener('click', ()=>{ if(state.patDraft){ state.patDraft.axis='both'; renderPatternPanel(); requestDraw(); } });
-document.getElementById('patDraftDx').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.dx = parseFloat(e.target.value)||0; });
-document.getElementById('patDraftDy').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.dy = parseFloat(e.target.value)||0; });
+function patDraftLinearFieldsChanged(){
+  if(!state.patDraft) return;
+  const dx = parseFloat(document.getElementById('patDraftDx').value)||0;
+  const dy = parseFloat(document.getElementById('patDraftDy').value)||0;
+  const angle = parseFloat(document.getElementById('patDraftAngle').value)||0;
+  applyLinearPatternFieldEdit(state.patDraft, dx, dy, angle);
+  renderPatternPanel();
+}
+document.getElementById('patDraftDx').addEventListener('input', patDraftLinearFieldsChanged);
+document.getElementById('patDraftDy').addEventListener('input', patDraftLinearFieldsChanged);
+document.getElementById('patDraftAngle').addEventListener('input', patDraftLinearFieldsChanged);
+['dx','dy','angle'].forEach(field=>{
+  wireLinearSolveForCheckbox('patDraft', field, ()=>state.patDraft, ()=>renderPatternPanel());
+});
 document.getElementById('patDraftCount').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.count = Math.max(1, parseInt(e.target.value)||1); });
 document.getElementById('patDraftConnected').addEventListener('change', e=>{ if(state.patDraft){ state.patDraft.connected = e.target.checked; renderPatternPanel(); } });
 document.getElementById('patDraftConnectDir').addEventListener('change', e=>{ if(state.patDraft) state.patDraft.connectDirection = e.target.value; });
@@ -7533,16 +7572,22 @@ document.getElementById('patSelConnectDir').addEventListener('change', e=>{
   renderNavPointPanel(); renderPathPanel(); scheduleAutosave(); requestDraw();
 });
 let patFieldsUndoPushed = false;
-[document.getElementById('patSelDx'), document.getElementById('patSelDy')].forEach(el=>{
+['patSelDx', 'patSelDy', 'patSelAngle'].forEach(id=>{
+  const el = document.getElementById(id);
   el.addEventListener('focus', ()=>{ patFieldsUndoPushed = false; });
   el.addEventListener('input', ()=>{
     const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
     const layer = getLayer(pat.layerId);
     if(layer && !patFieldsUndoPushed){ pushUndo(layer); patFieldsUndoPushed = true; }
-    pat.dx = parseFloat(document.getElementById('patSelDx').value)||0;
-    pat.dy = parseFloat(document.getElementById('patSelDy').value)||0;
-    resolveAllPatterns(); scheduleAutosave(); requestDraw();
+    const dx = parseFloat(document.getElementById('patSelDx').value)||0;
+    const dy = parseFloat(document.getElementById('patSelDy').value)||0;
+    const angle = parseFloat(document.getElementById('patSelAngle').value)||0;
+    applyLinearPatternFieldEdit(pat, dx, dy, angle);
+    resolveAllPatterns(); renderPatternPanel(); scheduleAutosave(); requestDraw();
   });
+});
+['dx','dy','angle'].forEach(field=>{
+  wireLinearSolveForCheckbox('patSel', field, ()=>state.patterns.find(p=>p.id===state.selectedPattern), ()=>renderPatternPanel());
 });
 document.getElementById('patSelCount').addEventListener('change', ()=>{
   const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
@@ -8403,17 +8448,30 @@ function applyGroupLock(locked){
     if(!layer) continue;
     pushUndo(layer);
     for(const item of items){
-      let obj = null;
-      if(item.kind==='navPoint') obj = findNavPointByName(layer, item.instanceName);
-      else if(item.kind==='area') obj = layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[item.areaIndex];
-      else if(item.kind==='reflector') obj = layer.reflectors[item.index];
-      else if(item.kind==='line') obj = layer.manualLines[item.index];
+      // navPoint/reflector route through the SAME "Fixed" mechanism as the
+      // Relations tool's 🔒 button (setRefFixed/resolveFixedPositions),
+      // which re-asserts the saved position every frame regardless of what
+      // tried to move it (drag, relation, pattern cascade, dimension
+      // constraint, ...) -- a plain __locked flag on the object only blocks
+      // whichever specific code paths happen to check it, and every path
+      // that doesn't check it silently ignores the lock. Areas/lines have
+      // no Fixed-mechanism support, so they keep the plain __locked flag,
+      // same as areas' own existing "Lock position" checkbox already uses.
+      if(item.kind==='navPoint' || item.kind==='reflector'){
+        setRefFixed({kind:item.kind, layerId, instanceName:item.instanceName, index:item.index}, locked);
+      } else if(item.kind==='area'){
+        const obj = layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[item.areaIndex];
+        if(obj){ if(locked) obj.__locked = true; else delete obj.__locked; }
+      } else if(item.kind==='line'){
+        const obj = layer.manualLines[item.index];
+        if(obj){ if(locked) obj.__locked = true; else delete obj.__locked; }
+      }
       // paths carry no position of their own to lock (their shape locks via
       // the existing per-curve "via Dimension tool" controls instead)
-      if(obj){ if(locked) obj.__locked = true; else delete obj.__locked; }
     }
   }
-  scheduleAutosave(); requestDraw(); renderDetailPanel(); renderAreaPanel(); renderNavPointPanel();
+  resolveFixedPositions();
+  scheduleAutosave(); requestDraw(); renderDetailPanel(); renderAreaPanel(); renderNavPointPanel(); renderRelPanel();
 }
 btnGroupSelectAll.addEventListener('click', ()=>{
   state.groupSelection = collectGroupSelectMatches();
@@ -8814,8 +8872,8 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     }
   } else if(state.tool==='reflector' && layer){
     const hitIdx = findReflectorAt(layer, sx, sy, 14);
-    if(hitIdx>=0 && layer.reflectors[hitIdx].__locked){
-      // locked: clicking it does nothing instead of deleting it
+    if(hitIdx>=0 && (layer.reflectors[hitIdx].__locked || layer.reflectors[hitIdx].__fixed)){
+      // locked/fixed: clicking it does nothing instead of deleting it
     } else {
       pushUndo(layer);
       if(hitIdx>=0){
@@ -9951,17 +10009,34 @@ function buildSmapFromLayers(layers, mapName){
   const mergedPointNames = new Set();
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   let finestRes = Infinity;
+  // Raw scan-point clouds (unlike nav points/reflectors/etc, which are
+  // semantic objects) are expected to be position-deduped: several layers
+  // commonly carry their own overlapping copy of the same background scan
+  // (e.g. each imported/duplicated from one shared source), and naively
+  // concatenating all of them multiplies the "flattened" export's size by
+  // however many layers redundantly cover the same area, even though it's
+  // visually/functionally still just one room's worth of scan data.
+  const seenScanPos = new Set();
+  const seenRssiPos = new Set();
 
   for(const layer of layers){
     finestRes = Math.min(finestRes, (layer.header && layer.header.resolution) || 0.02);
     for(let i=0;i<layer.points.length;i+=2){
       const [wx,wy] = layerToWorld(layer, layer.points[i], layer.points[i+1]);
-      normalPosList.push({x:round3(wx), y:round3(wy)});
+      const rx = round3(wx), ry = round3(wy);
       if(wx<minX)minX=wx; if(wx>maxX)maxX=wx; if(wy<minY)minY=wy; if(wy>maxY)maxY=wy;
+      const key = rx+','+ry;
+      if(seenScanPos.has(key)) continue;
+      seenScanPos.add(key);
+      normalPosList.push({x:rx, y:ry});
     }
     for(let i=0;i<layer.rssi.length;i+=2){
       const [wx,wy] = layerToWorld(layer, layer.rssi[i], layer.rssi[i+1]);
-      rssiPosList.push({x:round3(wx), y:round3(wy)});
+      const rx = round3(wx), ry = round3(wy);
+      const key = rx+','+ry;
+      if(seenRssiPos.has(key)) continue;
+      seenRssiPos.add(key);
+      rssiPosList.push({x:rx, y:ry});
     }
     for(const r of layer.reflectors){
       const [wx,wy] = layerToWorld(layer, r.x, r.y);
@@ -9983,8 +10058,12 @@ function buildSmapFromLayers(layers, mapName){
         const offsets = crossSteps===0 ? [0] : Array.from({length:crossSteps+1}, (_,c)=>-thickness/2+(c/crossSteps)*thickness);
         for(const off of offsets){
           const px=cx+perpX*off, py=cy+perpY*off;
-          normalPosList.push({x:round3(px), y:round3(py)});
+          const rx = round3(px), ry = round3(py);
           if(px<minX)minX=px; if(px>maxX)maxX=px; if(py<minY)minY=py; if(py>maxY)maxY=py;
+          const key = rx+','+ry;
+          if(seenScanPos.has(key)) continue;
+          seenScanPos.add(key);
+          normalPosList.push({x:rx, y:ry});
         }
       }
     }
