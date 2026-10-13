@@ -739,7 +739,7 @@
       <div class="section-title" data-key="path"><span>Selected path</span><span class="chev">▾</span></div>
       <div class="stat-line"><span>Name</span><b id="pathName" class="mono"></b></div>
       <div class="field-card">
-      <div class="label-sub" style="color:var(--accent);">Forward <span id="pathFwdLabel" class="mono"></span></div>
+      <div class="label-sub" style="color:var(--accent);"><span id="pathFwdLabel" class="mono"></span></div>
       <div class="field-row"><label for="pathFwdDirection">Direction</label>
         <select id="pathFwdDirection" title="Robot orientation while following this curve (0=nose-first, 1=reversing). A path is two-way because both curve objects exist, not because of this value." style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:13px;">
           <option value="0">0 — Forward</option>
@@ -757,7 +757,7 @@
       </div>
       </div>
       <div class="field-card" id="pathBwdSection">
-      <div class="label-sub" style="color:var(--accent);">Backward <span id="pathBwdLabel" class="mono"></span></div>
+      <div class="label-sub" style="color:var(--accent);"><span id="pathBwdLabel" class="mono"></span></div>
       <div class="field-row"><label for="pathBwdDirection">Direction</label>
         <select id="pathBwdDirection" title="Robot orientation while following this curve (0=nose-first, 1=reversing). A path is two-way because both curve objects exist, not because of this value." style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--panel); color:var(--ink); font-size:13px;">
           <option value="0">0 — Forward</option>
@@ -3683,12 +3683,22 @@ function drawNavPoints(layer, pal){
       const [amx,amy] = worldToScreen(midX,midY).map((v,i)=>v+(i===0?ox:oy));
       const [atx,aty] = worldToScreen(midX+(dX/dLen)*armWorld, midY+(dY/dLen)*armWorld).map((v,i)=>v+(i===0?ox:oy));
       const segAngle = Math.atan2(aty-amy, atx-amx);
-      ctx.fillStyle = curveColor;
       ctx.beginPath();
       ctx.moveTo(atx,aty);
       ctx.lineTo(atx-Math.cos(segAngle-0.45)*9, aty-Math.sin(segAngle-0.45)*9);
       ctx.lineTo(atx-Math.cos(segAngle+0.45)*9, aty-Math.sin(segAngle+0.45)*9);
-      ctx.closePath(); ctx.fill();
+      ctx.closePath();
+      // Arrowhead position/orientation is purely geometric (connectivity --
+      // which end is startPos vs endPos), per the comment above. Fill vs.
+      // outline is the separate signal: solid = nose-first (direction 0),
+      // hollow = reversing (direction 1), so both facts are visible at a
+      // glance from the one marker without contradicting its pointing
+      // direction (which must stay tied to startPos->endPos only).
+      if(getIntProperty(item, 'direction', 0)===1){
+        ctx.strokeStyle = curveColor; ctx.lineWidth = 1.5; ctx.stroke();
+      } else {
+        ctx.fillStyle = curveColor; ctx.fill();
+      }
 
       // control points + tangent handles, only while actively editing nav points on this layer.
       // In colorize mode these also get bigger (both the hit-test radius in
@@ -9563,12 +9573,22 @@ function endPointer(e){
           pushUndo(layer);
           const fromName = state.newPathFrom.instanceName, toName = target.instanceName;
           const dir = state.newPathDirection, ms = state.newPathMovestyle;
+          // state.selectedPath.nameA/nameB must always reflect the curve's
+          // own actual startPos->endPos, not the raw click order -- for
+          // "backward" the created curve runs toName->fromName (reversed
+          // from the click), so nameA/nameB get swapped to match. Using the
+          // click order unconditionally here was the root cause of the
+          // fwd/bwd direction confusion: it worked by coincidence for the
+          // forward/both cases (click order already matches) but silently
+          // diverged from the actual stored direction for backward.
+          let selNameA = fromName, selNameB = toName;
           if(dir==='forward'){
             const c = createOneWayPath(layer, fromName, toName);
             if(c) setIntProperty(c, 'movestyle', ms);
           } else if(dir==='backward'){
             const c = createOneWayPath(layer, toName, fromName);
             if(c) setIntProperty(c, 'movestyle', ms);
+            selNameA = toName; selNameB = fromName;
           } else {
             const forward = createBidirPath(layer, fromName, toName);
             if(forward){
@@ -9577,7 +9597,7 @@ function endPointer(e){
               if(backward) setIntProperty(backward, 'movestyle', ms);
             }
           }
-          state.selectedPath = {layerId:layer.id, nameA:fromName, nameB:toName};
+          state.selectedPath = {layerId:layer.id, nameA:selNameA, nameB:selNameB};
           state.selectedNavPoint = null;
           renderNavPointPanel(); renderPathPanel();
           scheduleAutosave();
