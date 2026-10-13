@@ -204,8 +204,8 @@
   .tool-btn[data-tool="pan"].active, .tool-btn[data-tool="move"].active, .tool-btn[data-tool="rotate"].active, .tool-btn[data-tool="align"].active{background:#2563eb33; border-color:#2563eb;}
   .tool-btn[data-tool="erase"]{background:#dc26261a; border-color:#dc262640; color:#dc2626;}
   .tool-btn[data-tool="erase"].active{background:#dc262633; border-color:#dc2626;}
-  .tool-btn[data-tool="draw"], .tool-btn[data-tool="reflector"], .tool-btn[data-tool="boxerase"]{background:#0596691a; border-color:#05966940; color:#059669;}
-  .tool-btn[data-tool="draw"].active, .tool-btn[data-tool="reflector"].active, .tool-btn[data-tool="boxerase"].active{background:#05966933; border-color:#059669;}
+  .tool-btn[data-tool="draw"], .tool-btn[data-tool="reflector"], .tool-btn[data-tool="boxerase"], .tool-btn[data-tool="boxsplit"]{background:#0596691a; border-color:#05966940; color:#059669;}
+  .tool-btn[data-tool="draw"].active, .tool-btn[data-tool="reflector"].active, .tool-btn[data-tool="boxerase"].active, .tool-btn[data-tool="boxsplit"].active{background:#05966933; border-color:#059669;}
   .tool-btn[data-tool="measure"], .tool-btn[data-tool="nav"], .tool-btn[data-tool="path"], .tool-btn[data-tool="area"]{background:#d977061a; border-color:#d9770640; color:#d97706;}
   .tool-btn[data-tool="measure"].active, .tool-btn[data-tool="nav"].active, .tool-btn[data-tool="path"].active, .tool-btn[data-tool="area"].active{background:#d9770633; border-color:#d97706;}
   .tool-btn[data-tool="dist"], .tool-btn[data-tool="constraints"], .tool-btn[data-tool="pattern"]{background:#7c3aed1a; border-color:#7c3aed40; color:#7c3aed;}
@@ -501,6 +501,20 @@
         <label class="check-inline"><input type="checkbox" id="selectReflector" checked> Reflectors</label>
         <label class="check-inline"><input type="checkbox" id="selectManualLines" checked> Manual lines</label>
         <label class="check-inline"><input type="checkbox" id="selectNavPoints" checked> Nav points</label>
+      </div>
+      <div class="tool-options" id="opts-boxsplit" hidden>
+        <div class="tool-hint" id="splitHint">Drag out a 4-point selection. Drag any corner to reshape it — it doesn't have to stay a rectangle.</div>
+        <div class="stat-line" style="margin-top:8px;"><span>Selected</span><b id="splitCount" class="mono">0 items</b></div>
+        <button class="btn primary" id="btnSplitCommit" style="width:100%; margin-top:6px;" disabled>Split into new layer</button>
+        <button class="btn" id="btnSplitClear" style="width:100%; margin-top:6px;" hidden>Clear (Esc)</button>
+        <div class="label-sub" style="margin-top:10px;">Split affects</div>
+        <label class="check-inline"><input type="checkbox" id="splitScan" checked> Scan points</label>
+        <label class="check-inline"><input type="checkbox" id="splitRssi" checked> RSSI points</label>
+        <label class="check-inline"><input type="checkbox" id="splitExtra" checked> Walls</label>
+        <label class="check-inline"><input type="checkbox" id="splitReflector" checked> Reflectors</label>
+        <label class="check-inline"><input type="checkbox" id="splitManualLines" checked> Manual lines</label>
+        <label class="check-inline"><input type="checkbox" id="splitNavPoints" checked> Nav points</label>
+        <div class="tool-hint" style="margin-top:8px;">A nav point only moves if every path touching it also has its other end inside the selection — otherwise it (and that path) stays put, so nothing ends up with a dangling connection.</div>
       </div>
       <div class="tool-options" id="opts-align" hidden>
         <div class="stat-line"><span>Line angle</span><b id="alignAngle" class="mono">–</b></div>
@@ -856,6 +870,7 @@
       <button class="tool-btn" data-tool="draw" title="Draw wall line (L)"><svg viewBox="0 0 24 24" fill="currentColor" fill-opacity="0.35" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M14 4l4 4M3 21l3-1 11-11-3-3L3 17z"></path></svg><span class="tool-btn-label">Draw (L)</span></button>
       <button class="tool-btn" data-tool="reflector" title="Add reflector (K)"><svg viewBox="0 0 24 24" fill="currentColor" fill-opacity="0.35" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"></circle></svg><span class="tool-btn-label">Reflect. (K)</span></button>
       <button class="tool-btn" data-tool="boxerase" title="Box erase: rectangle select and delete (B)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 3"><rect x="4" y="4" width="16" height="16" rx="1"></rect></svg><span class="tool-btn-label">Box Erase (B)</span></button>
+      <button class="tool-btn" data-tool="boxsplit" title="Drag out a 4-point selection (drag any corner to reshape it), then press Split to move everything inside it into a new layer (U)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="10" height="16" rx="1" stroke-dasharray="3 3"></rect><path d="M15 8h6M18 5l3 3-3 3" stroke-dasharray="none"></path></svg><span class="tool-btn-label">Split (U)</span></button>
     </div>
   </div>
   <div class="sep"></div>
@@ -1047,6 +1062,9 @@ const state = {
   selectionRect: null,
   measure: null,
   selectTargets: { scan:true, rssi:true, extra:true, reflector:true, manualLines:true, navPoints:true },
+  splitQuad: null,        // [[wx,wy] x4] world-space corners, or null before the first drag
+  splitDraftRect: null,   // {x1,y1,x2,y2} while dragging out the initial quad (before it exists)
+  draggingSplitCorner: null, // index 0-3 of the corner currently being dragged, or null
   reflectorWidth: 0.09,
   hoverReflector: null,
   draggingLineHandle: null,
@@ -3000,6 +3018,7 @@ const optsErase = document.getElementById('opts-erase');
 const optsDraw = document.getElementById('opts-draw');
 const optsReflector = document.getElementById('opts-reflector');
 const optsBoxErase = document.getElementById('opts-boxerase');
+const optsBoxSplit = document.getElementById('opts-boxsplit');
 const optsAlign = document.getElementById('opts-align');
 const optsCalibrateImage = document.getElementById('opts-calibrateImage');
 const optsDist = document.getElementById('opts-dist');
@@ -3012,8 +3031,8 @@ const toolStatus = document.getElementById('toolStatus');
 const noLayerBanner = document.getElementById('noLayerBanner');
 const canvasEl = document.getElementById('canvas');
 
-const TOOL_LABELS = { select:'Select', pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', boxerase:'Box erase', measure:'Ruler', nav:'Nav points', path:'Path', area:'Reflector area', align:'Align to line', calibrateImage:'Calibrate image scale', dist:'Dimension', constraints:'Constrain', pattern:'Linear pattern' };
-const TOOL_NEEDS_LAYER = { select:true, move:true, rotate:true, erase:true, draw:true, reflector:true, boxerase:true, pan:false, measure:false, nav:true, path:true, area:true, align:true, calibrateImage:true, dist:false, constraints:false, pattern:true };
+const TOOL_LABELS = { select:'Select', pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', boxerase:'Box erase', boxsplit:'Split to layer', measure:'Ruler', nav:'Nav points', path:'Path', area:'Reflector area', align:'Align to line', calibrateImage:'Calibrate image scale', dist:'Dimension', constraints:'Constrain', pattern:'Linear pattern' };
+const TOOL_NEEDS_LAYER = { select:true, move:true, rotate:true, erase:true, draw:true, reflector:true, boxerase:true, boxsplit:true, pan:false, measure:false, nav:true, path:true, area:true, align:true, calibrateImage:true, dist:false, constraints:false, pattern:true };
 
 function updateToolStatus(){
   const tool = state.tool;
@@ -3036,7 +3055,7 @@ function updateToolStatus(){
 // real map data inside what's supposed to be a reference-only image layer.
 // Pan/Move/Rotate/Align/Select stay available — they only touch
 // transform/pivot, which a image layer has same as any other.
-const IMAGE_BLOCKED_TOOLS = new Set(['erase','draw','reflector','boxerase','nav','path','area','dist','constraints','pattern']);
+const IMAGE_BLOCKED_TOOLS = new Set(['erase','draw','reflector','boxerase','boxsplit','nav','path','area','dist','constraints','pattern']);
 function setTool(tool){
   const activeForGuard = getActiveLayer();
   if(activeForGuard && activeForGuard.kind==='image' && IMAGE_BLOCKED_TOOLS.has(tool)){
@@ -3053,6 +3072,7 @@ function setTool(tool){
   if(tool!=='constraints' && tool!=='pan'){ state.relSelection = []; }
   if(tool!=='constraints'){ closeRelToolbar(); }
   if(tool!=='pattern' && tool!=='pan'){ state.patDraft = null; state.selectedPattern = null; state.selectedGridPattern = null; }
+  if(tool!=='boxsplit' && tool!=='pan'){ state.splitQuad = null; state.splitDraftRect = null; state.draggingSplitCorner = null; }
   closeRelMenu();
   closeIsolateMenu();
   state.tool = tool;
@@ -3061,6 +3081,8 @@ function setTool(tool){
   optsDraw.hidden = tool!=='draw';
   optsReflector.hidden = tool!=='reflector';
   optsBoxErase.hidden = tool!=='boxerase';
+  optsBoxSplit.hidden = tool!=='boxsplit';
+  renderSplitPanel();
   optsSelect.hidden = tool!=='select';
   optsAlign.hidden = tool!=='align';
   optsCalibrateImage.hidden = tool!=='calibrateImage';
@@ -3171,12 +3193,23 @@ function setLineMode(mode){
 lineModeEditBtn.addEventListener('click', ()=>setLineMode('edit'));
 lineModeDrawBtn.addEventListener('click', ()=>setLineMode('draw'));
 
-document.getElementById('selectScan').addEventListener('change', e=>state.selectTargets.scan = e.target.checked);
-document.getElementById('selectRssi').addEventListener('change', e=>state.selectTargets.rssi = e.target.checked);
-document.getElementById('selectExtra').addEventListener('change', e=>state.selectTargets.extra = e.target.checked);
-document.getElementById('selectReflector').addEventListener('change', e=>state.selectTargets.reflector = e.target.checked);
-document.getElementById('selectManualLines').addEventListener('change', e=>state.selectTargets.manualLines = e.target.checked);
-document.getElementById('selectNavPoints').addEventListener('change', e=>state.selectTargets.navPoints = e.target.checked);
+// Box Erase ("select...") and Split ("split...") share the exact same
+// state.selectTargets flags (what counts as "inside the shape" means the
+// same thing for either tool) -- each pair of checkboxes is kept in visual
+// sync so neither tool's panel shows a stale value after the other's was
+// changed.
+function wireSharedSelectTarget(key, idA, idB){
+  const elA = document.getElementById(idA), elB = document.getElementById(idB);
+  const apply = (checked)=>{ state.selectTargets[key] = checked; elA.checked = checked; elB.checked = checked; };
+  elA.addEventListener('change', e=>apply(e.target.checked));
+  elB.addEventListener('change', e=>apply(e.target.checked));
+}
+wireSharedSelectTarget('scan', 'selectScan', 'splitScan');
+wireSharedSelectTarget('rssi', 'selectRssi', 'splitRssi');
+wireSharedSelectTarget('extra', 'selectExtra', 'splitExtra');
+wireSharedSelectTarget('reflector', 'selectReflector', 'splitReflector');
+wireSharedSelectTarget('manualLines', 'selectManualLines', 'splitManualLines');
+wireSharedSelectTarget('navPoints', 'selectNavPoints', 'splitNavPoints');
 
 const alignAngleEl = document.getElementById('alignAngle');
 const alignAxisXBtn = document.getElementById('alignAxisX');
@@ -4975,6 +5008,42 @@ function draw(){
     ctx.setLineDash([]);
   }
 
+  if(state.splitDraftRect){
+    const [sx1,sy1] = worldToScreen(state.splitDraftRect.x1, state.splitDraftRect.y1);
+    const [sx2,sy2] = worldToScreen(state.splitDraftRect.x2, state.splitDraftRect.y2);
+    const rx = Math.min(sx1,sx2), ry = Math.min(sy1,sy2);
+    const rw = Math.abs(sx2-sx1), rh = Math.abs(sy2-sy1);
+    ctx.fillStyle = 'rgba(5,150,105,0.14)';
+    ctx.strokeStyle = '#059669';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6,4]);
+    ctx.fillRect(rx,ry,rw,rh);
+    ctx.strokeRect(rx,ry,rw,rh);
+    ctx.setLineDash([]);
+  }
+  if(Array.isArray(state.splitQuad)){
+    const screenPts = state.splitQuad.map(([wx,wy])=>worldToScreen(wx,wy));
+    ctx.fillStyle = 'rgba(5,150,105,0.14)';
+    ctx.strokeStyle = '#059669';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(screenPts[0][0], screenPts[0][1]);
+    for(let i=1;i<screenPts.length;i++) ctx.lineTo(screenPts[i][0], screenPts[i][1]);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // draggable corner handles -- the whole point of this shape is that
+    // each one moves independently, so make that visually obvious
+    for(let i=0;i<screenPts.length;i++){
+      const [psx,psy] = screenPts[i];
+      const isDragging = state.draggingSplitCorner===i;
+      ctx.beginPath(); ctx.arc(psx,psy, isDragging?7:5, 0, Math.PI*2);
+      ctx.fillStyle = isDragging ? '#047857' : '#ffffff';
+      ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = '#059669'; ctx.stroke();
+    }
+  }
+
   if(state.areaAction && state.areaAction.type==='draw'){
     const {x1,y1,x2,y2} = state.areaAction;
     const [sx1,sy1] = worldToScreen(x1,y1);
@@ -6003,6 +6072,35 @@ function syncPatternPaths(pat, layer){
   }
 }
 let patIdCounter = 1;
+// Pattern/grid-pattern/relation ids come from in-memory counters
+// (patIdCounter/gridIdCounter/relIdCounter below) that reset to 1 on every
+// page load and were never synced with a loaded project's own ids -- so
+// creating a new pattern after loading a project that already contains
+// "pat1" would silently mint ANOTHER "pat1". Any id-based lookup (e.g.
+// state.patterns.find(p=>p.id===state.selectedPattern)) then resolves to
+// whichever one of the two happens to come first, not necessarily the one
+// actually selected -- this is "clicking one pattern sometimes selects a
+// totally different one, for no apparent reason." Called on project load
+// for patterns/gridPatterns/relations: repairs any ids already duplicated
+// in the loaded data (can't happen going forward, but a project saved
+// before this fix may already have one, like pattern_issue.json did —
+// two different patterns both "pat1") and returns the next free number so
+// the matching counter can be bumped past every id now in use.
+function resyncIdsAndDedupe(list, prefix){
+  let maxN = 0;
+  for(const item of list){
+    const n = parseInt(String(item && item.id || '').slice(prefix.length), 10);
+    if(Number.isFinite(n) && n>maxN) maxN = n;
+  }
+  let nextN = maxN+1;
+  const seen = new Set();
+  for(const item of list){
+    if(!item) continue;
+    if(seen.has(item.id)) item.id = prefix+(nextN++);
+    seen.add(item.id);
+  }
+  return nextN;
+}
 function createPattern(layer, seedName, axis, dx, dy, count, connected, connectDirection){
   const pat = {id:'pat'+(patIdCounter++), layerId:layer.id, seedName, axis, dx, dy, count:0, instances:[], connected:!!connected, connectDirection:connectDirection||'both'};
   state.patterns.push(pat);
@@ -8800,6 +8898,241 @@ function applyRectSelectDelete(layer, rect){
   renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderPatternPanel(); scheduleAutosave(); requestDraw();
 }
 
+// ---------------- box/polygon split-to-layer ----------------
+
+function pointInShape(wx, wy, shape){
+  if(shape.type==='rect') return wx>=shape.minX && wx<=shape.maxX && wy>=shape.minY && wy<=shape.maxY;
+  // standard even-odd ray-casting test
+  const pts = shape.points;
+  let inside = false;
+  for(let i=0, j=pts.length-1; i<pts.length; j=i++){
+    const [xi,yi] = pts[i], [xj,yj] = pts[j];
+    if(((yi>wy)!==(yj>wy)) && (wx < (xj-xi)*(wy-yi)/(yj-yi)+xi)) inside = !inside;
+  }
+  return inside;
+}
+
+function createSplitDestLayer(sourceLayer){
+  const id = state.nextId++;
+  const color = PALETTE[state.colorIdx % PALETTE.length];
+  state.colorIdx++;
+  let name = sourceLayer.name+' (split)', n = 2;
+  while(state.layers.some(l=>l.name===name)){ name = sourceLayer.name+' (split '+n+')'; n++; }
+  return {
+    id, name, fileName:'', color, visible:true,
+    header: {...sourceLayer.header, mapName:name},
+    points:[], rssi:[], reflectors:[],
+    extra: {advancedPointList:[], advancedCurveList:[]},
+    manualLines:[],
+    localBBox: {minX:0,minY:0,maxX:0,maxY:0},
+    pivot: {x:0,y:0},
+    transform: {tx:0, ty:0, rot:0},
+  };
+}
+
+// Figures out what WOULD move for `shape`, without mutating anything --
+// lets the caller confirm (or bail with zero side effects) before any
+// actual change happens. A nav point only qualifies to move if EVERY curve
+// touching it also has its other endpoint qualifying -- otherwise it (and
+// that curve) is excluded, since a curve can't span two layers (its
+// endpoints are just name references, no layerId of their own) and
+// half-moving it would leave a dangling reference in whichever layer it
+// landed in.
+function planSplitToLayer(sourceLayer, shape){
+  const t = state.selectTargets;
+  const plan = { scanIdx:[], rssiIdx:[], reflectors:[], manualLines:[], extraLines:[], navPointNames:null, count:0 };
+
+  if(t.scan){
+    for(let i=0;i<sourceLayer.points.length;i+=2){
+      const [wx,wy] = layerToWorld(sourceLayer, sourceLayer.points[i], sourceLayer.points[i+1]);
+      if(pointInShape(wx,wy,shape)) plan.scanIdx.push(i);
+    }
+  }
+  if(t.rssi){
+    for(let i=0;i<sourceLayer.rssi.length;i+=2){
+      const [wx,wy] = layerToWorld(sourceLayer, sourceLayer.rssi[i], sourceLayer.rssi[i+1]);
+      if(pointInShape(wx,wy,shape)) plan.rssiIdx.push(i);
+    }
+  }
+  if(t.reflector){
+    for(const r of sourceLayer.reflectors){
+      const [wx,wy] = layerToWorld(sourceLayer, r.x, r.y);
+      if(pointInShape(wx,wy,shape)) plan.reflectors.push(r);
+    }
+  }
+  if(t.manualLines){
+    for(const ln of sourceLayer.manualLines){
+      const [wx1,wy1] = layerToWorld(sourceLayer, ln.x1, ln.y1);
+      const [wx2,wy2] = layerToWorld(sourceLayer, ln.x2, ln.y2);
+      if(pointInShape(wx1,wy1,shape) && pointInShape(wx2,wy2,shape)) plan.manualLines.push(ln);
+    }
+  }
+  if(t.extra && sourceLayer.extra && Array.isArray(sourceLayer.extra.advancedLineList)){
+    for(const item of sourceLayer.extra.advancedLineList){
+      const line = item && item.line;
+      if(!line || !line.startPos || !line.endPos) continue;
+      const [wx1,wy1] = layerToWorld(sourceLayer, line.startPos.x, line.startPos.y);
+      const [wx2,wy2] = layerToWorld(sourceLayer, line.endPos.x, line.endPos.y);
+      if(pointInShape(wx1,wy1,shape) && pointInShape(wx2,wy2,shape)) plan.extraLines.push(item);
+    }
+  }
+  if(t.navPoints && sourceLayer.extra && Array.isArray(sourceLayer.extra.advancedPointList)){
+    const points = sourceLayer.extra.advancedPointList;
+    const curves = Array.isArray(sourceLayer.extra.advancedCurveList) ? sourceLayer.extra.advancedCurveList : [];
+    const names = new Set();
+    for(const pt of points){
+      if(!pt || !pt.pos) continue;
+      const [wx,wy] = layerToWorld(sourceLayer, pt.pos.x, pt.pos.y);
+      if(pointInShape(wx,wy,shape)) names.add(pt.instanceName);
+    }
+    let changed = true;
+    while(changed){
+      changed = false;
+      for(const c of curves){
+        const a = c.startPos && c.startPos.instanceName, b = c.endPos && c.endPos.instanceName;
+        if(!a || !b) continue;
+        const aIn = names.has(a), bIn = names.has(b);
+        if(aIn && !bIn){ names.delete(a); changed = true; }
+        else if(bIn && !aIn){ names.delete(b); changed = true; }
+      }
+    }
+    plan.navPointNames = names;
+  }
+
+  plan.count = plan.scanIdx.length + plan.rssiIdx.length + plan.reflectors.length + plan.manualLines.length
+    + plan.extraLines.length + (plan.navPointNames ? plan.navPointNames.size : 0);
+  return plan;
+}
+
+// Commits a split -- called only from the explicit "Split into new layer"
+// button (or its Enter-key shortcut), both of which already show the live
+// item count and disable themselves at zero, so there's nothing left to
+// confirm here.
+function applySplitToLayer(sourceLayer, shape){
+  const plan = planSplitToLayer(sourceLayer, shape);
+  if(plan.count===0) return;
+  const dest = createSplitDestLayer(sourceLayer);
+
+  pushUndo(sourceLayer);
+  const toDestLocal = (lx,ly) => {
+    const [wx,wy] = layerToWorld(sourceLayer, lx, ly);
+    const [dx,dy] = worldToLayer(dest, wx, wy);
+    return [round3(dx), round3(dy)];
+  };
+
+  if(plan.scanIdx.length){
+    const moveSet = new Set(plan.scanIdx);
+    const kept = [];
+    for(let i=0;i<sourceLayer.points.length;i+=2){
+      if(moveSet.has(i)){ const [dx,dy]=toDestLocal(sourceLayer.points[i],sourceLayer.points[i+1]); dest.points.push(dx,dy); }
+      else kept.push(sourceLayer.points[i], sourceLayer.points[i+1]);
+    }
+    sourceLayer.points = kept;
+  }
+  if(plan.rssiIdx.length){
+    const moveSet = new Set(plan.rssiIdx);
+    const kept = [];
+    for(let i=0;i<sourceLayer.rssi.length;i+=2){
+      if(moveSet.has(i)){ const [dx,dy]=toDestLocal(sourceLayer.rssi[i],sourceLayer.rssi[i+1]); dest.rssi.push(dx,dy); }
+      else kept.push(sourceLayer.rssi[i], sourceLayer.rssi[i+1]);
+    }
+    sourceLayer.rssi = kept;
+  }
+  if(plan.reflectors.length){
+    const moveSet = new Set(plan.reflectors);
+    sourceLayer.reflectors = sourceLayer.reflectors.filter(r=>{
+      if(!moveSet.has(r)) return true;
+      const [dx,dy] = toDestLocal(r.x, r.y);
+      dest.reflectors.push({...r, x:dx, y:dy});
+      return false;
+    });
+  }
+  if(plan.manualLines.length){
+    const moveSet = new Set(plan.manualLines);
+    sourceLayer.manualLines = sourceLayer.manualLines.filter(ln=>{
+      if(!moveSet.has(ln)) return true;
+      const [dx1,dy1] = toDestLocal(ln.x1, ln.y1);
+      const [dx2,dy2] = toDestLocal(ln.x2, ln.y2);
+      dest.manualLines.push({...ln, x1:dx1, y1:dy1, x2:dx2, y2:dy2});
+      return false;
+    });
+  }
+  if(plan.extraLines.length){
+    if(!Array.isArray(dest.extra.advancedLineList)) dest.extra.advancedLineList = [];
+    const moveSet = new Set(plan.extraLines);
+    sourceLayer.extra.advancedLineList = sourceLayer.extra.advancedLineList.filter(item=>{
+      if(!moveSet.has(item)) return true;
+      const line = item.line;
+      const [dx1,dy1] = toDestLocal(line.startPos.x, line.startPos.y);
+      const [dx2,dy2] = toDestLocal(line.endPos.x, line.endPos.y);
+      dest.extra.advancedLineList.push({...item, line:{startPos:{x:dx1,y:dy1}, endPos:{x:dx2,y:dy2}}});
+      return false;
+    });
+  }
+  if(plan.navPointNames && plan.navPointNames.size){
+    const names = plan.navPointNames;
+    const keptPoints = [];
+    for(const pt of sourceLayer.extra.advancedPointList){
+      if(pt && names.has(pt.instanceName)){
+        const [dx,dy] = toDestLocal(pt.pos.x, pt.pos.y);
+        dest.extra.advancedPointList.push({...pt, pos:{x:dx,y:dy}});
+      } else keptPoints.push(pt);
+    }
+    sourceLayer.extra.advancedPointList = keptPoints;
+
+    const keptCurves = [];
+    for(const c of (sourceLayer.extra.advancedCurveList||[])){
+      const a = c.startPos && c.startPos.instanceName, b = c.endPos && c.endPos.instanceName;
+      if(a && b && names.has(a) && names.has(b)){
+        const [sdx,sdy] = toDestLocal(c.startPos.pos.x, c.startPos.pos.y);
+        const [edx,edy] = toDestLocal(c.endPos.pos.x, c.endPos.pos.y);
+        const movedC = {...c, startPos:{...c.startPos, pos:{x:sdx,y:sdy}}, endPos:{...c.endPos, pos:{x:edx,y:edy}}};
+        if(c.controlPos1){ const [cx,cy]=toDestLocal(c.controlPos1.x,c.controlPos1.y); movedC.controlPos1={x:cx,y:cy}; }
+        if(c.controlPos2){ const [cx,cy]=toDestLocal(c.controlPos2.x,c.controlPos2.y); movedC.controlPos2={x:cx,y:cy}; }
+        dest.extra.advancedCurveList.push(movedC);
+      } else keptCurves.push(c);
+    }
+    sourceLayer.extra.advancedCurveList = keptCurves;
+  }
+
+  sourceLayer.localBBox = bboxOfPoints(sourceLayer.points.length ? sourceLayer.points : [0,0]);
+  dest.localBBox = bboxOfPoints(dest.points.length ? dest.points : (dest.extra.advancedPointList.length ? dest.extra.advancedPointList.flatMap(p=>[p.pos.x,p.pos.y]) : [0,0]));
+  dest.pivot = {x:(dest.localBBox.minX+dest.localBBox.maxX)/2, y:(dest.localBBox.minY+dest.localBBox.maxY)/2};
+  prunePatterns(); pruneGridPatterns(); prunePathPatterns();
+  addLayer(dest);
+  renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderPatternPanel(); scheduleAutosave(); requestDraw();
+}
+
+function clearSplitQuad(){
+  state.splitQuad = null; state.splitDraftRect = null; state.draggingSplitCorner = null;
+  renderSplitPanel(); requestDraw();
+}
+function renderSplitPanel(){
+  if(state.tool!=='boxsplit') return;
+  const hasQuad = Array.isArray(state.splitQuad);
+  const countEl = document.getElementById('splitCount');
+  const commitBtn = document.getElementById('btnSplitCommit');
+  document.getElementById('btnSplitClear').hidden = !hasQuad;
+  if(!hasQuad){
+    countEl.textContent = '0 items';
+    commitBtn.disabled = true;
+    document.getElementById('splitHint').textContent = 'Drag out a 4-point selection. Drag any corner to reshape it — it doesn\'t have to stay a rectangle.';
+    return;
+  }
+  const layer = getEditableActiveLayer();
+  const plan = layer ? planSplitToLayer(layer, {type:'polygon', points:state.splitQuad}) : {count:0};
+  countEl.textContent = plan.count+' item'+(plan.count===1?'':'s');
+  commitBtn.disabled = plan.count===0;
+  document.getElementById('splitHint').textContent = 'Drag a corner to reshape the selection. Press Split when ready.';
+}
+document.getElementById('btnSplitCommit').addEventListener('click', ()=>{
+  const layer = getEditableActiveLayer();
+  if(!layer || !Array.isArray(state.splitQuad)) return;
+  applySplitToLayer(layer, {type:'polygon', points:state.splitQuad});
+  clearSplitQuad();
+});
+document.getElementById('btnSplitClear').addEventListener('click', clearSplitQuad);
+
 canvasEl.addEventListener('pointerdown', (e)=>{
   // Right-click is handled exclusively by the 'contextmenu' listener below
   // (isolate-path menu, pattern menu, relation menu) — without this, its
@@ -8900,6 +9233,25 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     const [wx,wy]=screenToWorld(sx,sy);
     state.selectionRect = {x1:wx, y1:wy, x2:wx, y2:wy};
     dragging=true;
+  } else if(state.tool==='boxsplit' && layer){
+    if(Array.isArray(state.splitQuad)){
+      let hitIdx = -1, bestD = 14;
+      for(let i=0;i<4;i++){
+        const [hsx,hsy] = worldToScreen(state.splitQuad[i][0], state.splitQuad[i][1]);
+        const d = Math.hypot(hsx-sx, hsy-sy);
+        if(d<bestD){ bestD=d; hitIdx=i; }
+      }
+      if(hitIdx>=0){
+        state.draggingSplitCorner = hitIdx;
+        dragging = true;
+      }
+      // A click that misses every handle does nothing -- the quad only goes
+      // away via the explicit Clear button or Esc, never by a stray click.
+    } else {
+      const [wx,wy]=screenToWorld(sx,sy);
+      state.splitDraftRect = {x1:wx, y1:wy, x2:wx, y2:wy};
+      dragging=true;
+    }
   } else if(state.tool==='measure'){
     const [wx,wy]=screenToWorld(sx,sy);
     state.measure = {x1:wx, y1:wy, x2:wx, y2:wy};
@@ -9212,32 +9564,48 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     renderRelPanel();
     requestDraw();
   } else if(state.tool==='pattern' && layer){
-    const instHit = findPatternInstanceAt(layer, sx, sy, 14);
-    if(instHit){
-      pushUndo(layer);
-      state.draggingPatternInstance = {patId:instHit.pat.id, index:instHit.index};
-      state.selectedPattern = instHit.pat.id;
-      state.selectedGridPattern = null;
-      state.patDraft = null;
-      dragging = true;
-    } else {
-      const hit = findNavPointAt(layer, sx, sy, 14);
-      if(hit){
-        const foundLin = findPatternByPointName(layer, hit.instanceName);
-        const foundGrid = !foundLin ? findGridPatternByPointName(layer, hit.instanceName) : null;
-        if(foundLin){
-          state.selectedPattern = foundLin.pat.id;
-          state.selectedGridPattern = null;
-          state.patDraft = null;
-        } else if(foundGrid){
-          state.selectedGridPattern = foundGrid.grid.id;
-          state.selectedPattern = null;
-          state.patDraft = null;
-        } else {
-          state.patDraft = {layerId:layer.id, seedName:hit.instanceName, type:'linear', axis:'x', dx:1, dy:0, count:3, connected:false, connectDirection:'both', gridDx:1, gridDy:1, countX:3, countY:3};
-          state.selectedPattern = null;
-          state.selectedGridPattern = null;
+    // Checks the EXACT point under the cursor first, not a generic nearby-
+    // instance radius search -- findPatternInstanceAt used to run first and
+    // would happily match some OTHER pattern's instance sitting within its
+    // own hit radius of this click, even when the click was squarely on a
+    // different point (e.g. another pattern's own seed) that has nothing to
+    // do with it. Patterns packed into the same aisle/area are exactly the
+    // case where two different patterns' points end up within a few pixels
+    // of each other on screen, so this reliably misfired there. The broader
+    // proximity search is still used, but only as a fallback for a click
+    // that misses every actual nav point (e.g. grabbing a small instance
+    // marker slightly off-center) -- see below.
+    const hit = findNavPointAt(layer, sx, sy, 14);
+    if(hit){
+      const foundLin = findPatternByPointName(layer, hit.instanceName);
+      const foundGrid = !foundLin ? findGridPatternByPointName(layer, hit.instanceName) : null;
+      if(foundLin){
+        state.selectedPattern = foundLin.pat.id;
+        state.selectedGridPattern = null;
+        state.patDraft = null;
+        if(foundLin.role==='instance'){
+          pushUndo(layer);
+          state.draggingPatternInstance = {patId:foundLin.pat.id, index:foundLin.index};
+          dragging = true;
         }
+      } else if(foundGrid){
+        state.selectedGridPattern = foundGrid.grid.id;
+        state.selectedPattern = null;
+        state.patDraft = null;
+      } else {
+        state.patDraft = {layerId:layer.id, seedName:hit.instanceName, type:'linear', axis:'x', dx:1, dy:0, count:3, connected:false, connectDirection:'both', gridDx:1, gridDy:1, countX:3, countY:3};
+        state.selectedPattern = null;
+        state.selectedGridPattern = null;
+      }
+    } else {
+      const instHit = findPatternInstanceAt(layer, sx, sy, 14);
+      if(instHit){
+        pushUndo(layer);
+        state.draggingPatternInstance = {patId:instHit.pat.id, index:instHit.index};
+        state.selectedPattern = instHit.pat.id;
+        state.selectedGridPattern = null;
+        state.patDraft = null;
+        dragging = true;
       } else {
         // No nav point under the click either — check for a path. Clicking
         // one here arms it as the pattern source right away (no separate
@@ -9406,6 +9774,11 @@ canvasEl.addEventListener('pointermove', (e)=>{
     state.tempLine.x2=wx; state.tempLine.y2=wy; requestDraw();
   } else if(state.tool==='boxerase' && state.selectionRect){
     state.selectionRect.x2=wx; state.selectionRect.y2=wy; requestDraw();
+  } else if(state.tool==='boxsplit' && state.splitDraftRect){
+    state.splitDraftRect.x2=wx; state.splitDraftRect.y2=wy; requestDraw();
+  } else if(state.tool==='boxsplit' && state.draggingSplitCorner!=null && Array.isArray(state.splitQuad)){
+    state.splitQuad[state.draggingSplitCorner] = [wx,wy];
+    renderSplitPanel(); requestDraw();
   } else if(state.tool==='measure' && state.measure){
     state.measure.x2=wx; state.measure.y2=wy; requestDraw();
   } else if(state.tool==='align' && state.draggingAlignHandle && state.alignLine){
@@ -9551,6 +9924,24 @@ function endPointer(e){
     const layer = getEditableActiveLayer();
     if(layer) applyRectSelectDelete(layer, state.selectionRect);
     state.selectionRect = null;
+  }
+
+  if(state.tool==='boxsplit' && dragging && state.splitDraftRect){
+    const rect = state.splitDraftRect;
+    state.splitDraftRect = null;
+    const minX=Math.min(rect.x1,rect.x2), maxX=Math.max(rect.x1,rect.x2);
+    const minY=Math.min(rect.y1,rect.y2), maxY=Math.max(rect.y1,rect.y2);
+    if(maxX-minX>=0.02 && maxY-minY>=0.02){
+      // Starts as this drag's corners, but it's just the starting shape --
+      // every corner is independently draggable afterward, so it doesn't
+      // have to stay a rectangle (or even stay convex).
+      state.splitQuad = [[minX,minY],[maxX,minY],[maxX,maxY],[minX,maxY]];
+    }
+    renderSplitPanel(); requestDraw();
+  }
+  if(state.tool==='boxsplit' && state.draggingSplitCorner!=null){
+    state.draggingSplitCorner = null;
+    renderSplitPanel(); requestDraw();
   }
 
   if(state.tool==='align' && state.draggingAlignHandle){
@@ -9704,7 +10095,7 @@ canvasEl.addEventListener('dblclick', (e)=>{
 });
 
 const KEYMAP_DEFAULTS = {
-  select:'s', pan:'h', move:'v', rotate:'r', erase:'e', draw:'l', reflector:'k', boxerase:'b',
+  select:'s', pan:'h', move:'v', rotate:'r', erase:'e', draw:'l', reflector:'k', boxerase:'b', boxsplit:'u',
   measure:'m', nav:'n', path:'j', area:'a', align:'g', dist:'d', constraints:'c', pattern:'p',
   fitView:'f', relHorizontal:'h', relVertical:'v', relCoincident:'o',
 };
@@ -9719,7 +10110,7 @@ function loadKeymap(){
 // Remappable action->key lookup; a future settings UI can write to KEYMAP and
 // persist via localStorage[KEYMAP_STORAGE_KEY] without touching dispatch code.
 const KEYMAP = loadKeymap();
-const TOOL_KEY_ACTIONS = ['select','pan','move','rotate','erase','draw','reflector','boxerase','measure','nav','path','area','align','dist','constraints','pattern'];
+const TOOL_KEY_ACTIONS = ['select','pan','move','rotate','erase','draw','reflector','boxerase','boxsplit','measure','nav','path','area','align','dist','constraints','pattern'];
 
 document.addEventListener('keydown', (e)=>{
   const tag = (e.target.tagName||'').toLowerCase();
@@ -9752,6 +10143,12 @@ document.addEventListener('keydown', (e)=>{
   if(e.key==='Escape' && state.tool==='constraints' && state.relSelection.length){ state.relSelection = []; renderRelPanel(); requestDraw(); return; }
   if(e.key==='Escape' && state.selectedDimension){ state.selectedDimension = null; requestDraw(); return; }
   if(e.key==='Escape' && state.pathPatternArm){ state.pathPatternArm = null; renderPatternPanel(); renderPathPanel(); requestDraw(); return; }
+  if(e.key==='Escape' && Array.isArray(state.splitQuad)){ clearSplitQuad(); return; }
+  if(e.key==='Enter' && Array.isArray(state.splitQuad) && state.tool==='boxsplit'){
+    const btn = document.getElementById('btnSplitCommit');
+    if(!btn.disabled){ e.preventDefault(); btn.click(); }
+    return;
+  }
   if(e.key==='Delete' || e.key==='Backspace'){
     if(state.selectedDimension){ deleteSelectedDimension(); e.preventDefault(); return; }
     if(state.tool==='nav' && state.selectedNavPoint){ btnDeleteNavPoint.click(); e.preventDefault(); return; }
@@ -9787,7 +10184,7 @@ document.addEventListener('keyup', (e)=>{
 
 const ACTION_LABELS = {
   select:'Select', pan:'Pan', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line',
-  reflector:'Add reflector', boxerase:'Box erase', measure:'Ruler', nav:'Nav points', path:'Path',
+  reflector:'Add reflector', boxerase:'Box erase', boxsplit:'Split to layer', measure:'Ruler', nav:'Nav points', path:'Path',
   area:'Reflector area', align:'Align to line', dist:'Dimension', constraints:'Constrain',
   pattern:'Linear pattern', fitView:'Fit view',
   relHorizontal:'Relation: Horizontal (in Constrain)',
@@ -10191,11 +10588,14 @@ function loadProjectData(data){
   state.selectedArea = null;
   state.relations = Array.isArray(data.relations) ? data.relations : [];
   state.relSelection = [];
+  relIdCounter = Math.max(relIdCounter, resyncIdsAndDedupe(state.relations, 'rel'));
   state.patterns = Array.isArray(data.patterns) ? data.patterns : [];
   state.selectedPattern = null;
   state.patDraft = null;
+  patIdCounter = Math.max(patIdCounter, resyncIdsAndDedupe(state.patterns, 'pat'));
   state.gridPatterns = Array.isArray(data.gridPatterns) ? data.gridPatterns : [];
   state.selectedGridPattern = null;
+  gridIdCounter = Math.max(gridIdCounter, resyncIdsAndDedupe(state.gridPatterns, 'grid'));
   state.pathPatterns = Array.isArray(data.pathPatterns) ? data.pathPatterns : [];
   state.pathPatternArm = null;
   if(data.robotFootprint) state.robotFootprint = data.robotFootprint;
