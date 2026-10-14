@@ -244,6 +244,11 @@
   .show-row-label{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .show-row:has(input:checked) .show-swatch{background:var(--sw, var(--accent)); border-color:var(--sw, var(--accent)); color:#ffffff;}
   .show-row:has(input:checked) .show-row-label{color:var(--ink); font-weight:500;}
+  .feature-row{display:flex; align-items:flex-start; gap:10px; padding:8px 6px; border-radius:6px; cursor:pointer;}
+  .feature-row:hover{background:var(--panel-2);}
+  .feature-row input{margin-top:3px; flex:0 0 auto; accent-color:var(--accent);}
+  .feature-row-title{font-size:13px; font-weight:500; color:var(--ink);}
+  .feature-row-desc{font-size:11.5px; color:var(--ink-dim); margin-top:2px; line-height:1.4;}
   .label-sub{font-size:11px; font-weight:600; color:var(--ink-dim); text-transform:uppercase; letter-spacing:0.06em; margin:4px 0 2px;}
   .shape-toggle{display:flex; flex-wrap:wrap; gap:6px; flex:1;}
   .shape-btn{
@@ -574,16 +579,54 @@
           </div>
           <div id="patDraftLinearFields">
             <div class="row" style="gap:8px; margin-top:6px;">
-              <span style="width:52px;">Axis</span>
+              <span style="width:52px;">Follow</span>
               <div class="shape-toggle">
-                <button type="button" class="shape-btn active" id="patDraftAxisX">X</button>
-                <button type="button" class="shape-btn" id="patDraftAxisY">Y</button>
-                <button type="button" class="shape-btn" id="patDraftAxisBoth">Both</button>
+                <button type="button" class="shape-btn active" id="patDraftFollowAxis">Axis</button>
+                <button type="button" class="shape-btn" id="patDraftFollowWall">Wall</button>
               </div>
             </div>
-            <div class="field-row" id="patDraftDxRow"><input type="checkbox" id="patDraftDxOn" title="Editable (uncheck to compute dx from dy + angle)" style="margin-right:4px;"><label for="patDraftDx">dx</label><input type="number" id="patDraftDx" step="0.01" value="1"></div>
-            <div class="field-row" id="patDraftDyRow" hidden><input type="checkbox" id="patDraftDyOn" title="Editable (uncheck to compute dy from dx + angle)" style="margin-right:4px;"><label for="patDraftDy">dy</label><input type="number" id="patDraftDy" step="0.01" value="0"></div>
-            <div class="field-row" id="patDraftAngleRow" hidden><input type="checkbox" id="patDraftAngleOn" title="Editable (uncheck to compute angle from dx + dy)" style="margin-right:4px;"><label for="patDraftAngle">Angle (°)</label><input type="number" id="patDraftAngle" step="0.5"></div>
+            <div id="patDraftAxisFields">
+              <div class="row" style="gap:8px; margin-top:6px;">
+                <span style="width:52px;">Axis</span>
+                <div class="shape-toggle">
+                  <button type="button" class="shape-btn active" id="patDraftAxisX">X</button>
+                  <button type="button" class="shape-btn" id="patDraftAxisY">Y</button>
+                  <button type="button" class="shape-btn" id="patDraftAxisBoth">Both</button>
+                </div>
+              </div>
+              <div class="field-row" id="patDraftDxRow"><input type="checkbox" id="patDraftDxOn" title="Editable (uncheck to compute dx from dy + angle)" style="margin-right:4px;"><label for="patDraftDx">dx</label><input type="number" id="patDraftDx" step="0.01" value="1"></div>
+              <div class="field-row" id="patDraftDyRow" hidden><input type="checkbox" id="patDraftDyOn" title="Editable (uncheck to compute dy from dx + angle)" style="margin-right:4px;"><label for="patDraftDy">dy</label><input type="number" id="patDraftDy" step="0.01" value="0"></div>
+              <div class="field-row" id="patDraftAngleRow" hidden><input type="checkbox" id="patDraftAngleOn" title="Editable (uncheck to compute angle from dx + dy)" style="margin-right:4px;"><label for="patDraftAngle">Angle (°)</label><input type="number" id="patDraftAngle" step="0.5"></div>
+            </div>
+            <div id="patDraftWallFields" hidden>
+              <div class="row" style="gap:8px; margin-top:6px;">
+                <span style="width:52px;">Fit</span>
+                <div class="shape-toggle">
+                  <button type="button" class="shape-btn" id="patDraftFitPca">PCA</button>
+                  <button type="button" class="shape-btn active" id="patDraftFitLse">LSE</button>
+                  <button type="button" class="shape-btn" id="patDraftFitHistogram">Histogram</button>
+                </div>
+              </div>
+              <div class="row" style="gap:8px; margin-top:6px;">
+                <span style="width:52px;">Scope</span>
+                <div class="shape-toggle">
+                  <button type="button" class="shape-btn" id="patDraftScopeGlobal">Global</button>
+                  <button type="button" class="shape-btn active" id="patDraftScopePiecewise">Piecewise</button>
+                </div>
+              </div>
+              <label class="check-inline" style="margin-top:4px;"><input type="checkbox" id="patDraftWallContinuous"> Stitch continuously (LSE only)</label>
+              <div class="field-row"><label for="patDraftWallWidth">Window (m)</label><input type="number" id="patDraftWallWidth" step="0.5" min="0.5" value="4"></div>
+              <div class="field-row"><label for="patDraftWallBand">Band (m)</label><input type="number" id="patDraftWallBand" step="0.05" min="0.05" value="0.5"></div>
+              <div class="field-row"><label for="patDraftWallOffset">Offset (m)</label><input type="number" id="patDraftWallOffset" step="0.01" value="0"></div>
+              <div class="field-row"><label for="patDraftWallSpacing">Spacing (m)</label><input type="number" id="patDraftWallSpacing" step="0.01" value="1"></div>
+              <label class="check-inline" style="margin-top:4px;"><input type="checkbox" id="patDraftHeadingFollowsWall"> Heading follows wall</label>
+              <button type="button" class="btn" id="btnPatDraftPickWall" style="width:100%; margin-top:8px;">Pick wall…</button>
+              <div class="tool-hint" id="patDraftWallPickHint" hidden style="margin-top:6px;">Click points along the wall, in order (including across any gaps). Enter or Done to finish, Esc to cancel.</div>
+              <button type="button" class="btn primary" id="btnPatDraftPickWallDone" style="width:100%; margin-top:6px;" hidden>Done</button>
+              <button type="button" class="btn" id="btnPatDraftRefitWall" style="width:100%; margin-top:6px;" disabled>Refit wall</button>
+              <div class="stat-line" style="margin-top:8px;"><span>Max deviation from straight</span><b id="patDraftWallDeviation" class="mono">—</b></div>
+              <div class="tool-hint" id="patDraftWallWarning" hidden style="margin-top:6px; color:var(--danger);">Some instances extend beyond the fitted wall and are extrapolated (shown in red).</div>
+            </div>
             <div class="field-row"><label for="patDraftCount">Count</label><input type="number" id="patDraftCount" step="1" min="1" value="3"></div>
             <label class="check-inline" style="margin-top:4px;"><input type="checkbox" id="patDraftConnected"> Connect nav points with paths</label>
             <div class="field-row" id="patDraftConnectDirRow" hidden>
@@ -607,16 +650,54 @@
         <div id="patSelBox" hidden>
           <div class="stat-line" style="margin-top:8px;"><span>Seed</span><b id="patSelSeed" class="mono"></b></div>
           <div class="row" style="gap:8px; margin-top:6px;">
-            <span style="width:52px;">Axis</span>
+            <span style="width:52px;">Follow</span>
             <div class="shape-toggle">
-              <button type="button" class="shape-btn" id="patSelAxisX">X</button>
-              <button type="button" class="shape-btn" id="patSelAxisY">Y</button>
-              <button type="button" class="shape-btn" id="patSelAxisBoth">Both</button>
+              <button type="button" class="shape-btn" id="patSelFollowAxis">Axis</button>
+              <button type="button" class="shape-btn" id="patSelFollowWall">Wall</button>
             </div>
           </div>
-          <div class="field-row" id="patSelDxRow"><input type="checkbox" id="patSelDxOn" title="Editable (uncheck to compute dx from dy + angle)" style="margin-right:4px;"><label for="patSelDx">dx</label><input type="number" id="patSelDx" step="0.01"></div>
-          <div class="field-row" id="patSelDyRow"><input type="checkbox" id="patSelDyOn" title="Editable (uncheck to compute dy from dx + angle)" style="margin-right:4px;"><label for="patSelDy">dy</label><input type="number" id="patSelDy" step="0.01"></div>
-          <div class="field-row" id="patSelAngleRow" hidden><input type="checkbox" id="patSelAngleOn" title="Editable (uncheck to compute angle from dx + dy)" style="margin-right:4px;"><label for="patSelAngle">Angle (°)</label><input type="number" id="patSelAngle" step="0.5"></div>
+          <div id="patSelAxisFields">
+            <div class="row" style="gap:8px; margin-top:6px;">
+              <span style="width:52px;">Axis</span>
+              <div class="shape-toggle">
+                <button type="button" class="shape-btn" id="patSelAxisX">X</button>
+                <button type="button" class="shape-btn" id="patSelAxisY">Y</button>
+                <button type="button" class="shape-btn" id="patSelAxisBoth">Both</button>
+              </div>
+            </div>
+            <div class="field-row" id="patSelDxRow"><input type="checkbox" id="patSelDxOn" title="Editable (uncheck to compute dx from dy + angle)" style="margin-right:4px;"><label for="patSelDx">dx</label><input type="number" id="patSelDx" step="0.01"></div>
+            <div class="field-row" id="patSelDyRow"><input type="checkbox" id="patSelDyOn" title="Editable (uncheck to compute dy from dx + angle)" style="margin-right:4px;"><label for="patSelDy">dy</label><input type="number" id="patSelDy" step="0.01"></div>
+            <div class="field-row" id="patSelAngleRow" hidden><input type="checkbox" id="patSelAngleOn" title="Editable (uncheck to compute angle from dx + dy)" style="margin-right:4px;"><label for="patSelAngle">Angle (°)</label><input type="number" id="patSelAngle" step="0.5"></div>
+          </div>
+          <div id="patSelWallFields" hidden>
+            <div class="row" style="gap:8px; margin-top:6px;">
+              <span style="width:52px;">Fit</span>
+              <div class="shape-toggle">
+                <button type="button" class="shape-btn" id="patSelFitPca">PCA</button>
+                <button type="button" class="shape-btn" id="patSelFitLse">LSE</button>
+                <button type="button" class="shape-btn" id="patSelFitHistogram">Histogram</button>
+              </div>
+            </div>
+            <div class="row" style="gap:8px; margin-top:6px;">
+              <span style="width:52px;">Scope</span>
+              <div class="shape-toggle">
+                <button type="button" class="shape-btn" id="patSelScopeGlobal">Global</button>
+                <button type="button" class="shape-btn" id="patSelScopePiecewise">Piecewise</button>
+              </div>
+            </div>
+            <label class="check-inline" style="margin-top:4px;"><input type="checkbox" id="patSelWallContinuous"> Stitch continuously (LSE only)</label>
+            <div class="field-row"><label for="patSelWallWidth">Window (m)</label><input type="number" id="patSelWallWidth" step="0.5" min="0.5"></div>
+            <div class="field-row"><label for="patSelWallBand">Band (m)</label><input type="number" id="patSelWallBand" step="0.05" min="0.05"></div>
+            <div class="field-row"><label for="patSelWallOffset">Offset (m)</label><input type="number" id="patSelWallOffset" step="0.01"></div>
+            <div class="field-row"><label for="patSelWallSpacing">Spacing (m)</label><input type="number" id="patSelWallSpacing" step="0.01"></div>
+            <label class="check-inline" style="margin-top:4px;"><input type="checkbox" id="patSelHeadingFollowsWall"> Heading follows wall</label>
+            <button type="button" class="btn" id="btnPatSelPickWall" style="width:100%; margin-top:8px;">Pick wall…</button>
+            <div class="tool-hint" id="patSelWallPickHint" hidden style="margin-top:6px;">Click points along the wall, in order (including across any gaps). Enter or Done to finish, Esc to cancel.</div>
+            <button type="button" class="btn primary" id="btnPatSelPickWallDone" style="width:100%; margin-top:6px;" hidden>Done</button>
+            <button type="button" class="btn" id="btnPatSelRefitWall" style="width:100%; margin-top:6px;">Refit wall</button>
+            <div class="stat-line" style="margin-top:8px;"><span>Max deviation from straight</span><b id="patSelWallDeviation" class="mono">—</b></div>
+            <div class="tool-hint" id="patSelWallWarning" hidden style="margin-top:6px; color:var(--danger);">Some instances extend beyond the fitted wall and are extrapolated (shown in red).</div>
+          </div>
           <div class="field-row"><label for="patSelCount">Count</label><input type="number" id="patSelCount" step="1" min="0"></div>
           <label class="check-inline" style="margin-top:4px;"><input type="checkbox" id="patSelConnected"> Connect nav points with paths</label>
           <div class="field-row" id="patSelConnectDirRow" hidden>
@@ -905,6 +986,10 @@
       <button class="io-btn" id="btnExportPng" title="Export PNG"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="8.5" cy="9.5" r="1.4" fill="currentColor" stroke="none"></circle><path d="M21 16l-5-5-4 4-3-3-6 6"></path></svg><span class="tool-btn-label">PNG</span></button>
       <button class="io-btn" id="btnPrint" title="Print"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V4h12v5"></path><rect x="4" y="9" width="16" height="8" rx="1.5"></rect><rect x="7" y="14" width="10" height="6"></rect></svg><span class="tool-btn-label">Print</span></button>
       <button class="io-btn" id="btnTheme" title="Toggle dark / light mode">◐<span class="tool-btn-label">Theme</span></button>
+      <button class="io-btn" id="btnFeaturesToggle" title="Additional features">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="6" width="18" height="6" rx="3"></rect><circle cx="15" cy="9" r="2" fill="currentColor" stroke="none"></circle><rect x="3" y="14" width="18" height="6" rx="3"></rect><circle cx="9" cy="17" r="2" fill="currentColor" stroke="none"></circle></svg>
+        <span class="tool-btn-label">Features</span>
+      </button>
       <button class="io-btn" id="btnShortcutsToggle" title="Keyboard shortcuts">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"></path><circle cx="15" cy="6" r="2" fill="currentColor" stroke="none"></circle><circle cx="9" cy="12" r="2" fill="currentColor" stroke="none"></circle><circle cx="17" cy="18" r="2" fill="currentColor" stroke="none"></circle></svg>
         <span class="tool-btn-label">Shortcuts</span>
@@ -988,6 +1073,17 @@
       </div>
       <input type="file" id="fileInputShortcuts" accept="application/json" hidden>
     </div>
+    <div class="shortcuts-popover" id="featuresPopover" hidden>
+      <div class="shortcuts-popover-head">
+        <div>
+          <div style="font-weight:600; font-size:14px;">Additional Features</div>
+          <div style="font-size:11px; color:var(--ink-dim); margin-top:2px;">Toggle optional features on or off.</div>
+        </div>
+        <button class="layer-mini-btn" id="btnFeaturesClose" title="Close" style="font-size:16px;">✕</button>
+      </div>
+      <div id="featuresList" style="margin-top:10px;"></div>
+      <div class="tool-hint" id="featuresEmptyHint" style="margin-top:0;">No optional features yet — ask for one to be added here.</div>
+    </div>
     <div class="hud mono" id="hud">x: – &nbsp; y: –</div>
     <div class="scalebar">
       <div class="bar" id="scalebarBar" style="width:100px;"></div>
@@ -1047,6 +1143,7 @@ const state = {
   groupSelection: [],
   pathPatterns: [],
   pathPatternArm: null,
+  patWallPickArmed: null,
   isolatedPath: null,
   isolateMenuFor: null,
   view: { scale: 1, tx: 0, ty: 0 },
@@ -3104,6 +3201,7 @@ function updateToolStatus(){
 // transform/pivot, which a image layer has same as any other.
 const IMAGE_BLOCKED_TOOLS = new Set(['erase','draw','reflector','boxerase','boxsplit','nav','path','area','dist','constraints','pattern']);
 function setTool(tool){
+  if(tool==='boxsplit' && !isFeatureEnabled('splitToLayer')) return; // turned off in Additional Features
   const activeForGuard = getActiveLayer();
   if(activeForGuard && activeForGuard.kind==='image' && IMAGE_BLOCKED_TOOLS.has(tool)){
     alert('This is a background image layer (reference only) — select a data layer first to use this tool. You can still Move, Rotate, Pan, or Select with it active.');
@@ -4845,6 +4943,49 @@ function drawRelations(){
 const PAT_COLOR = '#3fd0ff';
 const PAT_OVERRIDE_COLOR = '#ffd23f';
 const PAT_GHOST_COLOR = '#8a9490';
+const PAT_WALL_CURVE_COLOR = '#39e67a';
+const PAT_WALL_WARN_COLOR = '#ff4d4d';
+// Thin dashed polyline of a wall-follow pattern's cached fit, in world
+// space -- drawn for the draft and for whichever pattern is selected (see
+// drawPatterns below), never for every wall pattern unconditionally, to
+// keep a map with several of them from turning into a thicket of curves.
+function drawPatternWallCurve(layer, wall){
+  if(!wall || !wall.fit || !wall.fit.samples || !wall.fit.samples.length) return;
+  const {origin, angle, fit} = wall;
+  ctx.save();
+  ctx.strokeStyle = PAT_WALL_CURVE_COLOR; ctx.lineWidth = 2.2; ctx.setLineDash([6,4]);
+  ctx.beginPath();
+  for(let i=0;i<fit.samples.length;i++){
+    const [u,v] = fit.samples[i];
+    const local = wallUnproject(origin, angle, u, v);
+    const [wx,wy] = layerToWorld(layer, local.x, local.y);
+    const [sx,sy] = worldToScreen(wx, wy);
+    if(i===0) ctx.moveTo(sx,sy); else ctx.lineTo(sx,sy);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+// Per-instance "is this beyond the fitted extent" flags, for drawPatterns'
+// extrapolated-in-red highlighting -- kept separate from
+// computeWallPatternInstanceWorldPositions so that function's return
+// shape (plain world [x,y] pairs, same as the axis-mode version) stays
+// unchanged for its other callers.
+function wallInstanceExtrapolationFlags(pat){
+  const layer = getLayer(pat.layerId);
+  if(!layer || !pat.wall || !pat.wall.fit) return pat.instances.map(()=>false);
+  const seedPt = findNavPointByName(layer, pat.seedName);
+  if(!seedPt) return pat.instances.map(()=>false);
+  const {origin, angle, fit, spacing} = pat.wall;
+  const [u0] = wallProject(origin, angle, seedPt.pos.x, seedPt.pos.y);
+  let u = u0;
+  const flags = [];
+  for(const inst of pat.instances){
+    const step = inst.overrideDx!=null ? inst.overrideDx : (spacing!=null ? spacing : 1);
+    u += step;
+    flags.push(u<fit.uMin || u>fit.uMax);
+  }
+  return flags;
+}
 function drawPatBadge(sx, sy, glyph, color, ghost){
   const haloColor = state.printFriendly ? '#ffffff' : '#000000';
   const bx = sx-9, by = sy-9;
@@ -4867,6 +5008,9 @@ function drawPatterns(){
     if(!seedPt) continue;
     const seedWorld = layerToWorld(layer, seedPt.pos.x, seedPt.pos.y);
     const positions = computePatternInstanceWorldPositions(pat);
+    const isWall = pat.follow==='wall';
+    if(isWall && state.selectedPattern===pat.id) drawPatternWallCurve(layer, pat.wall);
+    const extrapFlags = isWall ? wallInstanceExtrapolationFlags(pat) : null;
     let [psx,psy] = worldToScreen(seedWorld[0], seedWorld[1]);
     ctx.strokeStyle = PAT_COLOR; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(psx,psy,7,0,Math.PI*2); ctx.stroke();
@@ -4874,23 +5018,55 @@ function drawPatterns(){
       const inst = pat.instances[i];
       const [wx,wy] = positions[i];
       const [sx,sy] = worldToScreen(wx,wy);
+      const extrapolated = !!(extrapFlags && extrapFlags[i]);
       if(inst.skipped){
-        ctx.strokeStyle = PAT_GHOST_COLOR; ctx.lineWidth = 1.2; ctx.setLineDash([2,2]);
+        const ghostColor = extrapolated ? PAT_WALL_WARN_COLOR : PAT_GHOST_COLOR;
+        ctx.strokeStyle = ghostColor; ctx.lineWidth = 1.2; ctx.setLineDash([2,2]);
         ctx.beginPath(); ctx.moveTo(psx,psy); ctx.lineTo(sx,sy); ctx.stroke();
         ctx.beginPath(); ctx.arc(sx,sy,6,0,Math.PI*2); ctx.stroke();
         ctx.setLineDash([]);
-        drawPatBadge(sx, sy, 'P'+(i+1), PAT_GHOST_COLOR, true);
+        drawPatBadge(sx, sy, 'P'+(i+1), ghostColor, true);
       } else {
         const overridden = inst.overrideDx!=null || inst.overrideDy!=null;
-        ctx.strokeStyle = overridden ? PAT_OVERRIDE_COLOR : PAT_COLOR;
+        const color = extrapolated ? PAT_WALL_WARN_COLOR : (overridden ? PAT_OVERRIDE_COLOR : PAT_COLOR);
+        ctx.strokeStyle = color;
         ctx.setLineDash([4,3]);
         ctx.beginPath(); ctx.moveTo(psx,psy); ctx.lineTo(sx,sy); ctx.stroke();
         ctx.setLineDash([]);
-        drawPatBadge(sx, sy, 'P'+(i+1), overridden?PAT_OVERRIDE_COLOR:PAT_COLOR, false);
+        drawPatBadge(sx, sy, 'P'+(i+1), color, false);
       }
       psx = sx; psy = sy;
     }
   }
+  if(state.patDraft && state.patDraft.follow==='wall' && state.patDraft.wall){
+    const draftLayer = getLayer(state.patDraft.layerId);
+    if(draftLayer) drawPatternWallCurve(draftLayer, state.patDraft.wall);
+  }
+  drawWallPickInProgress();
+}
+// Small numbered markers + connecting line for an in-progress multi-point
+// wall pick (points are layer-local, collected by the pointerdown branch
+// in state.patWallPickArmed.points -- see finishWallPick).
+function drawWallPickInProgress(){
+  const armed = state.patWallPickArmed;
+  if(!armed || !armed.points.length) return;
+  const holder = armed.target==='draft' ? state.patDraft : state.patterns.find(p=>p.id===armed.patId);
+  if(!holder) return;
+  const layer = getLayer(holder.layerId);
+  if(!layer) return;
+  const screenPts = armed.points.map(p=>worldToScreen(...layerToWorld(layer, p.x, p.y)));
+  ctx.save();
+  ctx.strokeStyle = PAT_WALL_CURVE_COLOR; ctx.lineWidth = 1.5; ctx.setLineDash([3,3]);
+  ctx.beginPath();
+  screenPts.forEach(([sx,sy],i)=>{ if(i===0) ctx.moveTo(sx,sy); else ctx.lineTo(sx,sy); });
+  ctx.stroke();
+  ctx.setLineDash([]);
+  screenPts.forEach(([sx,sy],i)=>{
+    ctx.fillStyle = PAT_WALL_CURVE_COLOR;
+    ctx.beginPath(); ctx.arc(sx,sy,4,0,Math.PI*2); ctx.fill();
+    drawPatBadge(sx, sy, String(i+1), PAT_WALL_CURVE_COLOR, false);
+  });
+  ctx.restore();
 }
 function drawGridPatterns(){
   if(!(state.typeVisibility.patterns || state.tool==='pattern')) return;
@@ -6054,10 +6230,469 @@ function getPatternPointWorld(layer, name){
   const pt = findNavPointByName(layer, name);
   return pt ? layerToWorld(layer, pt.pos.x, pt.pos.y) : null;
 }
+
+// ---------------- wall-follow linear patterns ----------------
+// A linear pattern's `follow` field is 'axis' (default, the chain behavior
+// above, unchanged) or 'wall': instances sit at a constant perpendicular
+// offset from a wall fitted from nearby scan points, so a pattern laid
+// down straight in the map still tracks a real wall that bends slightly
+// as mapped (SLAM drift over a long corridor). Everything here -- pick,
+// origin/angle, fitMethod, scope, continuous, width, band, offset,
+// spacing, the cached fit -- lives on pat.wall, which is part of the
+// pattern object in state.patterns, NOT inside layer.extra. The .smap
+// export path (buildSmapFromLayers) only ever reads layer.extra, so none
+// of this can leak into an exported map; it's saved with the PROJECT
+// (serializeProject just writes state.patterns verbatim) exactly like
+// axis/dx/dy/connected already are, so a cached fit survives reload
+// without being refit.
+const WALL_MIN_PTS = 5;
+const WALL_RESAMPLE_STEP = 0.5; // m -- matches the cached fit.samples spacing
+const WALL_DIRECTION_RADIUS = 1.5; // m, fixed. Only used to (re-)derive direction on
+// Pick/Refit -- never tied to the live width/band controls. Direction is
+// frozen between Pick/Refit calls: re-deriving it on every slider tick
+// would shift the whole u/v frame under you while comparing Fit methods,
+// and LSE/Histogram have no notion of "their own direction" to re-derive
+// anyway -- only PCA produces one as a byproduct. See the wall-fit
+// comparison viz from this same conversation for why.
+
+function wallProject(origin, angle, x, y){
+  const dx = x-origin.x, dy = y-origin.y;
+  const c = Math.cos(angle), s = Math.sin(angle);
+  return [dx*c+dy*s, -dx*s+dy*c]; // [u,v]
+}
+function wallUnproject(origin, angle, u, v){
+  const c = Math.cos(angle), s = Math.sin(angle);
+  return {x: origin.x + u*c - v*s, y: origin.y + u*s + v*c};
+}
+// One-time local direction fit (PCA / total-least-squares on nearby scan
+// points) -- the only place PCA is used unconditionally, regardless of
+// which Fit the user has selected for the actual wall estimate.
+function wallFitDirectionPCA(points, clickX, clickY, radius){
+  const near = [];
+  for(let i=0;i<points.length;i+=2){
+    const x=points[i], y=points[i+1];
+    if(Math.hypot(x-clickX,y-clickY)<=radius) near.push([x,y]);
+  }
+  if(near.length<WALL_MIN_PTS) return null;
+  let sx=0,sy=0;
+  for(const [x,y] of near){ sx+=x; sy+=y; }
+  const mx=sx/near.length, my=sy/near.length;
+  let Sxx=0,Syy=0,Sxy=0;
+  for(const [x,y] of near){ const dx=x-mx, dy=y-my; Sxx+=dx*dx; Syy+=dy*dy; Sxy+=dx*dy; }
+  return 0.5*Math.atan2(2*Sxy, Sxx-Syy);
+}
+// Multi-point pick: union of the scan points near EACH clicked point
+// (same radius as the single-click version), so a long-baseline trace
+// along the wall gives a sturdier direction than one 1.5m patch -- a wall
+// traced across 30m is far less sensitive to local noise/clutter near any
+// one click than a single local neighborhood is. A single click (picks
+// with length 1) degenerates to exactly the old single-point behavior.
+function wallFitDirectionPCAMulti(points, clickPts, radius){
+  const near = [];
+  for(const c of clickPts){
+    for(let i=0;i<points.length;i+=2){
+      const x=points[i], y=points[i+1];
+      if(Math.hypot(x-c.x,y-c.y)<=radius) near.push([x,y]);
+    }
+  }
+  if(near.length<WALL_MIN_PTS) return null;
+  let sx=0,sy=0;
+  for(const [x,y] of near){ sx+=x; sy+=y; }
+  const mx=sx/near.length, my=sy/near.length;
+  let Sxx=0,Syy=0,Sxy=0;
+  for(const [x,y] of near){ const dx=x-mx, dy=y-my; Sxx+=dx*dx; Syy+=dy*dy; Sxy+=dx*dy; }
+  return 0.5*Math.atan2(2*Sxy, Sxx-Syy);
+}
+
+function wallFitOLS(pts){
+  const n=pts.length; let su=0,sv=0,suv=0,suu=0;
+  for(const p of pts){ su+=p.u; sv+=p.v; suv+=p.u*p.v; suu+=p.u*p.u; }
+  const denom = n*suu-su*su;
+  const m = Math.abs(denom)<1e-9 ? 0 : (n*suv-su*sv)/denom;
+  const b = (sv-m*su)/n;
+  return u=>m*u+b;
+}
+function wallFitPCA(pts){
+  const n=pts.length; let su=0,sv=0;
+  for(const p of pts){ su+=p.u; sv+=p.v; }
+  const mu=su/n, mv=sv/n; let Suu=0,Svv=0,Suv=0;
+  for(const p of pts){ const du=p.u-mu, dv=p.v-mv; Suu+=du*du; Svv+=dv*dv; Suv+=du*dv; }
+  const theta = 0.5*Math.atan2(2*Suv, Suu-Svv);
+  const dirU = Math.cos(theta), dirV = Math.sin(theta);
+  if(Math.abs(dirU)<1e-6) return ()=>mv;
+  const slope = dirV/dirU;
+  return u=>mv+slope*(u-mu);
+}
+// Bins are derived from the window's own v-spread (unlike a fixed global
+// range) since a real wall's offset isn't known ahead of time.
+function wallFitHistogramMode(pts){
+  if(!pts.length) return null;
+  let vMin=Infinity, vMax=-Infinity;
+  for(const p of pts){ if(p.v<vMin) vMin=p.v; if(p.v>vMax) vMax=p.v; }
+  const span = Math.max(vMax-vMin, 0.05);
+  const nBins = 41, binW = span/nBins;
+  const bins = new Array(nBins).fill(0);
+  for(const p of pts){
+    const bi = Math.min(nBins-1, Math.max(0, Math.floor((p.v-vMin)/binW)));
+    bins[bi]++;
+  }
+  let peak=0; for(let k=1;k<nBins;k++) if(bins[k]>bins[peak]) peak=k;
+  const peakCenter = vMin + (peak+0.5)*binW;
+  const near = pts.filter(p=>Math.abs(p.v-peakCenter)<=2*binW);
+  if(!near.length) return null;
+  const mean = near.reduce((a,p)=>a+p.v,0)/near.length;
+  return ()=>mean;
+}
+function wallFitByMethod(pts, fitMethod){
+  if(fitMethod==='pca') return wallFitPCA(pts);
+  if(fitMethod==='histogram') return wallFitHistogramMode(pts);
+  return wallFitOLS(pts);
+}
+// Filters to |v-predicted|<=band first (skipped when predicted==null, i.e.
+// the seed/bootstrap window, which has nothing to predict against yet).
+// Too few survivors is treated as a gap (bridged below), never silently
+// falling back to the unfiltered set -- that would defeat the point of
+// letting band exclude contamination.
+function wallFitWindow(pts, predicted, band, fitMethod){
+  const filtered = predicted==null ? pts : pts.filter(p=>Math.abs(p.v-predicted)<=band);
+  if(filtered.length<WALL_MIN_PTS) return {estimate:null, fn:null, used:[]};
+  const fn = wallFitByMethod(filtered, fitMethod);
+  if(!fn) return {estimate:null, fn:null, used:[]};
+  const meanU = filtered.reduce((a,p)=>a+p.u,0)/filtered.length;
+  return {estimate: fn(meanU), fn, used: filtered};
+}
+function wallBridgeGaps(windows){
+  for(let i=0;i<windows.length;i++){
+    if(windows[i].estimate==null){
+      let prev=null, next=null;
+      for(let a=i-1;a>=0;a--){ if(windows[a].estimate!=null){ prev=windows[a]; break; } }
+      for(let b=i+1;b<windows.length;b++){ if(windows[b].estimate!=null){ next=windows[b]; break; } }
+      const v = prev&&next ? (prev.estimate+next.estimate)/2 : (prev ? prev.estimate : (next ? next.estimate : 0));
+      windows[i].estimate = v;
+      windows[i].fn = ()=>v;
+      windows[i].gap = true;
+    }
+  }
+}
+// Marches outward from pickU in both directions, one `width`-wide window at
+// a time, each window's band filter centered on the running prediction
+// from its already-resolved neighbor. Short gaps (doorways) are bridged
+// by interpolation (see wallBridgeGaps); marching in a direction STOPS
+// once WALL_STOP_GAP_M of contiguous empty data has been seen, rather
+// than marching all the way to the cached point cloud's own extent --
+// without this, a coincidental, unrelated wall far down the same v-band
+// (e.g. in a different room) could get silently stitched in once the
+// real corridor runs out. [guardMinU, guardMaxU] (defaults to pickU,pickU,
+// i.e. no guard) SUSPENDS that stop rule while still within it -- a
+// multi-point pick sets this to the span between the first and last
+// clicked point, so an explicitly user-confirmed stretch of wall survives
+// any gap inside it, no matter how long, while the safety stop still
+// applies beyond the ends of what was actually traced.
+const WALL_STOP_GAP_M = 5;
+function wallMarchPiecewise(pts, pickU, width, band, fitMethod, uMinAll, uMaxAll, guardMinU, guardMaxU){
+  if(guardMinU==null) guardMinU = pickU;
+  if(guardMaxU==null) guardMaxU = pickU;
+  const half = width/2;
+  const seedStart = pickU-half, seedEnd = pickU+half;
+  const seedPts = pts.filter(p=>p.u>=seedStart && p.u<seedEnd);
+  const seed = wallFitWindow(seedPts, null, band, fitMethod);
+  const windows = [{start:seedStart, end:seedEnd, estimate:seed.estimate, fn:seed.fn, used:seed.used}];
+
+  let predicted = seed.estimate, cur = seedEnd, emptyRun = 0;
+  while(cur < uMaxAll-1e-9){
+    const end = Math.min(cur+width, uMaxAll);
+    const slicePts = pts.filter(p=>p.u>=cur && p.u<end);
+    const r = wallFitWindow(slicePts, predicted, band, fitMethod);
+    windows.push({start:cur, end, estimate:r.estimate, fn:r.fn, used:r.used});
+    if(r.estimate!=null){ predicted = r.estimate; emptyRun = 0; }
+    else { emptyRun += (end-cur); if(emptyRun>=WALL_STOP_GAP_M && cur>=guardMaxU) break; }
+    cur = end;
+  }
+  predicted = seed.estimate; cur = seedStart; emptyRun = 0;
+  while(cur > uMinAll+1e-9){
+    const start = Math.max(cur-width, uMinAll);
+    const slicePts = pts.filter(p=>p.u>=start && p.u<cur);
+    const r = wallFitWindow(slicePts, predicted, band, fitMethod);
+    windows.unshift({start, end:cur, estimate:r.estimate, fn:r.fn, used:r.used});
+    if(r.estimate!=null){ predicted = r.estimate; emptyRun = 0; }
+    else { emptyRun += (cur-start); if(emptyRun>=WALL_STOP_GAP_M && cur<=guardMinU) break; }
+    cur = start;
+  }
+  wallBridgeGaps(windows);
+  return windows;
+}
+// Global scope is literally "one window" -- a single band-filtered fit
+// centered on pickU, self-corrected once (fit unfiltered, then refiltered
+// against that first estimate). Drawing/evaluation extrapolate flat
+// beyond its own extent; see vWallAt.
+function wallFitGlobal(pts, pickU, width, band, fitMethod){
+  const half = width/2;
+  const start = pickU-half, end = pickU+half;
+  const windowPts = pts.filter(p=>p.u>=start && p.u<end);
+  const initial = wallFitWindow(windowPts, null, band, fitMethod);
+  if(initial.estimate==null) return [{start, end, estimate:null, fn:null, used:[]}];
+  const refined = wallFitWindow(windowPts, initial.estimate, band, fitMethod);
+  const final = refined.estimate!=null ? refined : initial;
+  return [{start, end, estimate:final.estimate, fn:final.fn, used:final.used}];
+}
+// Dense Gaussian elimination, small (one unknown per window breakpoint) --
+// cheap enough not to bother exploiting the matrix's tridiagonal shape.
+function wallSolveLinearSystem(A, b){
+  const n = A.length;
+  for(let col=0; col<n; col++){
+    let piv = col;
+    for(let r=col+1;r<n;r++) if(Math.abs(A[r][col])>Math.abs(A[piv][col])) piv=r;
+    if(piv!==col){ const t1=A[col];A[col]=A[piv];A[piv]=t1; const t2=b[col];b[col]=b[piv];b[piv]=t2; }
+    const pivotVal = A[col][col] || 1e-9;
+    for(let r=col+1;r<n;r++){
+      const f = A[r][col]/pivotVal;
+      if(f===0) continue;
+      for(let c=col;c<n;c++) A[r][c] -= f*A[col][c];
+      b[r] -= f*b[col];
+    }
+  }
+  const x = new Array(n).fill(0);
+  for(let i=n-1;i>=0;i--){
+    let s = b[i];
+    for(let j=i+1;j<n;j++) s -= A[i][j]*x[j];
+    x[i] = s/(A[i][i] || 1e-9);
+  }
+  return x;
+}
+// Continuous stitching (LSE only -- see WALL_DIRECTION_RADIUS comment: a
+// joint total-least-squares fit across shared breakpoints isn't a simple
+// linear solve the way OLS against a tent basis is). Band still decides
+// which points count (the union of whatever each window's band filter
+// already accepted); this only changes HOW they're fit -- jointly, for a
+// kink-free curve, instead of one independent line per window.
+function wallContinuousFit(unionPts, breaks){
+  const K = breaks.length;
+  const A = []; for(let i=0;i<K;i++) A.push(new Array(K).fill(0));
+  const b = new Array(K).fill(0);
+  for(const p of unionPts){
+    let k=0;
+    while(k<K-2 && p.u>breaks[k+1]) k++;
+    const span = breaks[k+1]-breaks[k];
+    const t = span>1e-9 ? (p.u-breaks[k])/span : 0;
+    const w0=1-t, w1=t;
+    A[k][k]+=w0*w0; A[k][k+1]+=w0*w1; A[k+1][k]+=w1*w0; A[k+1][k+1]+=w1*w1;
+    b[k]+=w0*p.v; b[k+1]+=w1*p.v;
+  }
+  for(let d=0; d<K; d++) A[d][d] += 1e-6; // tiny ridge, numerical safety only
+  const theta = wallSolveLinearSystem(A, b);
+  return breaks.map((u,i)=>[u, theta[i]]);
+}
+function wallSampleAt(samples, u){
+  if(!samples.length) return null;
+  if(u<=samples[0][0]) return samples[0][1];
+  if(u>=samples[samples.length-1][0]) return samples[samples.length-1][1];
+  for(let i=0;i<samples.length-1;i++){
+    if(u>=samples[i][0] && u<=samples[i+1][0]){
+      const t=(u-samples[i][0])/(samples[i+1][0]-samples[i][0]);
+      return samples[i][1]+(samples[i+1][1]-samples[i][1])*t;
+    }
+  }
+  return samples[samples.length-1][1];
+}
+function wallEvalWindows(windows, kind, samples, u){
+  if(kind==='continuous' && samples) return wallSampleAt(samples, u);
+  for(const w of windows){ if(u>=w.start && u<=w.end && w.fn) return w.fn(u); }
+  if(kind==='global'){
+    const w0 = windows[0];
+    if(!w0.fn) return null;
+    if(u<w0.start) return w0.fn(w0.start);
+    if(u>w0.end) return w0.fn(w0.end);
+  }
+  return null;
+}
+// Dispatches to whichever Fit x Scope x continuous is selected, then
+// normalizes the result into ONE shape -- a resampled polyline -- so
+// everything downstream (vWallAt, drawing, instance positioning) never
+// needs to know which method produced it.
+function wallComputeFit(pts, pickU, width, band, fitMethod, scope, continuous, uMinAll, uMaxAll, guardMinU, guardMaxU){
+  let windows, kind, samples=null;
+  if(scope==='global'){
+    windows = wallFitGlobal(pts, pickU, width, band, fitMethod);
+    kind = 'global';
+  } else {
+    windows = wallMarchPiecewise(pts, pickU, width, band, fitMethod, uMinAll, uMaxAll, guardMinU, guardMaxU);
+    if(fitMethod==='lse' && continuous){
+      const breaks = windows.map(w=>w.start).concat([windows[windows.length-1].end]);
+      const usedSet = new Set();
+      for(const w of windows) for(const p of (w.used||[])) usedSet.add(p);
+      const unionPts = Array.from(usedSet);
+      samples = unionPts.length>=WALL_MIN_PTS ? wallContinuousFit(unionPts, breaks) : null;
+      kind = 'continuous';
+    } else {
+      kind = 'piecewise';
+    }
+  }
+  const fitStart = windows[0].start, fitEnd = windows[windows.length-1].end;
+  const out = [];
+  for(let u=fitStart; u<fitEnd-1e-9; u+=WALL_RESAMPLE_STEP){
+    const v = wallEvalWindows(windows, kind, samples, u);
+    if(v!=null) out.push([round3(u), round3(v)]);
+  }
+  const vEnd = wallEvalWindows(windows, kind, samples, fitEnd);
+  if(vEnd!=null) out.push([round3(fitEnd), round3(vEnd)]);
+  return { samples: out, uMin: round3(fitStart), uMax: round3(fitEnd) };
+}
+// Value on the cached fit at any u, in or out of its covered extent.
+// Outside uMin..uMax, extrapolates from the slope over the last ~10m at
+// whichever end u is beyond -- callers use `extrapolated` to flag/highlight
+// those instances per the original spec.
+function vWallAt(fit, u){
+  if(!fit || !fit.samples || !fit.samples.length) return {v:0, extrapolated:false};
+  if(u>=fit.uMin && u<=fit.uMax) return {v: wallSampleAt(fit.samples, u), extrapolated:false};
+  const edgeU = u<fit.uMin ? fit.uMin : fit.uMax;
+  const refU = u<fit.uMin ? Math.min(fit.uMax, fit.uMin+10) : Math.max(fit.uMin, fit.uMax-10);
+  const v0 = wallSampleAt(fit.samples, edgeU), v1 = wallSampleAt(fit.samples, refU);
+  const slope = Math.abs(refU-edgeU)>1e-6 ? (v1-v0)/(refU-edgeU) : 0;
+  return {v: v0 + slope*(u-edgeU), extrapolated:true};
+}
+function wallSlopeAt(fit, u){
+  if(!fit || !fit.samples || fit.samples.length<2) return 0;
+  const uc = Math.max(fit.uMin, Math.min(fit.uMax, u));
+  const h = WALL_RESAMPLE_STEP;
+  const a = Math.max(fit.uMin, uc-h), b = Math.min(fit.uMax, uc+h);
+  if(b-a<1e-6) return 0;
+  return (wallSampleAt(fit.samples,b)-wallSampleAt(fit.samples,a))/(b-a);
+}
+function computeWallFitMaxDeviation(fit){
+  if(!fit || !fit.samples || !fit.samples.length) return 0;
+  let vMin=Infinity, vMax=-Infinity;
+  for(const [,v] of fit.samples){ if(v<vMin) vMin=v; if(v>vMax) vMax=v; }
+  return vMax-vMin;
+}
+
+// Perf: a slider drag shouldn't re-scan the whole scan-point cloud on
+// every tick. Cached per pattern (keyed by pat.id, or '__draft' for the
+// draft panel), rebuilt only when origin/angle change (a fresh Pick/Refit)
+// or band grows past what's cached -- never on width/fitMethod/scope/
+// continuous/spacing/offset changes, which all just reuse it. Deliberately
+// NOT part of state/pat.wall: it's a derived, regenerable perf cache, never
+// saved with the project and never involved in undo.
+let wallFitPointCache = {};
+function buildWallPointCache(layer, wall, margin){
+  const pts = [];
+  const raw = layer.points;
+  for(let i=0;i<raw.length;i+=2){
+    const [u,v] = wallProject(wall.origin, wall.angle, raw[i], raw[i+1]);
+    if(Math.abs(v)<=margin) pts.push({u,v});
+  }
+  return pts;
+}
+function ensureWallCache(layer, wall, key){
+  const neededMargin = Math.max((wall.band||0.5)*1.5, 1.5);
+  let entry = wallFitPointCache[key];
+  if(!entry || entry.origin!==wall.origin || entry.angle!==wall.angle || entry.margin<neededMargin){
+    entry = {origin: wall.origin, angle: wall.angle, margin: neededMargin, pts: buildWallPointCache(layer, wall, neededMargin)};
+    wallFitPointCache[key] = entry;
+  }
+  return entry.pts;
+}
+
+// Shared by the draft panel's and a selected pattern's Pick-wall flow.
+// `holder` is either state.patDraft or a real pattern -- both carry the
+// same seedName/wall shape. `clickPts` is one or more layer-local
+// {x,y} points clicked along the wall, in order -- a single-point pick
+// is just clickPts.length===1, which degenerates to the original
+// one-click behavior exactly (origin = that point, no guard span beyond
+// the seed window). Multiple points give a long-baseline direction (see
+// wallFitDirectionPCAMulti) and a guaranteed marching span between the
+// first and last point that survives gaps of any length (see
+// wallMarchPiecewise's guardMinU/guardMaxU).
+function pickWallForHolder(layer, seedName, holder, clickPts){
+  const angle = wallFitDirectionPCAMulti(layer.points, clickPts, WALL_DIRECTION_RADIUS);
+  if(angle==null){
+    alert('Not enough scan data near those points to fit a wall.');
+    return false;
+  }
+  const n = clickPts.length;
+  const origin = {
+    x: round3(clickPts.reduce((a,p)=>a+p.x,0)/n),
+    y: round3(clickPts.reduce((a,p)=>a+p.y,0)/n),
+  };
+  holder.wall = holder.wall || {};
+  Object.assign(holder.wall, {
+    picks: clickPts.map(p=>({x:round3(p.x), y:round3(p.y)})),
+    origin, angle,
+    fitMethod: holder.wall.fitMethod || 'lse',
+    scope: holder.wall.scope || 'piecewise',
+    continuous: !!holder.wall.continuous,
+    width: holder.wall.width || 4,
+    band: holder.wall.band || 0.5,
+    spacing: holder.wall.spacing!=null ? holder.wall.spacing : 1,
+    headingFollowsWall: !!holder.wall.headingFollowsWall,
+  });
+  return refitWallFor(layer, seedName, holder);
+}
+// Re-runs the CURRENTLY selected fitMethod/scope/continuous/width/band
+// against the EXISTING origin/angle -- direction stays frozen (see
+// WALL_DIRECTION_RADIUS comment above). Called by the Refit button AND by
+// every live param change (width/band/fitMethod/scope/continuous/spacing),
+// so this is the one function that has to stay cheap -- see
+// ensureWallCache.
+function refitWallKeepingConfig(layer, seedName, holder){
+  return refitWallFor(layer, seedName, holder);
+}
+function refitWallFor(layer, seedName, holder){
+  const wall = holder.wall;
+  if(!wall || !wall.origin) return false;
+  const seedPt = findNavPointByName(layer, seedName);
+  if(!seedPt) return false;
+  const fitMethod = wall.fitMethod || 'lse';
+  const scope = wall.scope || 'piecewise';
+  const width = wall.width || 4;
+  const band = wall.band || 0.5;
+  const cacheKey = holder===state.patDraft ? '__draft' : holder.id;
+  const pts = ensureWallCache(layer, wall, cacheKey);
+  const [u0, vSeed] = wallProject(wall.origin, wall.angle, seedPt.pos.x, seedPt.pos.y);
+  let uMinAll = u0, uMaxAll = u0;
+  for(const p of pts){ if(p.u<uMinAll) uMinAll=p.u; if(p.u>uMaxAll) uMaxAll=p.u; }
+  const picks = Array.isArray(wall.picks) && wall.picks.length ? wall.picks : [wall.origin];
+  const pickUs = picks.map(p=>wallProject(wall.origin, wall.angle, p.x, p.y)[0]);
+  const guardMinU = Math.min(u0, ...pickUs), guardMaxU = Math.max(u0, ...pickUs);
+  wall.fit = wallComputeFit(pts, u0, width, band, fitMethod, scope, !!wall.continuous, uMinAll, uMaxAll, guardMinU, guardMaxU);
+  wall.offset = round3(vSeed - vWallAt(wall.fit, u0).v);
+  return true;
+}
+
+// Theoretical world position of every instance, skipped or not — the chain
+// keeps advancing through a skipped slot so later instances (and its ghost
+// marker) stay correctly placed.
+function computeWallPatternInstanceWorldPositions(pat){
+  const layer = getLayer(pat.layerId);
+  if(!layer || !pat.wall || !pat.wall.fit) return pat.instances.map(()=>null);
+  const seedPt = findNavPointByName(layer, pat.seedName);
+  if(!seedPt) return [];
+  const {origin, angle, fit, spacing} = pat.wall;
+  const [u0, vSeed] = wallProject(origin, angle, seedPt.pos.x, seedPt.pos.y);
+  // offset is LIVE -- derived from the seed's current position every
+  // resolve, not frozen at pick time (see the "Seed and offset behavior"
+  // design decision: dragging the seed, or the layer it's on, should move
+  // the whole chain with it). pat.wall.offset is kept in sync here purely
+  // for display/editing in the panel.
+  const offset = vSeed - vWallAt(fit, u0).v;
+  pat.wall.offset = round3(offset);
+  const out = [];
+  let u = u0;
+  for(const inst of pat.instances){
+    const step = inst.overrideDx!=null ? inst.overrideDx : (spacing!=null ? spacing : 1);
+    u += step;
+    const nudge = inst.overrideDy!=null ? inst.overrideDy : 0;
+    const v = vWallAt(fit, u).v + offset + nudge;
+    const local = wallUnproject(origin, angle, u, v);
+    out.push(layerToWorld(layer, local.x, local.y));
+  }
+  return out;
+}
+
 // Theoretical world position of every instance, skipped or not — the chain
 // keeps advancing through a skipped slot so later instances (and its ghost
 // marker) stay correctly placed.
 function computePatternInstanceWorldPositions(pat){
+  if(pat.follow==='wall') return computeWallPatternInstanceWorldPositions(pat);
   const layer = getLayer(pat.layerId);
   if(!layer) return [];
   const seedPt = findNavPointByName(layer, pat.seedName);
@@ -6183,7 +6818,19 @@ function resyncIdsAndDedupe(list, prefix){
   return nextN;
 }
 function createPattern(layer, seedName, axis, dx, dy, count, connected, connectDirection){
-  const pat = {id:'pat'+(patIdCounter++), layerId:layer.id, seedName, axis, dx, dy, count:0, instances:[], connected:!!connected, connectDirection:connectDirection||'both'};
+  const pat = {id:'pat'+(patIdCounter++), layerId:layer.id, seedName, follow:'axis', axis, dx, dy, count:0, instances:[], connected:!!connected, connectDirection:connectDirection||'both'};
+  state.patterns.push(pat);
+  for(let i=0;i<count;i++) appendPatternInstance(pat, layer);
+  resolveAllPatterns();
+  syncPatternPaths(pat, layer);
+  return pat;
+}
+// Sibling to createPattern for follow:'wall' patterns -- kept separate
+// rather than adding wall params to createPattern's signature, since the
+// two shapes (axis params vs. a whole wall config object) don't share
+// much beyond seedName/count/connected.
+function createWallPattern(layer, seedName, wallConfig, count, connected, connectDirection){
+  const pat = {id:'pat'+(patIdCounter++), layerId:layer.id, seedName, follow:'wall', wall:wallConfig, count:0, instances:[], connected:!!connected, connectDirection:connectDirection||'both'};
   state.patterns.push(pat);
   for(let i=0;i<count;i++) appendPatternInstance(pat, layer);
   resolveAllPatterns();
@@ -7476,6 +8123,30 @@ function propagateStationDistanceToPatternMembers(layer, seedPt, newDistance){
 // swings its own LM around) left every other instance facing its old,
 // stale direction instead of following along.
 function propagateHeadingToPatternMembers(layer, seedPt){
+  // A wall-follow pattern with "heading follows wall" on gets each
+  // instance's own heading from the wall's local slope at its own u,
+  // offset so the SEED's own current heading is preserved as the
+  // baseline (dir_i = seed.dir + slope-angle(u_i) - slope-angle(u0)) --
+  // everything else (grid cells, axis-mode patterns, headingFollowsWall
+  // off) keeps the exact same verbatim seed.dir copy as before.
+  const linInfo = findPatternByPointName(layer, seedPt.instanceName);
+  const wallPat = (linInfo && linInfo.role==='seed' && linInfo.pat.follow==='wall' && linInfo.pat.wall && linInfo.pat.wall.headingFollowsWall) ? linInfo.pat : null;
+  if(wallPat){
+    const {origin, angle, fit, spacing} = wallPat.wall;
+    const [u0] = wallProject(origin, angle, seedPt.pos.x, seedPt.pos.y);
+    const baseAngle = Math.atan(wallSlopeAt(fit, u0));
+    let u = u0;
+    for(const inst of wallPat.instances){
+      const step = inst.overrideDx!=null ? inst.overrideDx : (spacing!=null ? spacing : 1);
+      u += step;
+      if(inst.skipped) continue;
+      const memberPt = findNavPointByName(layer, inst.name);
+      if(!memberPt) continue;
+      memberPt.dir = seedPt.dir + (Math.atan(wallSlopeAt(fit, u)) - baseAngle);
+      memberPt.ignoreDir = seedPt.ignoreDir;
+    }
+    return;
+  }
   for(const name of patternSeedMemberNames(layer, seedPt)){
     const memberPt = findNavPointByName(layer, name);
     if(memberPt){ memberPt.dir = seedPt.dir; memberPt.ignoreDir = seedPt.ignoreDir; }
@@ -7590,6 +8261,49 @@ function renderRelPanel(){
 const patDraftBox = document.getElementById('patDraftBox');
 const patSelBox = document.getElementById('patSelBox');
 const gridSelBox = document.getElementById('gridSelBox');
+// Shared by the draft panel and a selected pattern's panel -- both use the
+// same field ids under a 'patDraft'/'patSel' prefix. `holder` is either
+// state.patDraft (no materialized .instances yet, so the out-of-extent
+// warning is always skipped there) or a real pattern.
+function renderWallFieldsUI(prefix, btnPrefix, holder, isDraft){
+  const follow = holder.follow || 'axis';
+  document.getElementById(prefix+'FollowAxis').classList.toggle('active', follow==='axis');
+  document.getElementById(prefix+'FollowWall').classList.toggle('active', follow==='wall');
+  document.getElementById(prefix+'AxisFields').hidden = follow==='wall';
+  document.getElementById(prefix+'WallFields').hidden = follow!=='wall';
+  if(follow!=='wall') return;
+  const wall = holder.wall || (holder.wall = {});
+  const fitMethod = wall.fitMethod || 'lse';
+  const scope = wall.scope || 'piecewise';
+  document.getElementById(prefix+'FitPca').classList.toggle('active', fitMethod==='pca');
+  document.getElementById(prefix+'FitLse').classList.toggle('active', fitMethod==='lse');
+  document.getElementById(prefix+'FitHistogram').classList.toggle('active', fitMethod==='histogram');
+  document.getElementById(prefix+'ScopeGlobal').classList.toggle('active', scope==='global');
+  document.getElementById(prefix+'ScopePiecewise').classList.toggle('active', scope==='piecewise');
+  const contEl = document.getElementById(prefix+'WallContinuous');
+  contEl.checked = !!wall.continuous;
+  contEl.disabled = !(fitMethod==='lse' && scope==='piecewise');
+  const widthEl = document.getElementById(prefix+'WallWidth'), bandEl = document.getElementById(prefix+'WallBand');
+  const offsetEl = document.getElementById(prefix+'WallOffset'), spacingEl = document.getElementById(prefix+'WallSpacing');
+  if(document.activeElement!==widthEl) widthEl.value = wall.width!=null ? wall.width : 4;
+  if(document.activeElement!==bandEl) bandEl.value = wall.band!=null ? wall.band : 0.5;
+  if(document.activeElement!==offsetEl) offsetEl.value = wall.offset!=null ? wall.offset : 0;
+  if(document.activeElement!==spacingEl) spacingEl.value = wall.spacing!=null ? wall.spacing : 1;
+  document.getElementById(prefix+'HeadingFollowsWall').checked = !!wall.headingFollowsWall;
+  document.getElementById(btnPrefix+'RefitWall').disabled = !wall.fit;
+  document.getElementById(prefix+'WallDeviation').textContent = wall.fit ? computeWallFitMaxDeviation(wall.fit).toFixed(3)+' m' : '—';
+  const warnEl = document.getElementById(prefix+'WallWarning');
+  warnEl.hidden = isDraft || !wall.fit || !wallInstanceExtrapolationFlags(holder).some(Boolean);
+  const armed = state.patWallPickArmed;
+  const armedForThis = armed && (isDraft ? armed.target==='draft' : (armed.target==='pattern' && armed.patId===holder.id));
+  const n = armedForThis ? armed.points.length : 0;
+  document.getElementById(btnPrefix+'PickWall').textContent = armedForThis ? (n ? 'Click the next point… ('+n+' so far)' : 'Click the first point…') : 'Pick wall…';
+  document.getElementById(prefix+'WallPickHint').hidden = !armedForThis;
+  const doneBtn = document.getElementById(btnPrefix+'PickWallDone');
+  doneBtn.hidden = !armedForThis;
+  doneBtn.textContent = n>1 ? 'Done ('+n+' points)' : 'Done';
+  doneBtn.disabled = !n;
+}
 function renderPatternPanel(){
   const draft = state.patDraft;
   const pat = state.selectedPattern!=null ? state.patterns.find(p=>p.id===state.selectedPattern) : null;
@@ -7623,9 +8337,11 @@ function renderPatternPanel(){
     if(document.activeElement!==gdyEl) gdyEl.value = draft.gridDy;
     if(document.activeElement!==cxEl) cxEl.value = draft.countX;
     if(document.activeElement!==cyEl) cyEl.value = draft.countY;
+    if(draft.type==='linear') renderWallFieldsUI('patDraft', 'btnPatDraft', draft, true);
   }
   if(pat){
     document.getElementById('patSelSeed').textContent = pat.seedName;
+    renderWallFieldsUI('patSel', 'btnPatSel', pat, false);
     document.getElementById('patSelAxisX').classList.toggle('active', pat.axis==='x');
     document.getElementById('patSelAxisY').classList.toggle('active', pat.axis==='y');
     document.getElementById('patSelAxisBoth').classList.toggle('active', pat.axis==='both');
@@ -7725,6 +8441,17 @@ document.getElementById('btnPatDraftCreate').addEventListener('click', ()=>{
     state.patDraft = null;
     state.selectedGridPattern = grid.id;
     state.selectedPattern = null;
+  } else if(draft.follow==='wall'){
+    if(!draft.wall || !draft.wall.fit){
+      state.undoStack.pop(); // nothing happened -- drop the no-op undo entry
+      updateUndoButton();
+      alert('Pick a wall first.');
+      return;
+    }
+    const pat = createWallPattern(layer, draft.seedName, draft.wall, draft.count, draft.connected, draft.connectDirection);
+    state.patDraft = null;
+    state.selectedPattern = pat.id;
+    state.selectedGridPattern = null;
   } else {
     const pat = createPattern(layer, draft.seedName, draft.axis, draft.dx, draft.dy, draft.count, draft.connected, draft.connectDirection);
     state.patDraft = null;
@@ -7786,6 +8513,102 @@ document.getElementById('patSelCount').addEventListener('change', ()=>{
   setPatternCount(pat, newCount, layer);
   renderPatternPanel(); renderNavPointPanel(); renderPathPanel(); scheduleAutosave(); requestDraw();
 });
+// Shared by the draft panel and a selected pattern's wall fields.
+// `getHolder()` returns state.patDraft or the currently selected pattern.
+// Drafts aren't materialized into layer data yet (same invariant as the
+// existing axis-mode draft fields), so their edits skip pushUndo/
+// resolveAllPatterns/autosave -- EXCEPT the Offset field below, which
+// moves the seed's actual position even in draft state and so is always
+// a real, undoable layer mutation regardless of isDraft.
+function refitWallLive(holder, layer){
+  if(holder.wall && holder.wall.origin) refitWallKeepingConfig(layer, holder.seedName, holder);
+}
+// Finalizes an in-progress multi-point wall pick (Done button or Enter
+// key) -- see the patWallPickArmed branch in the canvas pointerdown
+// handler, which only ever ADDS a waypoint to armed.points, never
+// finishes on its own. A trace with zero points (Done clicked before any
+// canvas click) is treated the same as Esc: just cancel, nothing to pick.
+function finishWallPick(){
+  const armed = state.patWallPickArmed;
+  if(!armed || !armed.points.length){ state.patWallPickArmed = null; renderPatternPanel(); requestDraw(); return; }
+  const holder = armed.target==='draft' ? state.patDraft : state.patterns.find(p=>p.id===armed.patId);
+  if(holder){
+    const layer = getLayer(holder.layerId);
+    if(layer){
+      if(holder!==state.patDraft) pushUndo(layer);
+      const ok = pickWallForHolder(layer, holder.seedName, holder, armed.points);
+      if(ok){ resolveAllPatterns(); scheduleAutosave(); }
+    }
+  }
+  state.patWallPickArmed = null;
+  renderPatternPanel(); requestDraw();
+}
+function wireWallFieldEvents(prefix, btnPrefix, getHolder, isDraft){
+  function withHolder(mutate){
+    const holder = getHolder();
+    if(!holder) return;
+    const layer = getLayer(holder.layerId);
+    if(!layer) return;
+    if(!isDraft) pushUndo(layer);
+    mutate(holder, layer);
+    if(!isDraft){ resolveAllPatterns(); scheduleAutosave(); }
+    renderPatternPanel(); requestDraw();
+  }
+  document.getElementById(prefix+'FollowAxis').addEventListener('click', ()=>withHolder(h=>{ h.follow='axis'; }));
+  document.getElementById(prefix+'FollowWall').addEventListener('click', ()=>withHolder(h=>{
+    h.follow='wall';
+    h.wall = h.wall || {fitMethod:'lse', scope:'piecewise', continuous:false, width:4, band:0.5, spacing:1, headingFollowsWall:false};
+  }));
+  document.getElementById(prefix+'FitPca').addEventListener('click', ()=>withHolder((h,layer)=>{ h.wall.fitMethod='pca'; refitWallLive(h, layer); }));
+  document.getElementById(prefix+'FitLse').addEventListener('click', ()=>withHolder((h,layer)=>{ h.wall.fitMethod='lse'; refitWallLive(h, layer); }));
+  document.getElementById(prefix+'FitHistogram').addEventListener('click', ()=>withHolder((h,layer)=>{ h.wall.fitMethod='histogram'; refitWallLive(h, layer); }));
+  document.getElementById(prefix+'ScopeGlobal').addEventListener('click', ()=>withHolder((h,layer)=>{ h.wall.scope='global'; refitWallLive(h, layer); }));
+  document.getElementById(prefix+'ScopePiecewise').addEventListener('click', ()=>withHolder((h,layer)=>{ h.wall.scope='piecewise'; refitWallLive(h, layer); }));
+  document.getElementById(prefix+'WallContinuous').addEventListener('change', e=>withHolder((h,layer)=>{ h.wall.continuous = e.target.checked; refitWallLive(h, layer); }));
+  document.getElementById(prefix+'WallWidth').addEventListener('input', e=>withHolder((h,layer)=>{ h.wall.width = Math.max(0.5, parseFloat(e.target.value)||4); refitWallLive(h, layer); }));
+  document.getElementById(prefix+'WallBand').addEventListener('input', e=>withHolder((h,layer)=>{ h.wall.band = Math.max(0.05, parseFloat(e.target.value)||0.5); refitWallLive(h, layer); }));
+  document.getElementById(prefix+'WallSpacing').addEventListener('input', e=>withHolder(h=>{ h.wall.spacing = parseFloat(e.target.value)||0; }));
+  document.getElementById(prefix+'HeadingFollowsWall').addEventListener('change', e=>withHolder((h,layer)=>{
+    h.wall.headingFollowsWall = e.target.checked;
+    const seedPt = findNavPointByName(layer, h.seedName);
+    if(seedPt) propagateHeadingToPatternMembers(layer, seedPt);
+  }));
+  // Offset moves the seed itself (offset is defined relative to the
+  // seed's own position -- see computeWallPatternInstanceWorldPositions),
+  // so unlike every other wall field here, this is always a real,
+  // undoable layer mutation, even while still in draft.
+  document.getElementById(prefix+'WallOffset').addEventListener('input', e=>{
+    const holder = getHolder(); if(!holder || !holder.wall) return;
+    const layer = getLayer(holder.layerId); if(!layer) return;
+    const seedPt = findNavPointByName(layer, holder.seedName);
+    if(!seedPt || !holder.wall.fit) return;
+    pushUndo(layer);
+    const target = parseFloat(e.target.value)||0;
+    const {origin, angle, fit} = holder.wall;
+    const [u0] = wallProject(origin, angle, seedPt.pos.x, seedPt.pos.y);
+    const targetV = vWallAt(fit, u0).v + target;
+    const local = wallUnproject(origin, angle, u0, targetV);
+    const oldLX = seedPt.pos.x, oldLY = seedPt.pos.y;
+    seedPt.pos = {x: round3(local.x), y: round3(local.y)};
+    syncCurvesForPoint(layer, seedPt.instanceName, oldLX, oldLY);
+    holder.wall.offset = round3(target);
+    if(!isDraft) resolveAllPatterns();
+    scheduleAutosave();
+    renderPatternPanel(); requestDraw();
+  });
+  document.getElementById(btnPrefix+'PickWall').addEventListener('click', ()=>{
+    const holder = getHolder(); if(!holder) return;
+    state.patWallPickArmed = isDraft ? {target:'draft', points:[]} : {target:'pattern', patId:holder.id, points:[]};
+    renderPatternPanel(); requestDraw();
+  });
+  document.getElementById(btnPrefix+'PickWallDone').addEventListener('click', finishWallPick);
+  document.getElementById(btnPrefix+'RefitWall').addEventListener('click', ()=>withHolder((h,layer)=>{
+    refitWallKeepingConfig(layer, h.seedName, h);
+  }));
+}
+wireWallFieldEvents('patDraft', 'btnPatDraft', ()=>state.patDraft, true);
+wireWallFieldEvents('patSel', 'btnPatSel', ()=>state.patterns.find(p=>p.id===state.selectedPattern), false);
+
 document.getElementById('btnPatSelResetOverrides').addEventListener('click', ()=>{
   const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
   const layer = getLayer(pat.layerId); if(layer) pushUndo(layer);
@@ -9644,6 +10467,16 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     else state.relSelection = [];
     renderRelPanel();
     requestDraw();
+  } else if(state.tool==='pattern' && layer && state.patWallPickArmed){
+    // "Pick wall" is armed -- each click along the wall adds a waypoint
+    // (never a normal seed/instance/path hit-test) rather than finishing
+    // immediately, so you can trace several points along a long or
+    // gappy wall. Done/Enter finalizes (finishWallPick), Esc cancels the
+    // whole in-progress trace.
+    const [wx, wy] = screenToWorld(sx, sy);
+    const [lx, ly] = worldToLayer(layer, wx, wy);
+    state.patWallPickArmed.points.push({x: lx, y: ly});
+    renderPatternPanel(); requestDraw();
   } else if(state.tool==='pattern' && layer){
     // Checks the EXACT point under the cursor first, not a generic nearby-
     // instance radius search -- findPatternInstanceAt used to run first and
@@ -9674,7 +10507,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
         state.selectedPattern = null;
         state.patDraft = null;
       } else {
-        state.patDraft = {layerId:layer.id, seedName:hit.instanceName, type:'linear', axis:'x', dx:1, dy:0, count:3, connected:false, connectDirection:'both', gridDx:1, gridDy:1, countX:3, countY:3};
+        state.patDraft = {layerId:layer.id, seedName:hit.instanceName, type:'linear', follow:'axis', axis:'x', dx:1, dy:0, count:3, connected:false, connectDirection:'both', gridDx:1, gridDy:1, countX:3, countY:3, wall:null};
         state.selectedPattern = null;
         state.selectedGridPattern = null;
       }
@@ -9913,7 +10746,29 @@ canvasEl.addEventListener('pointermove', (e)=>{
   } else if(state.tool==='pattern' && state.draggingPatternInstance && layer){
     const {patId, index} = state.draggingPatternInstance;
     const pat = state.patterns.find(p=>p.id===patId);
-    if(pat){
+    if(pat && pat.follow==='wall' && pat.wall && pat.wall.fit){
+      // Wall mode: overrideDx/Dy mean the same thing as axis mode's step,
+      // just expressed in the wall's own (u,v) frame -- step along the
+      // wall from the previous instance's CURRENT position, and a
+      // perpendicular nudge relative to the wall's own fitted position
+      // (not raw world y), so the override still makes sense as the wall
+      // bends.
+      const {origin, angle, fit, offset} = pat.wall;
+      const prevName = index===0 ? pat.seedName : pat.instances[index-1].name;
+      const prevWorld = getPatternPointWorld(layer, prevName);
+      if(prevWorld){
+        const [plx,ply] = worldToLayer(layer, prevWorld[0], prevWorld[1]);
+        const [prevU] = wallProject(origin, angle, plx, ply);
+        const [lx,ly] = worldToLayer(layer, wx, wy);
+        const [u, v] = wallProject(origin, angle, lx, ly);
+        const inst = pat.instances[index];
+        inst.overrideDx = round3(u-prevU);
+        inst.overrideDy = round3(v - vWallAt(fit, u).v - (offset||0));
+        resolveAllPatterns();
+        renderPatternPanel();
+        requestDraw();
+      }
+    } else if(pat){
       const prevName = index===0 ? pat.seedName : pat.instances[index-1].name;
       const prevWorld = getPatternPointWorld(layer, prevName);
       if(prevWorld){
@@ -10179,21 +11034,41 @@ const KEYMAP_DEFAULTS = {
   select:'s', pan:'h', move:'v', rotate:'r', erase:'e', draw:'l', reflector:'k', boxerase:'b', boxsplit:'u',
   measure:'m', nav:'n', path:'j', area:'a', align:'g', dist:'d', constraints:'c', pattern:'p',
   fitView:'f', relHorizontal:'h', relVertical:'v', relCoincident:'o',
-  // Pan actions are bound to physical key CODES (e.g. 'Numpad8'), not
-  // e.key characters — e.key for numpad digits aliases the top-row digits
-  // when NumLock is on and becomes 'ArrowUp' etc when it's off, so it can't
-  // reliably identify "the numpad" either way. Codes are stable regardless
-  // of NumLock. This namespace never collides with the single-char e.key
-  // values used by every other action above, so applyRebind's plain
-  // string-equality conflict check works unchanged for both kinds.
-  panUp:'Numpad8', panDown:'Numpad2', panLeft:'Numpad4', panRight:'Numpad6',
+  // Pan actions are bound to physical key CODES (e.g. 'ArrowUp',
+  // 'Numpad8'), not e.key characters -- e.key can't tell the dedicated
+  // arrow cluster apart from the numpad's 8/2/4/6 cluster with NumLock
+  // off (both report e.key:'ArrowUp' etc for the Up direction); e.code
+  // is a stable, distinct identifier for each physical key regardless of
+  // NumLock, so binding to a code is what makes "arrows" and "numpad"
+  // two genuinely different, independently reassignable choices in the
+  // Shortcuts panel instead of one fused behavior. Default is the
+  // dedicated arrow cluster, since that needs no numpad to exist;
+  // rebind to e.g. 'Numpad8' via the panel if you'd rather use the
+  // numpad (NumLock on or off -- codes don't care). This namespace never
+  // collides with the single-char e.key values used by every other
+  // action above, so applyRebind's plain string-equality conflict check
+  // works unchanged for both kinds.
+  panUp:'ArrowUp', panDown:'ArrowDown', panLeft:'ArrowLeft', panRight:'ArrowRight',
 };
 const PAN_KEY_ACTIONS = ['panUp','panDown','panLeft','panRight'];
+// A keymap saved while pan was briefly e.key-based (lowercase 'arrowup'
+// etc, during this feature's development) would otherwise keep a value
+// the current e.code-based listener can never match. Capitalize it back
+// to the equivalent code. A code-shaped value like 'Numpad8' from before
+// THAT change (or from a fresh rebind) needs no migration -- it was, and
+// still is, a valid code.
+const LEGACY_PAN_KEY_TO_CODE = {arrowup:'ArrowUp', arrowdown:'ArrowDown', arrowleft:'ArrowLeft', arrowright:'ArrowRight'};
 const KEYMAP_STORAGE_KEY = 'smapEditorKeymap';
 function loadKeymap(){
   try{
     const saved = JSON.parse(localStorage.getItem(KEYMAP_STORAGE_KEY));
-    if(saved && typeof saved==='object') return {...KEYMAP_DEFAULTS, ...saved};
+    if(saved && typeof saved==='object'){
+      for(const action of PAN_KEY_ACTIONS){
+        const v = saved[action];
+        if(typeof v==='string' && LEGACY_PAN_KEY_TO_CODE[v]) saved[action] = LEGACY_PAN_KEY_TO_CODE[v];
+      }
+      return {...KEYMAP_DEFAULTS, ...saved};
+    }
   }catch(e){}
   return {...KEYMAP_DEFAULTS};
 }
@@ -10201,6 +11076,37 @@ function loadKeymap(){
 // persist via localStorage[KEYMAP_STORAGE_KEY] without touching dispatch code.
 const KEYMAP = loadKeymap();
 const TOOL_KEY_ACTIONS = ['select','pan','move','rotate','erase','draw','reflector','boxerase','boxsplit','measure','nav','path','area','align','dist','constraints','pattern'];
+
+// ---------------- optional/toggleable features ----------------
+// The single place a feature gets registered to appear in the "Additional
+// Features" popover. Each entry: {id, label, description, default}.
+// `default` is whether it starts ON for someone who's never touched the
+// toggle (true if omitted). Turning a feature off only hides/disables its
+// own entry points (buttons, panel sections) going forward -- it never
+// retroactively touches data a project already has from when the feature
+// was on (e.g. a wall-follow pattern already in a loaded project keeps
+// rendering and working even with that feature toggled off; you just
+// can't create a fresh one from the UI while it's off). Gate a feature's
+// code with `if(isFeatureEnabled('someId')){ ... }` at its entry point(s).
+const FEATURE_REGISTRY = [
+  {id:'splitToLayer', label:'Split (U)', description:'Drag out a 4-point selection, then split everything inside it into a new layer.', default:false},
+  {id:'wallPattern', label:'Wall-follow pattern', description:"Linear pattern instances can track a real wall's bend (PCA / LSE / Histogram fit) instead of a straight line.", default:false},
+];
+const FEATURE_FLAGS_STORAGE_KEY = 'smapEditorFeatureFlags';
+function loadFeatureFlags(){
+  const defaults = {};
+  for(const f of FEATURE_REGISTRY) defaults[f.id] = f.default!==false;
+  try{
+    const saved = JSON.parse(localStorage.getItem(FEATURE_FLAGS_STORAGE_KEY));
+    if(saved && typeof saved==='object') return {...defaults, ...saved};
+  }catch(e){}
+  return defaults;
+}
+let featureFlags = loadFeatureFlags();
+function isFeatureEnabled(id){ return !!featureFlags[id]; }
+function saveFeatureFlags(){
+  try{ localStorage.setItem(FEATURE_FLAGS_STORAGE_KEY, JSON.stringify(featureFlags)); }catch(e){}
+}
 
 document.addEventListener('keydown', (e)=>{
   const tag = (e.target.tagName||'').toLowerCase();
@@ -10232,6 +11138,8 @@ document.addEventListener('keydown', (e)=>{
   if(e.key==='Escape' && state.isolateMenuFor){ closeIsolateMenu(); requestDraw(); return; }
   if(e.key==='Escape' && state.tool==='constraints' && state.relSelection.length){ state.relSelection = []; renderRelPanel(); requestDraw(); return; }
   if(e.key==='Escape' && state.selectedDimension){ state.selectedDimension = null; requestDraw(); return; }
+  if(e.key==='Escape' && state.patWallPickArmed){ state.patWallPickArmed = null; renderPatternPanel(); requestDraw(); return; }
+  if(e.key==='Enter' && state.patWallPickArmed){ finishWallPick(); return; }
   if(e.key==='Escape' && state.pathPatternArm){ state.pathPatternArm = null; renderPatternPanel(); renderPathPanel(); requestDraw(); return; }
   if(e.key==='Escape' && Array.isArray(state.splitQuad)){ clearSplitQuad(); return; }
   if(e.key==='Enter' && Array.isArray(state.splitQuad) && state.tool==='boxsplit'){
@@ -10270,7 +11178,8 @@ document.addEventListener('keyup', (e)=>{
   if(e.code==='Space' && state.tool==='pan' && state.prevTool!=='pan'){ setTool(state.prevTool); }
 });
 
-// ---------------- numpad (customizable) continuous panning ----------------
+// ---------------- customizable continuous panning (arrow keys by
+// default; rebindable to the numpad instead -- see KEYMAP_DEFAULTS) ----------------
 // Works regardless of the active tool (not just while the Pan tool is
 // selected) — a direction key just nudges the camera, like a game/map
 // convention: pressing "up" moves the view up, i.e. moves the WORLD down
@@ -10299,7 +11208,13 @@ function panTick(ts){
 document.addEventListener('keydown', (e)=>{
   if(rebindingAction) return;
   const tag = (e.target.tagName||'').toLowerCase();
-  if(tag==='textarea' || (tag==='input' && (!e.target.type || e.target.type==='text'))) return;
+  // Broader than the narrow text-field check elsewhere in this file
+  // (which only excludes plain-text inputs): arrow keys have their own
+  // native meaning on a focused number/range input (step the value) or a
+  // focused <select>, so ANY focused form control opts out of panning,
+  // the same way the main shortcut dispatcher already excludes all of
+  // them (`tag==='input' || tag==='textarea'`) further down.
+  if(tag==='input' || tag==='textarea' || tag==='select') return;
   const action = panActionForCode(e.code);
   if(!action) return;
   e.preventDefault();
@@ -10328,9 +11243,11 @@ const shortcutsListEl = document.getElementById('shortcutsList');
 const shortcutsConflictMsgEl = document.getElementById('shortcutsConflictMsg');
 let rebindingAction = null;
 
+const ARROW_KEY_LABELS = {ArrowUp:'↑ Up', ArrowDown:'↓ Down', ArrowLeft:'← Left', ArrowRight:'→ Right'};
 function keyLabel(k){
   if(!k) return '—';
   if(k===' ') return 'Space';
+  if(ARROW_KEY_LABELS[k]) return ARROW_KEY_LABELS[k];
   const numpadMatch = /^Numpad(\d)$/.exec(k);
   if(numpadMatch) return 'Numpad '+numpadMatch[1];
   // Any other multi-char key-CODE string (pan actions are bound to codes,
@@ -10398,9 +11315,9 @@ document.addEventListener('keydown', (e)=>{
     return;
   }
   // Pan actions bind to the physical key CODE (so numpad digits stay
-  // distinguishable from top-row digits regardless of NumLock — see the
-  // comment on KEYMAP_DEFAULTS); every other action keeps binding to the
-  // character via e.key, unchanged.
+  // distinguishable from the dedicated arrow cluster, and from top-row
+  // digits, regardless of NumLock — see the comment on KEYMAP_DEFAULTS);
+  // every other action keeps binding to the character via e.key, unchanged.
   if(PAN_KEY_ACTIONS.includes(rebindingAction)){ applyRebind(rebindingAction, e.code); return; }
   applyRebind(rebindingAction, e.key.toLowerCase());
 }, true);
@@ -10834,6 +11751,71 @@ document.getElementById('btnTheme').addEventListener('click', ()=>{
   const popover = document.getElementById('shortcutsPopover');
   const toggleBtn = document.getElementById('btnShortcutsToggle');
   const closeBtn = document.getElementById('btnShortcutsClose');
+  toggleBtn.addEventListener('click', ()=>{ popover.hidden = !popover.hidden; });
+  closeBtn.addEventListener('click', ()=>{ popover.hidden = true; });
+  document.addEventListener('keydown', e=>{
+    if(e.key==='Escape' && !popover.hidden) popover.hidden = true;
+  });
+  document.addEventListener('pointerdown', e=>{
+    if(popover.hidden) return;
+    if(popover.contains(e.target) || toggleBtn.contains(e.target)) return;
+    popover.hidden = true;
+  });
+})();
+
+// ---------------- additional-features popover ----------------
+function renderFeaturesList(){
+  const listEl = document.getElementById('featuresList');
+  const emptyHint = document.getElementById('featuresEmptyHint');
+  listEl.innerHTML = '';
+  emptyHint.hidden = FEATURE_REGISTRY.length>0;
+  for(const f of FEATURE_REGISTRY){
+    const row = document.createElement('label');
+    row.className = 'feature-row';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = isFeatureEnabled(f.id);
+    input.addEventListener('change', ()=>{
+      featureFlags[f.id] = input.checked;
+      saveFeatureFlags();
+      applyFeatureGates();
+      requestDraw();
+    });
+    const text = document.createElement('div');
+    const title = document.createElement('div');
+    title.className = 'feature-row-title'; title.textContent = f.label;
+    text.appendChild(title);
+    if(f.description){
+      const desc = document.createElement('div');
+      desc.className = 'feature-row-desc'; desc.textContent = f.description;
+      text.appendChild(desc);
+    }
+    row.append(input, text);
+    listEl.appendChild(row);
+  }
+}
+// Per-feature DOM gating -- run once at load and again after every toggle.
+// Each feature hides its OWN entry point(s) only; it never touches data a
+// project already has from when the feature was on (see FEATURE_REGISTRY
+// comment).
+function applyFeatureGates(){
+  const splitBtn = document.querySelector('[data-tool="boxsplit"]');
+  const splitOn = isFeatureEnabled('splitToLayer');
+  if(splitBtn) splitBtn.hidden = !splitOn;
+  if(!splitOn && state.tool==='boxsplit') setToolManual('select');
+
+  const wallOn = isFeatureEnabled('wallPattern');
+  const draftWallBtn = document.getElementById('patDraftFollowWall');
+  const selWallBtn = document.getElementById('patSelFollowWall');
+  if(draftWallBtn) draftWallBtn.hidden = !wallOn;
+  if(selWallBtn) selWallBtn.hidden = !wallOn;
+}
+(function initFeaturesPopover(){
+  const popover = document.getElementById('featuresPopover');
+  const toggleBtn = document.getElementById('btnFeaturesToggle');
+  const closeBtn = document.getElementById('btnFeaturesClose');
+  renderFeaturesList();
+  applyFeatureGates();
   toggleBtn.addEventListener('click', ()=>{ popover.hidden = !popover.hidden; });
   closeBtn.addEventListener('click', ()=>{ popover.hidden = true; });
   document.addEventListener('keydown', e=>{
