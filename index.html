@@ -3062,15 +3062,15 @@ function setTool(tool){
     alert('This is a background image layer (reference only) — select a data layer first to use this tool. You can still Move, Rotate, Pan, or Select with it active.');
     return;
   }
-  if(tool!=='area'){ state.selectedAreaEdge = null; }
-  if(tool!=='dist'){
+  if(tool!=='area' && tool!=='pan'){ state.selectedAreaEdge = null; }
+  if(tool!=='dist' && tool!=='pan'){
     state.distTarget = null; state.distHoverTarget = null; state.distPickHover = null;
     if(state.dimInlineEdit) closeDimInlineEdit();
     if(state.areaSizeInlineEdit) closeAreaSizeInlineEdit();
   }
   if(tool!=='area' && tool!=='dist' && tool!=='pan'){ state.dimDrag = null; state.selectedDimension = null; }
   if(tool!=='constraints' && tool!=='pan'){ state.relSelection = []; }
-  if(tool!=='constraints'){ closeRelToolbar(); }
+  if(tool!=='constraints' && tool!=='pan'){ closeRelToolbar(); }
   if(tool!=='pattern' && tool!=='pan'){ state.patDraft = null; state.selectedPattern = null; state.selectedGridPattern = null; }
   if(tool!=='boxsplit' && tool!=='pan'){ state.splitQuad = null; state.splitDraftRect = null; state.draggingSplitCorner = null; }
   closeRelMenu();
@@ -10098,7 +10098,16 @@ const KEYMAP_DEFAULTS = {
   select:'s', pan:'h', move:'v', rotate:'r', erase:'e', draw:'l', reflector:'k', boxerase:'b', boxsplit:'u',
   measure:'m', nav:'n', path:'j', area:'a', align:'g', dist:'d', constraints:'c', pattern:'p',
   fitView:'f', relHorizontal:'h', relVertical:'v', relCoincident:'o',
+  // Pan actions are bound to physical key CODES (e.g. 'Numpad8'), not
+  // e.key characters — e.key for numpad digits aliases the top-row digits
+  // when NumLock is on and becomes 'ArrowUp' etc when it's off, so it can't
+  // reliably identify "the numpad" either way. Codes are stable regardless
+  // of NumLock. This namespace never collides with the single-char e.key
+  // values used by every other action above, so applyRebind's plain
+  // string-equality conflict check works unchanged for both kinds.
+  panUp:'Numpad8', panDown:'Numpad2', panLeft:'Numpad4', panRight:'Numpad6',
 };
+const PAN_KEY_ACTIONS = ['panUp','panDown','panLeft','panRight'];
 const KEYMAP_STORAGE_KEY = 'smapEditorKeymap';
 function loadKeymap(){
   try{
@@ -10180,6 +10189,48 @@ document.addEventListener('keyup', (e)=>{
   if(e.code==='Space' && state.tool==='pan' && state.prevTool!=='pan'){ setTool(state.prevTool); }
 });
 
+// ---------------- numpad (customizable) continuous panning ----------------
+// Works regardless of the active tool (not just while the Pan tool is
+// selected) — a direction key just nudges the camera, like a game/map
+// convention: pressing "up" moves the view up, i.e. moves the WORLD down
+// on screen, so ty increases (screen Y is inverted — see worldToScreen).
+const PAN_KEY_SPEED = 400; // screen px/sec
+const panKeysActive = new Set();
+let panRafHandle = null;
+let panLastTs = null;
+function panActionForCode(code){
+  for(const action of PAN_KEY_ACTIONS){ if(KEYMAP[action]===code) return action; }
+  return null;
+}
+function panTick(ts){
+  if(panLastTs==null) panLastTs = ts;
+  const dt = Math.min((ts-panLastTs)/1000, 0.1); // clamp vs. tab-switch/long-pause jumps
+  panLastTs = ts;
+  const d = PAN_KEY_SPEED*dt;
+  if(panKeysActive.has('panUp')) state.view.ty += d;
+  if(panKeysActive.has('panDown')) state.view.ty -= d;
+  if(panKeysActive.has('panLeft')) state.view.tx += d;
+  if(panKeysActive.has('panRight')) state.view.tx -= d;
+  requestDraw();
+  if(panKeysActive.size){ panRafHandle = requestAnimationFrame(panTick); }
+  else{ panRafHandle = null; panLastTs = null; }
+}
+document.addEventListener('keydown', (e)=>{
+  if(rebindingAction) return;
+  const tag = (e.target.tagName||'').toLowerCase();
+  if(tag==='textarea' || (tag==='input' && (!e.target.type || e.target.type==='text'))) return;
+  const action = panActionForCode(e.code);
+  if(!action) return;
+  e.preventDefault();
+  if(panKeysActive.has(action)) return; // OS key-repeat — already active, no-op
+  panKeysActive.add(action);
+  if(panRafHandle==null) panRafHandle = requestAnimationFrame(panTick);
+});
+document.addEventListener('keyup', (e)=>{
+  const action = panActionForCode(e.code);
+  if(action) panKeysActive.delete(action);
+});
+
 // ---------------- shortcuts rebind panel ----------------
 
 const ACTION_LABELS = {
@@ -10190,6 +10241,7 @@ const ACTION_LABELS = {
   relHorizontal:'Relation: Horizontal (in Constrain)',
   relVertical:'Relation: Vertical (in Constrain)',
   relCoincident:'Relation: Coincident (in Constrain)',
+  panUp:'Pan up', panDown:'Pan down', panLeft:'Pan left', panRight:'Pan right',
 };
 const shortcutsListEl = document.getElementById('shortcutsList');
 const shortcutsConflictMsgEl = document.getElementById('shortcutsConflictMsg');
@@ -10197,7 +10249,13 @@ let rebindingAction = null;
 
 function keyLabel(k){
   if(!k) return '—';
-  return k===' ' ? 'Space' : k.toUpperCase();
+  if(k===' ') return 'Space';
+  const numpadMatch = /^Numpad(\d)$/.exec(k);
+  if(numpadMatch) return 'Numpad '+numpadMatch[1];
+  // Any other multi-char key-CODE string (pan actions are bound to codes,
+  // not characters) — show as-is rather than a meaningless .toUpperCase().
+  if(k.length>1) return k;
+  return k.toUpperCase();
 }
 function renderShortcutsList(){
   shortcutsListEl.innerHTML = '';
@@ -10258,6 +10316,11 @@ document.addEventListener('keydown', (e)=>{
     shortcutsConflictMsgEl.textContent = 'Space is reserved for hold-to-pan and can\'t be reassigned.';
     return;
   }
+  // Pan actions bind to the physical key CODE (so numpad digits stay
+  // distinguishable from top-row digits regardless of NumLock — see the
+  // comment on KEYMAP_DEFAULTS); every other action keeps binding to the
+  // character via e.key, unchanged.
+  if(PAN_KEY_ACTIONS.includes(rebindingAction)){ applyRebind(rebindingAction, e.code); return; }
   applyRebind(rebindingAction, e.key.toLowerCase());
 }, true);
 document.getElementById('btnShortcutsReset').addEventListener('click', ()=>{
@@ -10280,7 +10343,12 @@ document.getElementById('fileInputShortcuts').addEventListener('change', (e)=>{
       let imported = 0;
       for(const action of Object.keys(KEYMAP_DEFAULTS)){
         const v = data[action];
-        if(typeof v==='string' && v.length){ KEYMAP[action] = v.toLowerCase(); imported++; }
+        if(typeof v==='string' && v.length){
+          // Pan actions store a key CODE (e.g. 'Numpad8'), case-sensitive —
+          // every other action stores a lowercased e.key character.
+          KEYMAP[action] = PAN_KEY_ACTIONS.includes(action) ? v : v.toLowerCase();
+          imported++;
+        }
       }
       saveKeymap();
       renderShortcutsList();
