@@ -221,6 +221,7 @@
   }
   .io-btn svg{width:19px; height:19px;}
   .io-btn:hover{border-color:var(--accent); color:var(--accent);}
+  .io-btn:disabled{opacity:0.4; cursor:default; pointer-events:none;}
   .tgroup-io{margin-left:auto;}
   .tool-options{font-size:12px; color:var(--ink-dim); display:flex; flex-direction:column; gap:8px;}
   .tool-options .row{display:flex; align-items:center; gap:8px;}
@@ -896,6 +897,7 @@
   <div class="tgroup tgroup-io">
     <div class="tgroup-label">&nbsp;</div>
     <div class="tgroup-row">
+      <button class="io-btn" id="btnUndo" title="Undo (Ctrl+Z) — covers point/path/area/pattern edits and add/delete/reorder/merge/rename of layers. Not everything is undoable (e.g. visibility/color toggles, loading a project, keyboard shortcut rebinds)." disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7 4 12l5 5"></path><path d="M4 12h11a5 5 0 0 1 0 10h-1"></path></svg><span class="tool-btn-label">Undo</span></button>
       <button class="io-btn" id="btnSaveProject" title="Save Project"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"></path><path d="M8 3v5h6V3"></path><path d="M7 21v-6h8v6"></path></svg><span class="tool-btn-label">Save</span></button>
       <button class="io-btn" id="btnLoadProject" title="Load Project"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg><span class="tool-btn-label">Load</span></button>
       <button class="io-btn" id="btnExportSmap" title="Export .smap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10M8 7l4-4 4 4"></path><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"></path></svg><span class="tool-btn-label">Export</span></button>
@@ -1327,6 +1329,7 @@ async function loadPdfFirstPageAsImage(file){
 }
 
 function addLayer(layer){
+  pushLayerListUndo();
   state.layers.push(layer);
   state.activeLayerId = layer.id;
   renderLayersList();
@@ -1350,7 +1353,8 @@ function getEditableActiveLayer(){
 function deleteLayer(id){
   const layer = getLayer(id);
   if(!layer) return;
-  if(!confirm('Delete layer "'+layer.name+'"? This cannot be undone.')) return;
+  if(!confirm('Delete layer "'+layer.name+'"?')) return;
+  pushLayerListUndo();
   if(layer.objectUrl){ try{ URL.revokeObjectURL(layer.objectUrl); }catch(e){} }
   state.layers = state.layers.filter(l=>l.id!==id);
   if(state.activeLayerId===id) state.activeLayerId = state.layers.length ? state.layers[state.layers.length-1].id : null;
@@ -1362,8 +1366,34 @@ function moveLayer(id, dir){
   if(i<0) return;
   const j = i+dir;
   if(j<0 || j>=state.layers.length) return;
+  pushLayerListUndo();
   const tmp = state.layers[i]; state.layers[i]=state.layers[j]; state.layers[j]=tmp;
   renderLayersList(); scheduleAutosave(); requestDraw();
+}
+
+// Flattens a layer into the one visually below it (lower stacking index),
+// reusing buildSmapFromLayers — the same world-space-flatten + name-collision
+// logic the .smap export path already relies on — so the merged result is
+// just a fresh layer built from that combined data, sitting at an identity
+// transform exactly like any freshly-imported .smap (see buildLayer). The
+// "below" layer is treated as primary: its name/color survive, and on any
+// point-name collision it's the merging-in layer's point that gets renamed.
+function mergeLayerDown(id){
+  const i = state.layers.findIndex(l=>l.id===id);
+  if(i<=0) return;
+  const layer = state.layers[i], below = state.layers[i-1];
+  if(layer.kind==='image' || below.kind==='image'){
+    alert('Background image layers are reference-only and can\'t be merged.');
+    return;
+  }
+  if(!confirm('Merge "'+layer.name+'" into "'+below.name+'"? Their map data is combined into one layer.')) return;
+  const merged = buildLayer(buildSmapFromLayers([below, layer], below.name), below.name);
+  merged.color = below.color;
+  merged.visible = below.visible || layer.visible;
+  pushLayerListUndo();
+  state.layers.splice(i-1, 2, merged);
+  if(state.activeLayerId===layer.id || state.activeLayerId===below.id) state.activeLayerId = merged.id;
+  renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); scheduleAutosave(); requestDraw();
 }
 
 // ---------------- layers panel UI ----------------
@@ -1408,7 +1438,12 @@ function renderLayersList(){
       const input = document.createElement('input');
       input.value = layer.name;
       name.textContent = ''; name.appendChild(input); input.focus(); input.select();
-      const commit = ()=>{ layer.name = input.value.trim() || layer.name; renderLayersList(); scheduleAutosave(); };
+      const commit = ()=>{
+        const next = input.value.trim() || layer.name;
+        if(next!==layer.name) pushUndo(layer);
+        layer.name = next;
+        renderLayersList(); scheduleAutosave();
+      };
       input.addEventListener('blur', commit);
       input.addEventListener('keydown', ev=>{ if(ev.key==='Enter') input.blur(); if(ev.key==='Escape'){ input.value=layer.name; input.blur(); } });
     }
@@ -1429,7 +1464,18 @@ function renderLayersList(){
     delBtn.className='layer-mini-btn'; delBtn.textContent='✕'; delBtn.title='Delete layer';
     delBtn.addEventListener('click', e=>{ e.stopPropagation(); deleteLayer(layer.id); });
 
-    row.append(vis, swatch, name, renameBtn, upBtn, downBtn, delBtn);
+    // Only offered when there's actually something eligible below to merge
+    // into — omitted rather than shown disabled, to keep this row from
+    // getting any busier than it needs to be for the common case.
+    const below = i>0 ? state.layers[i-1] : null;
+    const mergeBtn = (below && layer.kind!=='image' && below.kind!=='image') ? (()=>{
+      const btn = document.createElement('button');
+      btn.className='layer-mini-btn'; btn.textContent='⇊'; btn.title='Merge into "'+below.name+'" (layer below)';
+      btn.addEventListener('click', e=>{ e.stopPropagation(); mergeLayerDown(layer.id); });
+      return btn;
+    })() : null;
+
+    row.append(vis, swatch, name, renameBtn, upBtn, downBtn, ...(mergeBtn ? [mergeBtn] : []), delBtn);
     row.addEventListener('click', ()=>{ state.activeLayerId = layer.id; renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); requestDraw(); });
     layersListEl.appendChild(row);
   }
@@ -1983,6 +2029,7 @@ navPtName.addEventListener('change', ()=>{
     renderPathPanel();
   } else {
     state.undoStack.pop();
+    updateUndoButton();
     alert('A nav point named "'+newName+'" already exists on this layer.');
   }
   renderNavPointPanel();
@@ -3331,7 +3378,9 @@ document.getElementById('btnCenterOrigin').addEventListener('click', ()=>{
 
 function pushUndo(layer){
   state.undoStack.push({
+    type: 'layerField',
     layerId: layer.id,
+    name: layer.name,
     points: layer.points.slice(),
     rssi: layer.rssi.slice(),
     reflectors: layer.reflectors.map(r=>({...r})),
@@ -3350,12 +3399,39 @@ function pushUndo(layer){
     gridPatterns: JSON.parse(JSON.stringify(state.gridPatterns)),
   });
   if(state.undoStack.length>20) state.undoStack.shift();
+  updateUndoButton();
+}
+// Covers layer-LIST structural changes (add/delete/reorder/merge) that
+// pushUndo (above) can't: that one snapshots a single existing layer's own
+// fields to restore in place, which can't put a deleted layer back or take
+// a merged/added one back out. Shares the same global state.undoStack so
+// a structural change and a field edit undo in the correct relative order
+// regardless of which kind the user just did. Snapshotting the array by
+// reference is safe here: none of add/delete/reorder/merge mutate an
+// existing layer object's own fields, only which objects are IN the array
+// and in what order (merge builds an entirely new layer object instead of
+// mutating either source, so the two originals this restores are untouched).
+function pushLayerListUndo(){
+  state.undoStack.push({
+    type: 'layerList',
+    layers: state.layers.slice(),
+    activeLayerId: state.activeLayerId,
+  });
+  if(state.undoStack.length>20) state.undoStack.shift();
+  updateUndoButton();
 }
 function undo(){
   const entry = state.undoStack.pop();
   if(!entry) return;
+  if(entry.type==='layerList'){
+    state.layers = entry.layers;
+    state.activeLayerId = entry.activeLayerId;
+    renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderRelPanel(); renderPatternPanel(); scheduleAutosave(); requestDraw(); updateUndoButton();
+    return;
+  }
   const layer = getLayer(entry.layerId);
-  if(!layer) return;
+  if(!layer){ updateUndoButton(); return; }
+  layer.name = entry.name;
   layer.points = entry.points; layer.rssi = entry.rssi; layer.reflectors = entry.reflectors; layer.extra = entry.extra;
   layer.manualLines = entry.manualLines;
   if(entry.transform) layer.transform = entry.transform;
@@ -3372,8 +3448,13 @@ function undo(){
   // would otherwise get clobbered down to a zero-size box here, since an
   // image layer's undo entries only ever carry a transform change.
   if(layer.kind!=='image') layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
-  renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderRelPanel(); renderPatternPanel(); scheduleAutosave(); requestDraw();
+  renderLayersList(); renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderRelPanel(); renderPatternPanel(); scheduleAutosave(); requestDraw(); updateUndoButton();
 }
+const btnUndo = document.getElementById('btnUndo');
+function updateUndoButton(){
+  btnUndo.disabled = state.undoStack.length===0;
+}
+btnUndo.addEventListener('click', undo);
 
 // ---------------- canvas / view ----------------
 
@@ -8892,7 +8973,7 @@ function applyRectSelectDelete(layer, rect){
     }
   }
 
-  if(removed===0) state.undoStack.pop(); // nothing actually changed, drop the no-op undo entry
+  if(removed===0){ state.undoStack.pop(); updateUndoButton(); } // nothing actually changed, drop the no-op undo entry
   else { prunePatterns(); pruneGridPatterns(); prunePathPatterns(); }
   layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
   renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderPatternPanel(); scheduleAutosave(); requestDraw();
@@ -10641,6 +10722,13 @@ function serializeProject(){
   };
 }
 function loadProjectData(data){
+  // Loading a project (or restoring an autosave) swaps out the whole layer
+  // set wholesale — any undo entries from before this point reference
+  // layer objects that no longer exist in it, so undoing past this point
+  // would silently resurrect stale pre-load state. Clearing the stack here
+  // means Undo only ever reaches back to edits made IN the loaded project.
+  state.undoStack = [];
+  updateUndoButton();
   state.layers = (data.layers||[]).map((l,i)=>{
     const layer = {manualLines:[], ...l};
     if(!/^#[0-9a-f]{6}$/i.test(layer.color||'')) layer.color = PALETTE[i % PALETTE.length];
