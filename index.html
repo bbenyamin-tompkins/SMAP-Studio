@@ -736,6 +736,18 @@
           <button class="btn danger" id="btnPathPatternDetach" style="width:100%; margin-top:4px;" hidden>Un-pattern this path</button>
         </div>
       </div>
+      <div class="tool-options" id="opts-annotate" hidden>
+        <div class="tool-hint" id="annoHint" style="margin-top:0;">Click to place a text label, or drag to draw an area / arrow. Click an existing annotation (any type) to select it — drag its handles to reshape, drag its body to move. None of this is reachable except with this tool active.</div>
+        <div class="row" style="gap:8px; margin-top:6px;">
+          <div class="shape-toggle">
+            <button type="button" class="shape-btn active" id="annoModeText">Text</button>
+            <button type="button" class="shape-btn" id="annoModeArea">Area</button>
+            <button type="button" class="shape-btn" id="annoModeArrow">Arrow</button>
+          </div>
+        </div>
+        <div id="annoFields" style="margin-top:8px;"></div>
+        <button class="btn danger" id="btnAnnoDelete" style="width:100%; margin-top:8px;" hidden>Delete annotation</button>
+      </div>
       <div class="tool-options" id="opts-nav" hidden>
         <div class="row" style="gap:8px;">
           <span style="width:70px;">New point</span>
@@ -975,6 +987,13 @@
     </div>
   </div>
   <div class="sep"></div>
+  <div class="tgroup">
+    <div class="tgroup-label">Annotate</div>
+    <div class="tgroup-row">
+      <button class="tool-btn" data-tool="annotate" title="Add text labels, labeled areas, and arrows for documentation/print — never editable except with this tool active (Y)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="12" rx="2.5" fill="currentColor" fill-opacity="0.16"></rect><path d="M7 8h10M7 11.3h6"></path><path d="M9 15v4.3" stroke-dasharray="1.2 2.2"></path><circle cx="9" cy="20.5" r="1.3" fill="currentColor" stroke="none"></circle></svg><span class="tool-btn-label">Annotate (Y)</span></button>
+    </div>
+  </div>
+  <div class="sep"></div>
   <div class="tgroup tgroup-io">
     <div class="tgroup-label">&nbsp;</div>
     <div class="tgroup-row">
@@ -1019,6 +1038,7 @@
         <label class="show-row" title="Dimensions"><input type="checkbox" id="showAreaDims" checked><span class="show-swatch" style="--sw:#ffb347;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12h16M5 8l-1 4 1 4M19 8l1 4-1 4"></path></svg></span><span class="show-row-label">Dimensions</span></label>
         <label class="show-row" title="Relations"><input type="checkbox" id="showRelations" checked><span class="show-swatch" style="--sw:#3fd0ff;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="8" cy="12" r="4"></circle><circle cx="16" cy="12" r="4"></circle></svg></span><span class="show-row-label">Relations</span></label>
         <label class="show-row" title="Patterns"><input type="checkbox" id="showPatterns" checked><span class="show-swatch" style="--sw:#3fd0ff;"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="6" height="6" rx="1"></rect><rect x="15" y="15" width="6" height="6" rx="1"></rect></svg></span><span class="show-row-label">Patterns</span></label>
+        <label class="show-row" title="Annotations (text, areas, arrows)"><input type="checkbox" id="showAnnotations" checked><span class="show-swatch" style="--sw:#1f6feb;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="12" rx="2.5" fill="currentColor" fill-opacity="0.25"></rect><path d="M7 9h10M7 12.3h6"></path></svg></span><span class="show-row-label">Annotations</span></label>
         <label class="show-row" title="Walls"><input type="checkbox" id="showExtra" checked><span class="show-swatch" style="--sw:#9aa39d;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20L20 4"></path></svg></span><span class="show-row-label">Walls</span></label>
         <label class="show-row" title="Nav points / paths"><input type="checkbox" id="showNav" checked><span class="show-swatch" style="--sw:#7c6cff;"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s6-6.3 6-11a6 6 0 1 0-12 0c0 4.7 6 11 6 11z"></path></svg></span><span class="show-row-label">Nav points / paths</span></label>
         <label class="show-row" title="Give each nav point's own outgoing paths different colors, so you can tell overlapping paths from the same point apart"><input type="checkbox" id="showColorizePaths"><span class="show-swatch"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round"><path d="M4 20 L12 6" stroke="#e8463a"></path><path d="M9 20 L12 6" stroke="#3fa6ff"></path><path d="M15 20 L12 6" stroke="#2ecc71"></path></svg></span><span class="show-row-label">Colorize paths</span></label>
@@ -1151,7 +1171,7 @@ const state = {
   eraseRadius: 0.5,
   eraseShape: 'circle',
   eraseTargets: { scan:true, rssi:true, extra:true },
-  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true, areaDims:true, relations:true, patterns:true, footprint:false, colorizePaths:false },
+  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true, areaDims:true, relations:true, patterns:true, footprint:false, colorizePaths:false, annotations:true },
   showOrigin: false,
   uniformLayerColor: true,
   mouse: null,
@@ -1202,6 +1222,10 @@ const state = {
   gridPatterns: [],
   selectedGridPattern: null,
   patMenuFor: null,
+  annoMode: 'text',          // which sub-mode (text/area/arrow) the Annotate tool is armed with
+  selectedAnnotation: null,  // {layerId, index} of the currently selected annotation
+  annoAction: null,          // in-progress drag: move/resize/rotate/draw/dragEndpoint
+  annoDraft: null,           // in-progress drag-to-create rect/arrow, world coords, before pointerup finalizes it
   newPathDirection: 'both',
   newPathMovestyle: 0,
   newPointType: 'LocationMark',
@@ -1320,6 +1344,7 @@ function buildLayer(json, fileName){
     header,
     points, rssi, reflectors, extra,
     manualLines: [],
+    annotations: [],
     localBBox, pivot,
     transform: { tx:0, ty:0, rot:0 },
   };
@@ -1344,7 +1369,7 @@ function buildImageLayer(drawable, naturalW, naturalH, fileName, objectUrl){
   const layer = {
     id, name: fileName || ('image-'+id), fileName: fileName || '',
     kind: 'image', color, visible: true,
-    header: {}, points: [], rssi: [], reflectors: [], extra: {}, manualLines: [],
+    header: {}, points: [], rssi: [], reflectors: [], extra: {}, manualLines: [], annotations: [],
     drawable, naturalW, naturalH, metersPerPixel: 1, opacity: 0.7, objectUrl: objectUrl||null,
     localBBox: {minX:0, minY:0, maxX:naturalW, maxY:naturalH},
     pivot: {x:naturalW/2, y:naturalH/2},
@@ -3170,13 +3195,14 @@ const optsConstraints = document.getElementById('opts-constraints');
 const optsPattern = document.getElementById('opts-pattern');
 const optsNav = document.getElementById('opts-nav');
 const optsPath = document.getElementById('opts-path');
+const optsAnnotate = document.getElementById('opts-annotate');
 const pathToolHint = document.getElementById('pathToolHint');
 const toolStatus = document.getElementById('toolStatus');
 const noLayerBanner = document.getElementById('noLayerBanner');
 const canvasEl = document.getElementById('canvas');
 
-const TOOL_LABELS = { select:'Select', pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', boxerase:'Box erase', boxsplit:'Split to layer', measure:'Ruler', nav:'Nav points', path:'Path', area:'Reflector area', align:'Align to line', calibrateImage:'Calibrate image scale', dist:'Dimension', constraints:'Constrain', pattern:'Linear pattern' };
-const TOOL_NEEDS_LAYER = { select:true, move:true, rotate:true, erase:true, draw:true, reflector:true, boxerase:true, boxsplit:true, pan:false, measure:false, nav:true, path:true, area:true, align:true, calibrateImage:true, dist:false, constraints:false, pattern:true };
+const TOOL_LABELS = { select:'Select', pan:'Pan tool', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line', reflector:'Add reflector', boxerase:'Box erase', boxsplit:'Split to layer', measure:'Ruler', nav:'Nav points', path:'Path', area:'Reflector area', align:'Align to line', calibrateImage:'Calibrate image scale', dist:'Dimension', constraints:'Constrain', pattern:'Linear pattern', annotate:'Annotate' };
+const TOOL_NEEDS_LAYER = { select:true, move:true, rotate:true, erase:true, draw:true, reflector:true, boxerase:true, boxsplit:true, pan:false, measure:false, nav:true, path:true, area:true, align:true, calibrateImage:true, dist:false, constraints:false, pattern:true, annotate:true };
 
 function updateToolStatus(){
   const tool = state.tool;
@@ -3218,6 +3244,7 @@ function setTool(tool){
   if(tool!=='constraints' && tool!=='pan'){ closeRelToolbar(); }
   if(tool!=='pattern' && tool!=='pan'){ state.patDraft = null; state.selectedPattern = null; state.selectedGridPattern = null; }
   if(tool!=='boxsplit' && tool!=='pan'){ state.splitQuad = null; state.splitDraftRect = null; state.draggingSplitCorner = null; }
+  if(tool!=='annotate' && tool!=='pan'){ state.selectedAnnotation = null; state.annoAction = null; state.annoDraft = null; }
   closeRelMenu();
   closeIsolateMenu();
   state.tool = tool;
@@ -3236,6 +3263,8 @@ function setTool(tool){
   optsPattern.hidden = tool!=='pattern';
   optsNav.hidden = tool!=='nav';
   optsPath.hidden = !(tool==='nav' || tool==='path');
+  optsAnnotate.hidden = tool!=='annotate';
+  if(tool==='annotate') renderAnnotationsPanel();
   pathToolHint.textContent = tool==='path'
     ? 'Drag from one nav point to another to add a path with these settings. Click an existing path to select/edit it, or drag its handles to reshape it.'
     : 'Shift-drag from one nav point to another to add a path with these settings.';
@@ -3459,6 +3488,7 @@ document.getElementById('showAreas').addEventListener('change', e=>{ state.typeV
 document.getElementById('showAreaDims').addEventListener('change', e=>{ state.typeVisibility.areaDims = e.target.checked; requestDraw(); });
 document.getElementById('showRelations').addEventListener('change', e=>{ state.typeVisibility.relations = e.target.checked; requestDraw(); });
 document.getElementById('showPatterns').addEventListener('change', e=>{ state.typeVisibility.patterns = e.target.checked; requestDraw(); });
+document.getElementById('showAnnotations').addEventListener('change', e=>{ state.typeVisibility.annotations = e.target.checked; requestDraw(); });
 document.getElementById('showExtra').addEventListener('change', e=>{ state.typeVisibility.extra = e.target.checked; requestDraw(); });
 document.getElementById('showNav').addEventListener('change', e=>{ state.typeVisibility.nav = e.target.checked; requestDraw(); });
 document.getElementById('showFootprint').addEventListener('change', e=>{ state.typeVisibility.footprint = e.target.checked; requestDraw(); });
@@ -3483,6 +3513,7 @@ function pushUndo(layer){
     rssi: layer.rssi.slice(),
     reflectors: layer.reflectors.map(r=>({...r})),
     manualLines: layer.manualLines.map(l=>({...l})),
+    annotations: JSON.parse(JSON.stringify(layer.annotations||[])),
     extra: JSON.parse(JSON.stringify(layer.extra||{})),
     transform: {...layer.transform},
     // Harmless/unused for a normal layer (these never change on it); an
@@ -3532,6 +3563,7 @@ function undo(){
   layer.name = entry.name;
   layer.points = entry.points; layer.rssi = entry.rssi; layer.reflectors = entry.reflectors; layer.extra = entry.extra;
   layer.manualLines = entry.manualLines;
+  if(entry.annotations) layer.annotations = entry.annotations;
   if(entry.transform) layer.transform = entry.transform;
   if(layer.kind==='image'){
     if(entry.metersPerPixel!=null) layer.metersPerPixel = entry.metersPerPixel;
@@ -5389,6 +5421,7 @@ function draw(){
   drawRelations();
   drawPatterns();
   drawGridPatterns();
+  drawAnnotations();
 
   if(state.tool==='erase' && state.mouse){
     const r = Math.max(3, state.eraseRadius*state.view.scale);
@@ -5917,6 +5950,343 @@ function resizeRectFromCorner(rect, cornerIndex, newLocalX, newLocalY){
   const cx = opp.x + halfW*cos - halfH*sin;
   const cy = opp.y + halfW*sin + halfH*cos;
   return {cx, cy, w:newW, h:newH, rot};
+}
+
+// ---------------- annotations (Text / Area / Arrow) ----------------
+// A pure documentation overlay, per layer. Deliberately NOT inside
+// layer.extra, so it's automatically excluded from .smap export the same
+// way pattern wall-fit data is (buildSmapFromLayers never reads it) --
+// labels like "Pickup" aren't real map data. Saved with the project
+// (serializeProject/loadProjectData) and undone (pushUndo/undo) like
+// manualLines. Coordinates are layer-local, same convention as nav
+// points/reflectors/manual lines, so an annotation moves and rotates
+// with its layer for free via layerToWorld/worldToLayer.
+let annoIdCounter = 1;
+// lineWidth/fontSize are stored in METERS, not pixels -- a map/print
+// annotation needs to represent a real, consistent size AT THE MAP'S OWN
+// SCALE, the same way a wall or a reflector's own dimensions do, so a
+// label drawn to look right at one zoom level still looks right (and
+// prints correctly) at another instead of staying a fixed pixel size
+// while the map around it shrinks or grows. See annoPx() for the
+// meters->pixels conversion used at draw time (with a floor so nothing
+// vanishes at extreme zoom-out).
+function createTextAnnotation(lx, ly){
+  return {
+    id:'anno'+(annoIdCounter++), type:'text',
+    pos:{x:round3(lx), y:round3(ly)}, text:'Label', fontSize:0.3,
+    color:'#1f6feb', outline:true,
+    background:'none', lineWidth:0.03, lineType:'solid', fillColor:'#f2c14e',
+  };
+}
+function createArrowAnnotation(lx1, ly1, lx2, ly2){
+  return {
+    id:'anno'+(annoIdCounter++), type:'arrow',
+    from:{x:round3(lx1), y:round3(ly1)}, to:{x:round3(lx2), y:round3(ly2)},
+    color:'#c0392b', lineWidth:0.05, lineType:'solid', outline:true,
+    headEnd:'end', headSize:'medium',
+  };
+}
+// Takes the rect already fully resolved in LOCAL space (center, world-
+// space width/height, and the LOCAL rotation that cancels the layer's
+// own rotation) -- NOT two raw corner points independently converted via
+// worldToLayer, which is only correct for an unrotated layer. See the
+// reflector-area tool's own 'draw' finalization in endPointer for the
+// same pattern (localRot = -layer.transform.rot).
+function createAreaAnnotation(lcx, lcy, worldW, worldH, localRot){
+  return {
+    id:'anno'+(annoIdCounter++), type:'area',
+    posGroup: posGroupFromRect(lcx, lcy, Math.max(0.05,worldW), Math.max(0.05,worldH), localRot),
+    label:'Zone', color:'#2e7dd1', lineWidth:0.04, lineType:'solid', outline:true,
+    fill:'hatched', fillColor:'#2e7dd1',
+  };
+}
+function annotationLineDash(lineType, width){
+  if(lineType==='dashed') return [width*3, width*2];
+  if(lineType==='dotted') return [width*0.1, width*1.8];
+  return [];
+}
+// White/black halo for contrast against any background -- same
+// printFriendly-driven convention used everywhere else in this file.
+function annoHaloColor(){ return state.printFriendly ? '#ffffff' : '#000000'; }
+// Converts a METERS-denominated annotation property (line width, font
+// size, arrowhead length) to screen pixels at the CURRENT zoom, with a
+// floor so nothing vanishes at extreme zoom-out -- same pattern already
+// used for reflector radii etc elsewhere in this file (e.g.
+// `Math.max(4, r.width*state.view.scale/2)`). This is what makes an
+// annotation's ink represent a constant size on the MAP (and on a
+// printout), the same way a wall or a reflector's own size does, instead
+// of staying a fixed pixel size while the map around it shrinks or grows.
+function annoPx(meters, minPx){ return Math.max(minPx, meters*state.view.scale); }
+// Cached diagonal-hatch canvas pattern per color -- a printer/grayscale
+// -safe fill that reads without depending on color reproduction at all,
+// unlike a translucent solid fill. The tile itself is cached at a FIXED
+// internal resolution (rebuilding a canvas every frame would be wasteful)
+// representing ANNO_HATCH_SPACING_M of real-world spacing at
+// ANNO_HATCH_REF_SCALE px/m; scaledHatchPattern() below re-scales that
+// cached tile to the CURRENT zoom via CanvasPattern.setTransform, so the
+// hatching itself stays a constant real-world density too, not just the
+// area's border/label.
+const ANNO_HATCH_TILE_PX = 24;
+const ANNO_HATCH_SPACING_M = 0.3;
+const ANNO_HATCH_REF_SCALE = ANNO_HATCH_TILE_PX/ANNO_HATCH_SPACING_M;
+const hatchPatternCache = {};
+function getHatchPattern(color){
+  if(hatchPatternCache[color]) return hatchPatternCache[color];
+  const size = ANNO_HATCH_TILE_PX;
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  const pctx = c.getContext('2d');
+  pctx.strokeStyle = color; pctx.lineWidth = Math.max(1, size*0.14); pctx.lineCap = 'square';
+  pctx.beginPath();
+  pctx.moveTo(-size*0.2, size*1.2); pctx.lineTo(size*1.2, -size*0.2);
+  pctx.moveTo(-size*0.2, size*0.2); pctx.lineTo(size*0.2, -size*0.2);
+  pctx.moveTo(size*0.8, size*1.2); pctx.lineTo(size*1.2, size*0.8);
+  pctx.stroke();
+  const pattern = ctx.createPattern(c, 'repeat');
+  hatchPatternCache[color] = pattern;
+  return pattern;
+}
+function scaledHatchPattern(color){
+  const pattern = getHatchPattern(color);
+  if(pattern && pattern.setTransform){
+    const s = state.view.scale/ANNO_HATCH_REF_SCALE;
+    pattern.setTransform(new DOMMatrix([s,0,0,s,0,0]));
+  }
+  return pattern;
+}
+function annotationScreenPoints(layer, anno){
+  if(anno.type==='text') return [worldToScreen(...layerToWorld(layer, anno.pos.x, anno.pos.y))];
+  if(anno.type==='arrow') return [worldToScreen(...layerToWorld(layer, anno.from.x, anno.from.y)), worldToScreen(...layerToWorld(layer, anno.to.x, anno.to.y))];
+  return anno.posGroup.map(p=>worldToScreen(...layerToWorld(layer, p.x, p.y)));
+}
+function pointInScreenPolygon(pts, px, py){
+  let inside=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const xi=pts[i][0], yi=pts[i][1], xj=pts[j][0], yj=pts[j][1];
+    const intersect = ((yi>py)!==(yj>py)) && (px < (xj-xi)*(py-yi)/(yj-yi)+xi);
+    if(intersect) inside = !inside;
+  }
+  return inside;
+}
+// Nearest annotation (any type) to sx,sy on this layer, within
+// pxThreshold -- used to select-by-click regardless of which sub-mode
+// (Text/Area/Arrow) is currently armed, same as clicking an existing
+// pattern selects it regardless of the draft's own type. Handles
+// (corners/endpoints/rotate) are a separate, narrower hit-test scoped to
+// whichever annotation is ALREADY selected -- see findAnnotationHandleAt.
+function findAnnotationAt(layer, sx, sy, pxThreshold){
+  const list = layer.annotations || [];
+  let best=null, bestD=pxThreshold;
+  for(let i=0;i<list.length;i++){
+    const anno = list[i];
+    if(anno.type==='text'){
+      const [ssx,ssy] = annotationScreenPoints(layer, anno)[0];
+      const fontPx = annoPx(anno.fontSize, 8);
+      const w = Math.max(24, (anno.text||'').length*fontPx*0.56), h = fontPx*1.6;
+      if(sx>=ssx-4 && sx<=ssx+w && sy>=ssy-h && sy<=ssy+6){ best=anno; bestD=0; }
+    } else if(anno.type==='arrow'){
+      const [p1,p2] = annotationScreenPoints(layer, anno);
+      const d = distToSegmentScreen(sx,sy,p1[0],p1[1],p2[0],p2[1]);
+      if(d<bestD){ bestD=d; best=anno; }
+    } else {
+      const pts = annotationScreenPoints(layer, anno);
+      if(pointInScreenPolygon(pts, sx, sy)){ best=anno; bestD=0; }
+      else {
+        for(let k=0;k<pts.length;k++){
+          const a=pts[k], b=pts[(k+1)%pts.length];
+          const d = distToSegmentScreen(sx,sy,a[0],a[1],b[0],b[1]);
+          if(d<bestD){ bestD=d; best=anno; }
+        }
+      }
+    }
+  }
+  return best ? {anno:best, index:list.indexOf(best)} : null;
+}
+// Corner/rotate handle (area) or endpoint handle (arrow), scoped to the
+// one SELECTED annotation only -- unlike the reflector-area tool, this
+// never hunts for the closest handle across every annotation on the
+// layer, so there's no cross-object ambiguity to resolve.
+function findAnnotationHandleAt(layer, anno, sx, sy, pxThreshold){
+  if(anno.type==='area'){
+    const pts = annotationScreenPoints(layer, anno);
+    for(let i=0;i<pts.length;i++){
+      if(Math.hypot(pts[i][0]-sx, pts[i][1]-sy)<pxThreshold) return {kind:'corner', index:i};
+    }
+    const mid = [(pts[0][0]+pts[1][0])/2, (pts[0][1]+pts[1][1])/2];
+    const edge = [pts[1][0]-pts[0][0], pts[1][1]-pts[0][1]];
+    const edgeLen = Math.hypot(edge[0],edge[1])||1;
+    const nx = -edge[1]/edgeLen, ny = edge[0]/edgeLen;
+    const handle = [mid[0]+nx*18, mid[1]+ny*18];
+    if(Math.hypot(handle[0]-sx, handle[1]-sy)<pxThreshold) return {kind:'rotate'};
+  } else if(anno.type==='arrow'){
+    const [p1,p2] = annotationScreenPoints(layer, anno);
+    if(Math.hypot(p1[0]-sx,p1[1]-sy)<pxThreshold) return {kind:'from'};
+    if(Math.hypot(p2[0]-sx,p2[1]-sy)<pxThreshold) return {kind:'to'};
+  }
+  return null;
+}
+const ANNO_HEAD_LEN_M = {small:0.15, medium:0.25, large:0.4};
+const ANNO_HANDLE_COLOR = '#ffb000';
+function annotationFillStyle(fill, fillColor){
+  if(fill==='hatched') return scaledHatchPattern(fillColor);
+  if(fill==='solid') return fillColor;
+  return null;
+}
+// Strokes pathFn's path once in color/lineWidth/lineType, and -- if
+// outline is on -- a second, wider pass underneath in a white/black halo
+// color first, for contrast against any background. Generalizes the
+// halo trick used elsewhere in this file (drawPatBadge etc, text-only)
+// to arbitrary paths, since arrows and area borders need the same
+// legibility help a thin colored line gets lost without. `lineWidthM` is
+// METERS (see annoPx) -- converted to pixels once, here, so every caller
+// just passes the stored value straight through.
+function strokeAnnotationPath(pathFn, color, lineWidthM, lineType, outline){
+  const lw = annoPx(lineWidthM, 1);
+  if(outline){
+    ctx.save();
+    ctx.strokeStyle = annoHaloColor(); ctx.lineWidth = lw+2.5;
+    ctx.setLineDash(annotationLineDash(lineType, lw));
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    pathFn(); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = lw;
+  ctx.setLineDash(annotationLineDash(lineType, lw));
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  pathFn(); ctx.stroke();
+  ctx.restore();
+}
+// `lenPx` is already-converted screen pixels (callers look up
+// ANNO_HEAD_LEN_M[anno.headSize] and run it through annoPx themselves,
+// since they also need that same length for shortening the shaft).
+function drawAnnoArrowHead(x, y, angle, lenPx, color){
+  const wid = lenPx*0.62;
+  ctx.save();
+  ctx.translate(x,y); ctx.rotate(angle);
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-lenPx,-wid/2); ctx.lineTo(-lenPx,wid/2); ctx.closePath();
+  ctx.fillStyle = color; ctx.fill();
+  ctx.restore();
+}
+function drawTextAnnotation(layer, anno, isSelected){
+  const [sx,sy] = annotationScreenPoints(layer, anno)[0];
+  const fontPx = annoPx(anno.fontSize, 8);
+  ctx.save();
+  ctx.font = fontPx+'px "IBM Plex Sans", -apple-system, sans-serif';
+  const metrics = ctx.measureText(anno.text||'');
+  const w = Math.max(10, metrics.width), h = fontPx*1.3;
+  const padX = fontPx*0.43, padY = fontPx*0.36;
+  if(anno.background && anno.background!=='none'){
+    const bx = sx-padX, by = sy-h-padY, bw = w+padX*2, bh = h+padY*2;
+    const fillStyle = annotationFillStyle(anno.background, anno.fillColor);
+    if(fillStyle){
+      ctx.fillStyle = fillStyle;
+      ctx.globalAlpha = anno.background==='solid' ? 0.35 : 1;
+      ctx.fillRect(bx,by,bw,bh);
+      ctx.globalAlpha = 1;
+    }
+    strokeAnnotationPath(()=>{ ctx.beginPath(); ctx.rect(bx,by,bw,bh); }, anno.color, anno.lineWidth, anno.lineType, anno.outline);
+  }
+  ctx.textBaseline = 'alphabetic';
+  if(anno.outline){
+    ctx.lineWidth = 3; ctx.strokeStyle = annoHaloColor(); ctx.lineJoin = 'round';
+    ctx.strokeText(anno.text||'', sx, sy);
+  }
+  ctx.fillStyle = anno.color;
+  ctx.fillText(anno.text||'', sx, sy);
+  if(isSelected){
+    ctx.strokeStyle = ANNO_HANDLE_COLOR; ctx.lineWidth = 1.5; ctx.setLineDash([3,3]);
+    ctx.strokeRect(sx-padX-2, sy-h-padY-2, w+padX*2+4, h+padY*2+4);
+  }
+  ctx.restore();
+}
+function drawArrowAnnotation(layer, anno, isSelected){
+  const [p1,p2] = annotationScreenPoints(layer, anno);
+  const angle = Math.atan2(p2[1]-p1[1], p2[0]-p1[0]);
+  const headLen = annoPx(ANNO_HEAD_LEN_M[anno.headSize]||0.25, 5);
+  const hasStart = anno.headEnd==='start'||anno.headEnd==='both';
+  const hasEnd = anno.headEnd==='end'||anno.headEnd==='both';
+  const a = hasStart ? [p1[0]+Math.cos(angle)*headLen*0.85, p1[1]+Math.sin(angle)*headLen*0.85] : p1;
+  const b = hasEnd ? [p2[0]-Math.cos(angle)*headLen*0.85, p2[1]-Math.sin(angle)*headLen*0.85] : p2;
+  strokeAnnotationPath(()=>{ ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); }, anno.color, anno.lineWidth, anno.lineType, anno.outline);
+  if(hasEnd) drawAnnoArrowHead(p2[0], p2[1], angle, headLen, anno.color);
+  if(hasStart) drawAnnoArrowHead(p1[0], p1[1], angle+Math.PI, headLen, anno.color);
+  if(isSelected){
+    ctx.save(); ctx.fillStyle = ANNO_HANDLE_COLOR;
+    ctx.beginPath(); ctx.arc(p1[0],p1[1],4,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p2[0],p2[1],4,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+function drawAreaAnnotation(layer, anno, isSelected){
+  const pts = annotationScreenPoints(layer, anno);
+  const fillStyle = annotationFillStyle(anno.fill, anno.fillColor);
+  if(fillStyle){
+    ctx.save();
+    ctx.fillStyle = fillStyle;
+    ctx.globalAlpha = anno.fill==='solid' ? 0.25 : 1;
+    ctx.beginPath(); pts.forEach(([x,y],i)=>{ i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }); ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  strokeAnnotationPath(()=>{
+    ctx.beginPath(); pts.forEach(([x,y],i)=>{ i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }); ctx.closePath();
+  }, anno.color, anno.lineWidth, anno.lineType, anno.outline);
+  if(anno.label){
+    const cx = pts.reduce((s,p)=>s+p[0],0)/pts.length, cy = pts.reduce((s,p)=>s+p[1],0)/pts.length;
+    ctx.save();
+    ctx.font = '600 '+annoPx(0.3, 10)+'px "IBM Plex Sans", -apple-system, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3; ctx.strokeStyle = annoHaloColor(); ctx.lineJoin = 'round';
+    ctx.strokeText(anno.label, cx, cy);
+    ctx.fillStyle = anno.color;
+    ctx.fillText(anno.label, cx, cy);
+    ctx.restore();
+  }
+  if(isSelected){
+    ctx.save(); ctx.fillStyle = ANNO_HANDLE_COLOR;
+    pts.forEach(([x,y])=>{ ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2); ctx.fill(); });
+    const mid = [(pts[0][0]+pts[1][0])/2, (pts[0][1]+pts[1][1])/2];
+    const edge = [pts[1][0]-pts[0][0], pts[1][1]-pts[0][1]];
+    const edgeLen = Math.hypot(edge[0],edge[1])||1;
+    const nx=-edge[1]/edgeLen, ny=edge[0]/edgeLen;
+    const handle=[mid[0]+nx*18, mid[1]+ny*18];
+    ctx.strokeStyle = ANNO_HANDLE_COLOR; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(mid[0],mid[1]); ctx.lineTo(handle[0],handle[1]); ctx.stroke();
+    ctx.beginPath(); ctx.arc(handle[0],handle[1],5,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+function drawAnnoDraftPreview(){
+  const d = state.annoDraft;
+  if(!d) return;
+  const [sx1,sy1] = worldToScreen(d.x1,d.y1), [sx2,sy2] = worldToScreen(d.x2,d.y2);
+  ctx.save();
+  ctx.strokeStyle = ANNO_HANDLE_COLOR; ctx.lineWidth = 1.5; ctx.setLineDash([4,3]);
+  if(d.mode==='arrow'){ ctx.beginPath(); ctx.moveTo(sx1,sy1); ctx.lineTo(sx2,sy2); ctx.stroke(); }
+  else ctx.strokeRect(Math.min(sx1,sx2), Math.min(sy1,sy2), Math.abs(sx2-sx1), Math.abs(sy2-sy1));
+  ctx.restore();
+}
+// Pure documentation overlay, drawn LAST (after everything else, incl.
+// patterns) so labels/arrows always read on top. Visible whenever the
+// Show-popover toggle is on, OR while the Annotate tool is active (same
+// convention drawPatterns already uses for state.typeVisibility.patterns)
+// -- but interaction (drag/select) only ever happens through the
+// Annotate tool's own pointerdown/pointermove branches, never from here.
+function drawAnnotations(){
+  if(!(state.typeVisibility.annotations || state.tool==='annotate')) return;
+  for(const layer of state.layers){
+    if(!layer.visible) continue;
+    const list = layer.annotations || [];
+    for(let i=0;i<list.length;i++){
+      const anno = list[i];
+      const isSelected = state.tool==='annotate' && state.selectedAnnotation && state.selectedAnnotation.layerId===layer.id && state.selectedAnnotation.index===i;
+      if(anno.type==='text') drawTextAnnotation(layer, anno, isSelected);
+      else if(anno.type==='arrow') drawArrowAnnotation(layer, anno, isSelected);
+      else drawAreaAnnotation(layer, anno, isSelected);
+    }
+  }
+  if(state.annoDraft && state.tool==='annotate') drawAnnoDraftPreview();
 }
 function normalizeAreaRects(layer){
   const list = layer.extra && layer.extra.advancedAreaList;
@@ -8304,6 +8674,131 @@ function renderWallFieldsUI(prefix, btnPrefix, holder, isDraft){
   doneBtn.textContent = n>1 ? 'Done ('+n+' points)' : 'Done';
   doneBtn.disabled = !n;
 }
+
+// ---------------- annotation tool panel ----------------
+const ANNO_LINE_TYPE_OPTS = [{value:'solid',label:'Solid'},{value:'dashed',label:'Dashed'},{value:'dotted',label:'Dotted'}];
+const ANNO_FILL_OPTS = [{value:'none',label:'None'},{value:'hatched',label:'Hatched'},{value:'solid',label:'Solid'}];
+const ANNO_HEAD_OPTS = [{value:'none',label:'None'},{value:'start',label:'Start'},{value:'end',label:'End'},{value:'both',label:'Both'}];
+const ANNO_SIZE_OPTS = [{value:'small',label:'Small'},{value:'medium',label:'Medium'},{value:'large',label:'Large'}];
+function getSelectedAnnotation(){
+  const sel = state.selectedAnnotation;
+  if(!sel) return null;
+  const layer = getLayer(sel.layerId);
+  const anno = layer && layer.annotations && layer.annotations[sel.index];
+  return anno ? {layer, anno} : null;
+}
+function renderAnnotationsPanel(){
+  document.getElementById('annoModeText').classList.toggle('active', state.annoMode==='text');
+  document.getElementById('annoModeArea').classList.toggle('active', state.annoMode==='area');
+  document.getElementById('annoModeArrow').classList.toggle('active', state.annoMode==='arrow');
+
+  const found = getSelectedAnnotation();
+  const fieldsEl = document.getElementById('annoFields');
+  const deleteBtn = document.getElementById('btnAnnoDelete');
+  const hintEl = document.getElementById('annoHint');
+  fieldsEl.innerHTML = '';
+  deleteBtn.hidden = !found;
+  hintEl.hidden = !!found;
+  if(!found) return;
+  const {layer, anno} = found;
+
+  // Edits that only restyle (color/width/font size) skip pushUndo and a
+  // panel rebuild entirely -- same low-stakes-cosmetic treatment the
+  // reflector-area color pickers already get (see areaColorStroke/Fill),
+  // and critical for the text inputs specifically: rebuilding the DOM on
+  // every keystroke would steal focus/cursor position mid-type.
+  function restyle(apply){ apply(anno); scheduleAutosave(); requestDraw(); }
+  // Structural edits (line type, fill/background choice, arrowhead,
+  // label/text content) are discrete, undo-worthy commits -- one pushUndo
+  // per commit, and re-render since some of these change which OTHER
+  // fields are visible (e.g. background:none hides the border/fill rows).
+  function commit(apply){ pushUndo(layer); apply(anno); scheduleAutosave(); requestDraw(); renderAnnotationsPanel(); }
+
+  function row(labelText, inputEl){
+    const r = document.createElement('div'); r.className = 'field-row';
+    const label = document.createElement('label'); label.textContent = labelText;
+    r.append(label, inputEl); fieldsEl.appendChild(r);
+    return inputEl;
+  }
+  function colorField(labelText, value, apply){
+    const input = document.createElement('input');
+    input.type = 'color'; input.value = value;
+    input.addEventListener('input', ()=>restyle(a=>apply(a, input.value)));
+    row(labelText, input);
+  }
+  function numberField(labelText, value, step, min, apply){
+    const input = document.createElement('input');
+    input.type = 'number'; input.step = step; if(min!=null) input.min = min; input.value = value;
+    input.addEventListener('input', ()=>restyle(a=>apply(a, parseFloat(input.value)||0)));
+    row(labelText, input);
+  }
+  function textField(labelText, value, apply){
+    const input = document.createElement('input');
+    input.type = 'text'; input.value = value;
+    input.addEventListener('change', ()=>commit(a=>apply(a, input.value)));
+    row(labelText, input);
+  }
+  function segField(labelText, options, value, apply){
+    const r = document.createElement('div'); r.className = 'row'; r.style.cssText = 'gap:8px; margin-top:6px; align-items:center;';
+    const label = document.createElement('span'); label.textContent = labelText;
+    label.style.cssText = 'width:76px; font-size:12.5px; color:var(--ink-dim); flex:none;';
+    const toggle = document.createElement('div'); toggle.className = 'shape-toggle';
+    options.forEach(opt=>{
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'shape-btn'+(opt.value===value?' active':'');
+      btn.textContent = opt.label;
+      btn.addEventListener('click', ()=>commit(a=>apply(a, opt.value)));
+      toggle.appendChild(btn);
+    });
+    r.append(label, toggle); fieldsEl.appendChild(r);
+  }
+  function checkField(labelText, checked, apply){
+    const wrap = document.createElement('label'); wrap.className = 'check-inline'; wrap.style.marginTop = '4px';
+    const input = document.createElement('input'); input.type = 'checkbox'; input.checked = checked;
+    input.addEventListener('change', ()=>commit(a=>apply(a, input.checked)));
+    wrap.append(input, document.createTextNode(' '+labelText));
+    fieldsEl.appendChild(wrap);
+  }
+
+  if(anno.type==='text'){
+    textField('Text', anno.text, (a,v)=>{ a.text = v; });
+    numberField('Font size (m)', anno.fontSize, 0.02, 0.05, (a,v)=>{ a.fontSize = Math.max(0.05, v); });
+    colorField('Color', anno.color, (a,v)=>{ a.color = v; });
+    checkField('Outline', anno.outline, (a,v)=>{ a.outline = v; });
+    segField('Background', ANNO_FILL_OPTS, anno.background, (a,v)=>{ a.background = v; });
+    if(anno.background!=='none'){
+      numberField('Line width (m)', anno.lineWidth, 0.005, 0.005, (a,v)=>{ a.lineWidth = Math.max(0.005, v); });
+      segField('Line type', ANNO_LINE_TYPE_OPTS, anno.lineType, (a,v)=>{ a.lineType = v; });
+      colorField('Fill color', anno.fillColor, (a,v)=>{ a.fillColor = v; });
+    }
+  } else if(anno.type==='arrow'){
+    colorField('Color', anno.color, (a,v)=>{ a.color = v; });
+    numberField('Line width (m)', anno.lineWidth, 0.005, 0.005, (a,v)=>{ a.lineWidth = Math.max(0.005, v); });
+    segField('Line type', ANNO_LINE_TYPE_OPTS, anno.lineType, (a,v)=>{ a.lineType = v; });
+    checkField('Outline', anno.outline, (a,v)=>{ a.outline = v; });
+    segField('Arrowhead', ANNO_HEAD_OPTS, anno.headEnd, (a,v)=>{ a.headEnd = v; });
+    segField('Head size', ANNO_SIZE_OPTS, anno.headSize, (a,v)=>{ a.headSize = v; });
+  } else {
+    textField('Label', anno.label, (a,v)=>{ a.label = v; });
+    colorField('Color (border)', anno.color, (a,v)=>{ a.color = v; });
+    numberField('Line width (m)', anno.lineWidth, 0.005, 0.005, (a,v)=>{ a.lineWidth = Math.max(0.005, v); });
+    segField('Line type', ANNO_LINE_TYPE_OPTS, anno.lineType, (a,v)=>{ a.lineType = v; });
+    checkField('Outline', anno.outline, (a,v)=>{ a.outline = v; });
+    segField('Fill', ANNO_FILL_OPTS, anno.fill, (a,v)=>{ a.fill = v; });
+    if(anno.fill!=='none') colorField('Fill color', anno.fillColor, (a,v)=>{ a.fillColor = v; });
+  }
+}
+document.getElementById('annoModeText').addEventListener('click', ()=>{ state.annoMode='text'; renderAnnotationsPanel(); });
+document.getElementById('annoModeArea').addEventListener('click', ()=>{ state.annoMode='area'; renderAnnotationsPanel(); });
+document.getElementById('annoModeArrow').addEventListener('click', ()=>{ state.annoMode='arrow'; renderAnnotationsPanel(); });
+document.getElementById('btnAnnoDelete').addEventListener('click', ()=>{
+  const found = getSelectedAnnotation();
+  if(!found) return;
+  pushUndo(found.layer);
+  found.layer.annotations.splice(state.selectedAnnotation.index, 1);
+  state.selectedAnnotation = null;
+  scheduleAutosave(); requestDraw(); renderAnnotationsPanel();
+});
 function renderPatternPanel(){
   const draft = state.patDraft;
   const pat = state.selectedPattern!=null ? state.patterns.find(p=>p.id===state.selectedPattern) : null;
@@ -10364,6 +10859,55 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       }
     }
     requestDraw();
+  } else if(state.tool==='annotate' && layer){
+    // Same shape as the Area tool's own state machine, deliberately
+    // simpler: handles are only ever hit-tested for the ALREADY-selected
+    // annotation (no cross-object hunting), and selecting a different
+    // type just works -- findAnnotationAt searches text/area/arrow
+    // uniformly, so clicking any existing annotation selects it
+    // regardless of which sub-mode button happens to be armed.
+    layer.annotations = layer.annotations || [];
+    const sel = (state.selectedAnnotation && state.selectedAnnotation.layerId===layer.id) ? layer.annotations[state.selectedAnnotation.index] : null;
+    const handleHit = sel ? findAnnotationHandleAt(layer, sel, sx, sy, 10) : null;
+    if(handleHit){
+      pushUndo(layer);
+      if(sel.type==='area' && handleHit.kind==='rotate'){
+        const rect = rectFromPosGroup(sel.posGroup);
+        const [wx,wy] = screenToWorld(sx,sy);
+        const [wcx,wcy] = layerToWorld(layer, rect.cx, rect.cy);
+        state.annoAction = {type:'rotate', layerId:layer.id, index:state.selectedAnnotation.index, centerWorld:[wcx,wcy], startAngle:Math.atan2(wy-wcy,wx-wcx), startRot:rect.rot};
+      } else if(sel.type==='area'){
+        const r = rectFromPosGroup(sel.posGroup);
+        sel.posGroup = posGroupFromRect(r.cx, r.cy, r.w, r.h, r.rot);
+        state.annoAction = {type:'resize', layerId:layer.id, index:state.selectedAnnotation.index, cornerIndex:handleHit.index};
+      } else {
+        state.annoAction = {type:'dragEndpoint', layerId:layer.id, index:state.selectedAnnotation.index, which:handleHit.kind};
+      }
+      dragging = true;
+    } else {
+      const hit = findAnnotationAt(layer, sx, sy, 12);
+      if(hit){
+        state.selectedAnnotation = {layerId:layer.id, index:hit.index};
+        pushUndo(layer);
+        state.annoAction = {type:'move', layerId:layer.id, index:hit.index, lastWorld:screenToWorld(sx,sy)};
+        dragging = true;
+      } else {
+        state.selectedAnnotation = null;
+        const [wx,wy] = screenToWorld(sx,sy);
+        if(state.annoMode==='text'){
+          pushUndo(layer);
+          const [lx,ly] = worldToLayer(layer, wx, wy);
+          layer.annotations.push(createTextAnnotation(lx, ly));
+          state.selectedAnnotation = {layerId:layer.id, index:layer.annotations.length-1};
+          scheduleAutosave();
+        } else {
+          state.annoDraft = {mode:state.annoMode, x1:wx, y1:wy, x2:wx, y2:wy};
+          dragging = true;
+        }
+      }
+    }
+    renderAnnotationsPanel();
+    requestDraw();
   } else if(state.tool==='dist'){
     if(!state.distTarget && startDimensionDrag(sx, sy)){
       dragging = true;
@@ -10815,6 +11359,42 @@ canvasEl.addEventListener('pointermove', (e)=>{
       action.x2 = wx; action.y2 = wy;
       requestDraw();
     }
+  } else if(state.tool==='annotate' && state.annoAction && layer){
+    const action = state.annoAction;
+    const list = layer.annotations || [];
+    const anno = list[action.index];
+    if(anno){
+      if(action.type==='resize'){
+        const rect = rectFromPosGroup(anno.posGroup);
+        const [lx,ly] = worldToLayer(layer, wx, wy);
+        const newRect = resizeRectFromCorner(rect, action.cornerIndex, lx, ly);
+        anno.posGroup = posGroupFromRect(newRect.cx, newRect.cy, newRect.w, newRect.h, newRect.rot);
+      } else if(action.type==='rotate'){
+        const angle = Math.atan2(wy-action.centerWorld[1], wx-action.centerWorld[0]);
+        const newRot = action.startRot + (angle-action.startAngle);
+        const rect = rectFromPosGroup(anno.posGroup);
+        anno.posGroup = posGroupFromRect(rect.cx, rect.cy, rect.w, rect.h, newRot);
+      } else if(action.type==='dragEndpoint'){
+        const [lx,ly] = worldToLayer(layer, wx, wy);
+        if(action.which==='from') anno.from = {x:round3(lx), y:round3(ly)};
+        else anno.to = {x:round3(lx), y:round3(ly)};
+      } else if(action.type==='move'){
+        const [ldx,ldy] = worldDeltaToLocal(layer, wx-action.lastWorld[0], wy-action.lastWorld[1]);
+        if(anno.type==='text'){
+          anno.pos = {x:round3(anno.pos.x+ldx), y:round3(anno.pos.y+ldy)};
+        } else if(anno.type==='arrow'){
+          anno.from = {x:round3(anno.from.x+ldx), y:round3(anno.from.y+ldy)};
+          anno.to = {x:round3(anno.to.x+ldx), y:round3(anno.to.y+ldy)};
+        } else {
+          anno.posGroup = anno.posGroup.map(v=>({x:round3(v.x+ldx), y:round3(v.y+ldy)}));
+        }
+        action.lastWorld = [wx,wy];
+      }
+      requestDraw();
+    }
+  } else if(state.tool==='annotate' && state.annoDraft && layer){
+    state.annoDraft.x2 = wx; state.annoDraft.y2 = wy;
+    requestDraw();
   }
 });
 
@@ -10997,6 +11577,41 @@ function endPointer(e){
     }
     state.areaAction = null;
   }
+  if(state.tool==='annotate' && state.annoAction){
+    scheduleAutosave();
+    state.annoAction = null;
+  }
+  if(state.tool==='annotate' && state.annoDraft){
+    const draft = state.annoDraft;
+    const layer = getEditableActiveLayer();
+    if(layer){
+      layer.annotations = layer.annotations || [];
+      if(draft.mode==='arrow'){
+        const dist = Math.hypot(draft.x2-draft.x1, draft.y2-draft.y1);
+        if(dist>=0.05){
+          pushUndo(layer);
+          const [lx1,ly1] = worldToLayer(layer, draft.x1, draft.y1);
+          const [lx2,ly2] = worldToLayer(layer, draft.x2, draft.y2);
+          layer.annotations.push(createArrowAnnotation(lx1, ly1, lx2, ly2));
+          state.selectedAnnotation = {layerId:layer.id, index:layer.annotations.length-1};
+          scheduleAutosave();
+        }
+      } else {
+        const worldW = Math.abs(draft.x2-draft.x1), worldH = Math.abs(draft.y2-draft.y1);
+        if(worldW>=0.05 && worldH>=0.05){
+          pushUndo(layer);
+          const worldCx = (draft.x1+draft.x2)/2, worldCy = (draft.y1+draft.y2)/2;
+          const [lcx,lcy] = worldToLayer(layer, worldCx, worldCy);
+          const localRot = -layer.transform.rot;
+          layer.annotations.push(createAreaAnnotation(lcx, lcy, worldW, worldH, localRot));
+          state.selectedAnnotation = {layerId:layer.id, index:layer.annotations.length-1};
+          scheduleAutosave();
+        }
+      }
+    }
+    state.annoDraft = null;
+    renderAnnotationsPanel();
+  }
 
   if(activePointers.size===0){ dragging=false; canvasEl.classList.remove('dragging'); rotateStart=null; }
   else if(activePointers.size===1){ const [p]=activePointers.values(); lastX=p.x; lastY=p.y; }
@@ -11032,7 +11647,7 @@ canvasEl.addEventListener('dblclick', (e)=>{
 
 const KEYMAP_DEFAULTS = {
   select:'s', pan:'h', move:'v', rotate:'r', erase:'e', draw:'l', reflector:'k', boxerase:'b', boxsplit:'u',
-  measure:'m', nav:'n', path:'j', area:'a', align:'g', dist:'d', constraints:'c', pattern:'p',
+  measure:'m', nav:'n', path:'j', area:'a', align:'g', dist:'d', constraints:'c', pattern:'p', annotate:'y',
   fitView:'f', relHorizontal:'h', relVertical:'v', relCoincident:'o',
   // Pan actions are bound to physical key CODES (e.g. 'ArrowUp',
   // 'Numpad8'), not e.key characters -- e.key can't tell the dedicated
@@ -11075,7 +11690,7 @@ function loadKeymap(){
 // Remappable action->key lookup; a future settings UI can write to KEYMAP and
 // persist via localStorage[KEYMAP_STORAGE_KEY] without touching dispatch code.
 const KEYMAP = loadKeymap();
-const TOOL_KEY_ACTIONS = ['select','pan','move','rotate','erase','draw','reflector','boxerase','boxsplit','measure','nav','path','area','align','dist','constraints','pattern'];
+const TOOL_KEY_ACTIONS = ['select','pan','move','rotate','erase','draw','reflector','boxerase','boxsplit','measure','nav','path','area','align','dist','constraints','pattern','annotate'];
 
 // ---------------- optional/toggleable features ----------------
 // The single place a feature gets registered to appear in the "Additional
@@ -11142,6 +11757,10 @@ document.addEventListener('keydown', (e)=>{
   if(e.key==='Enter' && state.patWallPickArmed){ finishWallPick(); return; }
   if(e.key==='Escape' && state.pathPatternArm){ state.pathPatternArm = null; renderPatternPanel(); renderPathPanel(); requestDraw(); return; }
   if(e.key==='Escape' && Array.isArray(state.splitQuad)){ clearSplitQuad(); return; }
+  if(e.key==='Escape' && state.tool==='annotate' && (state.annoDraft || state.selectedAnnotation)){
+    state.annoDraft = null; state.annoAction = null; state.selectedAnnotation = null;
+    renderAnnotationsPanel(); requestDraw(); return;
+  }
   if(e.key==='Enter' && Array.isArray(state.splitQuad) && state.tool==='boxsplit'){
     const btn = document.getElementById('btnSplitCommit');
     if(!btn.disabled){ e.preventDefault(); btn.click(); }
@@ -11164,6 +11783,7 @@ document.addEventListener('keydown', (e)=>{
     if(state.tool==='area' && state.selectedArea){ btnDeleteArea.click(); e.preventDefault(); return; }
     if(state.tool==='pattern' && state.selectedPattern){ document.getElementById('btnPatSelDelete').click(); e.preventDefault(); return; }
     if(state.tool==='pattern' && state.selectedGridPattern){ document.getElementById('btnGridSelDelete').click(); e.preventDefault(); return; }
+    if(state.tool==='annotate' && state.selectedAnnotation){ document.getElementById('btnAnnoDelete').click(); e.preventDefault(); return; }
   }
   const key = e.key.toLowerCase();
   if(key===KEYMAP.fitView){ fitView(); requestDraw(); return; }
@@ -11233,7 +11853,7 @@ const ACTION_LABELS = {
   select:'Select', pan:'Pan', move:'Move layer', rotate:'Rotate layer', erase:'Erase', draw:'Draw wall line',
   reflector:'Add reflector', boxerase:'Box erase', boxsplit:'Split to layer', measure:'Ruler', nav:'Nav points', path:'Path',
   area:'Reflector area', align:'Align to line', dist:'Dimension', constraints:'Constrain',
-  pattern:'Linear pattern', fitView:'Fit view',
+  pattern:'Linear pattern', annotate:'Annotate', fitView:'Fit view',
   relHorizontal:'Relation: Horizontal (in Constrain)',
   relVertical:'Relation: Vertical (in Constrain)',
   relCoincident:'Relation: Coincident (in Constrain)',
@@ -11627,7 +12247,7 @@ function serializeProject(){
     layers: state.layers.filter(l=>l.kind!=='image').map(l=>({
       id:l.id, name:l.name, fileName:l.fileName, color:l.color, visible:l.visible,
       header:l.header, points:l.points, rssi:l.rssi, reflectors:l.reflectors, extra:l.extra,
-      manualLines:l.manualLines, localBBox:l.localBBox, pivot:l.pivot, transform:l.transform,
+      manualLines:l.manualLines, annotations:l.annotations||[], localBBox:l.localBBox, pivot:l.pivot, transform:l.transform,
     })),
     nextId: state.nextId, colorIdx: state.colorIdx,
     view: state.view, fitted: state.fitted,
@@ -11647,7 +12267,7 @@ function loadProjectData(data){
   state.undoStack = [];
   updateUndoButton();
   state.layers = (data.layers||[]).map((l,i)=>{
-    const layer = {manualLines:[], ...l};
+    const layer = {manualLines:[], annotations:[], ...l};
     if(!/^#[0-9a-f]{6}$/i.test(layer.color||'')) layer.color = PALETTE[i % PALETTE.length];
     return layer;
   });
