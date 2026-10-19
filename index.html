@@ -212,6 +212,8 @@
   .tool-btn[data-tool="dist"].active, .tool-btn[data-tool="constraints"].active, .tool-btn[data-tool="pattern"].active{background:#7c3aed33; border-color:#7c3aed;}
   .tool-btn[data-tool="select"]{background:#33415519; border-color:#33415545; color:#334155;}
   .tool-btn[data-tool="select"].active{background:#33415533; border-color:#334155;}
+  .tool-btn[data-tool="annotate"]{background:#ffb0001a; border-color:#ffb00040; color:#c98400;}
+  .tool-btn[data-tool="annotate"].active{background:#ffb00033; border-color:#ffb000;}
 
   .io-btn{
     width:auto; min-width:44px; flex:0 0 auto; border-radius:9px; border:1px solid var(--line);
@@ -462,6 +464,7 @@
         <label class="check-inline"><input type="checkbox" id="groupSelNav" checked> Nav points</label>
         <label class="check-inline"><input type="checkbox" id="groupSelPaths"> Paths</label>
         <label class="check-inline"><input type="checkbox" id="groupSelAreas"> Areas</label>
+        <label class="check-inline"><input type="checkbox" id="groupSelAnnotations"> Annotation areas</label>
         <label class="check-inline"><input type="checkbox" id="groupSelReflectors"> Reflectors</label>
         <label class="check-inline"><input type="checkbox" id="groupSelWalls"> Walls</label>
         <button class="btn" id="btnGroupSelectAll" style="width:100%; margin-top:8px;">Select matching</button>
@@ -2730,8 +2733,8 @@ function formatEdgeAnchorLabel(constraint){
   if(constraint.anchorKind==='navPoint') return 'Point '+constraint.anchorName;
   if(constraint.anchorKind==='reflector') return 'Reflector #'+(constraint.anchorReflectorIndex+1);
   if(constraint.anchorKind==='edge'){
-    const found = getAreaByRef({layerId:constraint.anchorLayerId, areaIndex:constraint.anchorAreaIndex});
-    const name = found ? found.area.instanceName : '?';
+    const found = getAreaByRef({layerId:constraint.anchorLayerId, areaIndex:constraint.anchorAreaIndex, areaKind:constraint.anchorAreaKind});
+    const name = found ? (found.area.instanceName || found.area.label) : '?';
     return 'Area '+name+' ('+constraint.anchorEdgeKey+')';
   }
   if(constraint.anchorKind==='scanPoint') return 'Scan point';
@@ -2932,7 +2935,37 @@ function removeAreasWithIndexFix(layer, predicate){
         if(!other.__edgeConstraints) continue;
         for(const ek of Object.keys(other.__edgeConstraints)){
           const c = other.__edgeConstraints[ek];
-          if(c.anchorKind==='edge' && c.anchorLayerId===layer.id){
+          if(c.anchorKind==='edge' && c.anchorLayerId===layer.id && (c.anchorAreaKind||'reflector')==='reflector'){
+            if(removedIndices.includes(c.anchorAreaIndex)) delete other.__edgeConstraints[ek];
+            else c.anchorAreaIndex -= removedIndices.filter(ri=>ri<c.anchorAreaIndex).length;
+          }
+        }
+        if(Object.keys(other.__edgeConstraints).length===0) delete other.__edgeConstraints;
+      }
+    }
+  }
+  return removedIndices;
+}
+// Same idea as removeAreasWithIndexFix, but for Annotation Areas
+// (layer.annotations, type:'area') -- the index space is the raw index
+// into the full, mixed-type annotations array (text/arrow/area share it),
+// so non-area annotations always pass the predicate untouched and keep
+// their own slot; only 'area'-typed entries are ever removed or reindexed.
+function removeAnnotationAreasWithIndexFix(layer, predicate){
+  const list = layer.annotations || [];
+  const removedIndices = [];
+  const kept = [];
+  list.forEach((a, i)=>{ if(a.type==='area' && predicate(a)) removedIndices.push(i); else kept.push(a); });
+  layer.annotations = kept;
+  if(removedIndices.length){
+    for(const otherLayer of state.layers){
+      const otherList = otherLayer.annotations;
+      if(!Array.isArray(otherList)) continue;
+      for(const other of otherList){
+        if(other.type!=='area' || !other.__edgeConstraints) continue;
+        for(const ek of Object.keys(other.__edgeConstraints)){
+          const c = other.__edgeConstraints[ek];
+          if(c.anchorKind==='edge' && c.anchorLayerId===layer.id && c.anchorAreaKind==='annotation'){
             if(removedIndices.includes(c.anchorAreaIndex)) delete other.__edgeConstraints[ek];
             else c.anchorAreaIndex -= removedIndices.filter(ri=>ri<c.anchorAreaIndex).length;
           }
@@ -3111,6 +3144,7 @@ const groupSelLayer = document.getElementById('groupSelLayer');
 const groupSelNav = document.getElementById('groupSelNav');
 const groupSelPaths = document.getElementById('groupSelPaths');
 const groupSelAreas = document.getElementById('groupSelAreas');
+const groupSelAnnotations = document.getElementById('groupSelAnnotations');
 const groupSelReflectors = document.getElementById('groupSelReflectors');
 const groupSelWalls = document.getElementById('groupSelWalls');
 const btnGroupSelectAll = document.getElementById('btnGroupSelectAll');
@@ -3791,8 +3825,8 @@ function drawReflectorAreas(layer, pal){
     if(editing){
       const rectForEdges = rectFromPosGroup(posGroup);
       for(const edgeKey of ['S','E','N','W']){
-        const isSelEdge = state.selectedAreaEdge && state.selectedAreaEdge.layerId===layer.id && state.selectedAreaEdge.areaIndex===ai && state.selectedAreaEdge.edgeKey===edgeKey;
-        const isHoverEdge = !isSelEdge && state.hoverAreaEdge && state.hoverAreaEdge.layerId===layer.id && state.hoverAreaEdge.areaIndex===ai && state.hoverAreaEdge.edgeKey===edgeKey;
+        const isSelEdge = state.selectedAreaEdge && (state.selectedAreaEdge.areaKind||'reflector')==='reflector' && state.selectedAreaEdge.layerId===layer.id && state.selectedAreaEdge.areaIndex===ai && state.selectedAreaEdge.edgeKey===edgeKey;
+        const isHoverEdge = !isSelEdge && state.hoverAreaEdge && (state.hoverAreaEdge.areaKind||'reflector')==='reflector' && state.hoverAreaEdge.layerId===layer.id && state.hoverAreaEdge.areaIndex===ai && state.hoverAreaEdge.edgeKey===edgeKey;
         if(!isSelEdge && !isHoverEdge) continue;
         const [wa,wb] = edgeWorldEndpoints(layer, rectForEdges, edgeKey);
         const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
@@ -4266,7 +4300,7 @@ function resolveConstraintAnchorPoint(constraint){
     return r ? layerToWorld(layer, r.x, r.y) : null;
   }
   if(constraint.anchorKind==='edge'){
-    const found = getAreaByRef({layerId:constraint.anchorLayerId, areaIndex:constraint.anchorAreaIndex});
+    const found = getAreaByRef({layerId:constraint.anchorLayerId, areaIndex:constraint.anchorAreaIndex, areaKind:constraint.anchorAreaKind});
     if(!found) return null;
     const rect = rectFromPosGroup(found.area.posGroup);
     const det = detectEdgeAxis(found.layer, rect, constraint.anchorEdgeKey);
@@ -4281,13 +4315,35 @@ function resolveConstraintAnchorPoint(constraint){
 function matchesSelectedDimension(kind, layerId, extra){
   const s = state.selectedDimension;
   if(!s || s.kind!==kind || s.layerId!==layerId) return false;
-  if(kind==='edge') return s.areaIndex===extra.areaIndex && s.edgeKey===extra.edgeKey;
+  if(kind==='edge') return (s.areaKind||'reflector')===(extra.areaKind||'reflector') && s.areaIndex===extra.areaIndex && s.edgeKey===extra.edgeKey;
   if(kind==='reflector') return s.index===extra.index && s.axis===extra.axis;
   if(kind==='controlPoint') return s.nameA===extra.nameA && s.nameB===extra.nameB && s.which===extra.which && s.axis===extra.axis;
   if(kind==='patternStep') return s.patId===extra.patId && s.index===extra.index && s.axis===extra.axis;
   return s.instanceName===extra.instanceName && s.axis===extra.axis;
 }
 
+// Draws every pinned edge-distance on ONE area (reflector or annotation)
+// -- shared so the reflector-area pass and the annotation-area pass below
+// don't duplicate this logic, same way resolveAreaEdgeConstraints shares
+// the solving side. areaKind flows into the hitbox/selection-match data
+// so a reflector area and an annotation area that happen to share the
+// same index are never confused for each other.
+function drawAreaEdgeDimensions(layer, area, ai, areaKind, dimColor, selColor){
+  if(!area.__edgeConstraints) return;
+  const rect = rectFromPosGroup(area.posGroup);
+  for(const edgeKey of Object.keys(area.__edgeConstraints)){
+    const constraint = area.__edgeConstraints[edgeKey];
+    const det = detectEdgeAxis(layer, rect, edgeKey);
+    if(!det) continue;
+    const anchorWorldPos = resolveConstraintAnchorPoint(constraint);
+    if(!anchorWorldPos) continue;
+    const edgeWorldPos = det.axis==='x' ? [det.value, det.mid[1]] : [det.mid[0], det.value];
+    const label = Math.abs(constraint.offset).toFixed(3);
+    const isSel = matchesSelectedDimension('edge', layer.id, {areaKind, areaIndex:ai, edgeKey});
+    const {box, lineA, lineB} = drawCadDimension(det.axis, edgeWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, isSel?selColor:dimColor, dimConstraintLabelT(constraint));
+    if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, areaKind, areaIndex:ai, edgeKey});
+  }
+}
 function drawDimensionAnnotations(){
   const dimColor = state.printFriendly ? DIM_COLOR_PRINT : DIM_COLOR;
   const selColor = '#3fd0ff';
@@ -4298,22 +4354,16 @@ function drawDimensionAnnotations(){
         if(!layer.visible) continue;
         const list = layer.extra && layer.extra.advancedAreaList;
         if(!Array.isArray(list)) continue;
+        for(let ai=0; ai<list.length; ai++) drawAreaEdgeDimensions(layer, list[ai], ai, 'reflector', dimColor, selColor);
+      }
+    }
+    if(state.typeVisibility.annotations){
+      for(const layer of state.layers){
+        if(!layer.visible) continue;
+        const list = layer.annotations;
+        if(!Array.isArray(list)) continue;
         for(let ai=0; ai<list.length; ai++){
-          const area = list[ai];
-          if(!area.__edgeConstraints) continue;
-          const rect = rectFromPosGroup(area.posGroup);
-          for(const edgeKey of Object.keys(area.__edgeConstraints)){
-            const constraint = area.__edgeConstraints[edgeKey];
-            const det = detectEdgeAxis(layer, rect, edgeKey);
-            if(!det) continue;
-            const anchorWorldPos = resolveConstraintAnchorPoint(constraint);
-            if(!anchorWorldPos) continue;
-            const edgeWorldPos = det.axis==='x' ? [det.value, det.mid[1]] : [det.mid[0], det.value];
-            const label = Math.abs(constraint.offset).toFixed(3);
-            const isSel = matchesSelectedDimension('edge', layer.id, {areaIndex:ai, edgeKey});
-            const {box, lineA, lineB} = drawCadDimension(det.axis, edgeWorldPos, anchorWorldPos, dimConstraintOffsetPx(constraint), label, isSel?selColor:dimColor, dimConstraintLabelT(constraint));
-            if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, areaIndex:ai, edgeKey});
-          }
+          if(list[ai].type==='area') drawAreaEdgeDimensions(layer, list[ai], ai, 'annotation', dimColor, selColor);
         }
       }
     }
@@ -4483,7 +4533,7 @@ function drawDistToolHighlight(ref, color, kind){
 }
 
 function drawDistAnchorHighlight(anchor, color){
-  if(anchor.kind==='edge'){ drawDistToolHighlight({layerId:anchor.layerId, areaIndex:anchor.areaIndex, edgeKey:anchor.edgeKey}, color, 'edge'); return; }
+  if(anchor.kind==='edge'){ drawDistToolHighlight({layerId:anchor.layerId, areaIndex:anchor.areaIndex, areaKind:anchor.areaKind, edgeKey:anchor.edgeKey}, color, 'edge'); return; }
   if(anchor.kind==='navPoint'){ drawDistToolHighlight({layerId:anchor.layerId, instanceName:anchor.name}, color, 'navPoint'); return; }
   if(anchor.kind==='reflector'){ drawDistToolHighlight({layerId:anchor.layerId, index:anchor.index}, color, 'reflector'); return; }
   if(anchor.kind==='scanPoint'){ drawDistToolHighlight({layerId:anchor.layerId, localX:anchor.localX, localY:anchor.localY}, color, 'scanPoint'); return; }
@@ -4521,7 +4571,7 @@ function findDimensionLineAt(sx, sy, pxThreshold){
 }
 
 function hitToTargetRef(hit){
-  if(hit.edgeKey!=null) return {kind:'edge', layerId:hit.layerId, areaIndex:hit.areaIndex, edgeKey:hit.edgeKey};
+  if(hit.edgeKey!=null) return {kind:'edge', layerId:hit.layerId, areaKind:hit.areaKind, areaIndex:hit.areaIndex, edgeKey:hit.edgeKey};
   if(hit.reflIndex!=null) return {kind:'reflector', layerId:hit.layerId, index:hit.reflIndex, axis:hit.axis};
   if(hit.cpWhich!=null) return {kind:'controlPoint', layerId:hit.layerId, nameA:hit.cpNameA, nameB:hit.cpNameB, which:hit.cpWhich, axis:hit.axis};
   if(hit.instanceName!=null) return {kind:'navPoint', layerId:hit.layerId, instanceName:hit.instanceName, axis:hit.axis};
@@ -4583,7 +4633,7 @@ function getTargetLayer(target){ return getLayer(target.layerId); }
 
 function getTargetWorldPoint(target){
   if(target.kind==='edge'){
-    const found = getAreaByRef({layerId:target.layerId, areaIndex:target.areaIndex});
+    const found = getAreaByRef({layerId:target.layerId, areaIndex:target.areaIndex, areaKind:target.areaKind});
     if(!found) return null;
     const rect = rectFromPosGroup(found.area.posGroup);
     const det = detectEdgeAxis(found.layer, rect, target.edgeKey);
@@ -4605,13 +4655,13 @@ function getTargetWorldValue(target, axis){
   return p ? (axis==='x' ? p[0] : p[1]) : null;
 }
 function targetToRef(target){
-  if(target.kind==='edge') return {kind:'edge', layerId:target.layerId, areaIndex:target.areaIndex, edgeKey:target.edgeKey};
+  if(target.kind==='edge') return {kind:'edge', layerId:target.layerId, areaKind:target.areaKind, areaIndex:target.areaIndex, edgeKey:target.edgeKey};
   if(target.kind==='reflector') return {kind:'reflector', layerId:target.layerId, index:target.index, axis:target.axis};
   if(target.kind==='controlPoint') return {kind:'controlPoint', layerId:target.layerId, nameA:target.nameA, nameB:target.nameB, which:target.which, axis:target.axis};
   return {kind:'navPoint', layerId:target.layerId, instanceName:target.instanceName, axis:target.axis};
 }
 function isSelfAnchorRef(constraint, target){
-  if(constraint.anchorKind==='edge' && target.kind==='edge') return constraint.anchorLayerId===target.layerId && constraint.anchorAreaIndex===target.areaIndex;
+  if(constraint.anchorKind==='edge' && target.kind==='edge') return constraint.anchorLayerId===target.layerId && (constraint.anchorAreaKind||'reflector')===(target.areaKind||'reflector') && constraint.anchorAreaIndex===target.areaIndex && constraint.anchorEdgeKey===target.edgeKey;
   if(constraint.anchorKind==='navPoint' && target.kind==='navPoint') return constraint.anchorLayerId===target.layerId && constraint.anchorName===target.instanceName && constraint.axis===target.axis;
   if(constraint.anchorKind==='reflector' && target.kind==='reflector') return constraint.anchorLayerId===target.layerId && constraint.anchorReflectorIndex===target.index && constraint.axis===target.axis;
   if(constraint.anchorKind==='controlPoint' && target.kind==='controlPoint') return constraint.anchorLayerId===target.layerId && constraint.anchorNameA===target.nameA && constraint.anchorNameB===target.nameB && constraint.anchorWhich===target.which && constraint.axis===target.axis;
@@ -4622,7 +4672,7 @@ function applyAnchorToConstraint(constraint, anchor){
   else if(anchor.kind==='reflector'){ constraint.anchorKind='reflector'; constraint.anchorLayerId=anchor.layerId; constraint.anchorReflectorIndex=anchor.index; }
   else if(anchor.kind==='controlPoint'){ constraint.anchorKind='controlPoint'; constraint.anchorLayerId=anchor.layerId; constraint.anchorNameA=anchor.nameA; constraint.anchorNameB=anchor.nameB; constraint.anchorWhich=anchor.which; }
   else if(anchor.kind==='scanPoint'){ constraint.anchorKind='scanPoint'; constraint.anchorLayerId=anchor.layerId; constraint.anchorLocalX=anchor.localX; constraint.anchorLocalY=anchor.localY; }
-  else { constraint.anchorKind='edge'; constraint.anchorLayerId=anchor.layerId; constraint.anchorAreaIndex=anchor.areaIndex; constraint.anchorEdgeKey=anchor.edgeKey; }
+  else { constraint.anchorKind='edge'; constraint.anchorLayerId=anchor.layerId; constraint.anchorAreaKind=anchor.areaKind; constraint.anchorAreaIndex=anchor.areaIndex; constraint.anchorEdgeKey=anchor.edgeKey; }
 }
 function getCurveConstraintsBucket(ref, create){
   const found = getCurveByRef(ref);
@@ -4639,7 +4689,7 @@ function getCurveConstraintsBucket(ref, create){
 }
 function storeConstraintOnTarget(target, constraint){
   if(target.kind==='edge'){
-    const found = getAreaByRef({layerId:target.layerId, areaIndex:target.areaIndex});
+    const found = getAreaByRef({layerId:target.layerId, areaIndex:target.areaIndex, areaKind:target.areaKind});
     if(!found.area.__edgeConstraints) found.area.__edgeConstraints = {};
     found.area.__edgeConstraints[target.edgeKey] = constraint;
   } else if(target.kind==='reflector'){
@@ -4657,7 +4707,7 @@ function storeConstraintOnTarget(target, constraint){
 }
 function getConstraintByTargetRef(ref){
   if(ref.kind==='edge'){
-    const found = getAreaByRef({layerId:ref.layerId, areaIndex:ref.areaIndex});
+    const found = getAreaByRef({layerId:ref.layerId, areaIndex:ref.areaIndex, areaKind:ref.areaKind});
     return found && found.area.__edgeConstraints && found.area.__edgeConstraints[ref.edgeKey];
   }
   if(ref.kind==='reflector'){
@@ -4673,7 +4723,7 @@ function getConstraintByTargetRef(ref){
 }
 function deleteConstraintByTargetRef(ref){
   if(ref.kind==='edge'){
-    const found = getAreaByRef({layerId:ref.layerId, areaIndex:ref.areaIndex});
+    const found = getAreaByRef({layerId:ref.layerId, areaIndex:ref.areaIndex, areaKind:ref.areaKind});
     if(!found || !found.area.__edgeConstraints) return;
     delete found.area.__edgeConstraints[ref.edgeKey];
     if(Object.keys(found.area.__edgeConstraints).length===0) delete found.area.__edgeConstraints;
@@ -4699,13 +4749,18 @@ function deleteConstraintByTargetRef(ref){
 
 function openInlineEditForLabelHit(labelHit, sx, sy){
   if(labelHit.edgeKey!=null){
-    const found = getAreaByRef({layerId:labelHit.layerId, areaIndex:labelHit.areaIndex});
+    const found = getAreaByRef({layerId:labelHit.layerId, areaIndex:labelHit.areaIndex, areaKind:labelHit.areaKind});
     const constraint = found && found.area.__edgeConstraints && found.area.__edgeConstraints[labelHit.edgeKey];
     if(!constraint) return false;
-    state.selectedArea = {layerId:labelHit.layerId, groupId:found.area.__group, areaIndex:labelHit.areaIndex};
-    state.selectedAreaEdge = {layerId:labelHit.layerId, areaIndex:labelHit.areaIndex, edgeKey:labelHit.edgeKey};
-    renderAreaPanel();
-    openDimInlineEdit({kind:'edge', layerId:labelHit.layerId, areaIndex:labelHit.areaIndex, edgeKey:labelHit.edgeKey}, sx, sy, constraint.offset, false);
+    if((labelHit.areaKind||'reflector')==='annotation'){
+      state.selectedAnnotation = {layerId:labelHit.layerId, index:labelHit.areaIndex};
+      renderAnnotationsPanel();
+    } else {
+      state.selectedArea = {layerId:labelHit.layerId, groupId:found.area.__group, areaIndex:labelHit.areaIndex};
+      state.selectedAreaEdge = {layerId:labelHit.layerId, areaIndex:labelHit.areaIndex, edgeKey:labelHit.edgeKey};
+      renderAreaPanel();
+    }
+    openDimInlineEdit({kind:'edge', layerId:labelHit.layerId, areaIndex:labelHit.areaIndex, areaKind:labelHit.areaKind, edgeKey:labelHit.edgeKey}, sx, sy, constraint.offset, false);
     return true;
   }
   if(labelHit.instanceName!=null){
@@ -4859,8 +4914,8 @@ dimInlineInputEl.addEventListener('blur', ()=>{ if(state.dimInlineEdit) commitDi
 // size here is a one-time move (setRectWidthHeight), never a stored relation
 // — so there's no self-reference/cycle risk, unlike pinning an edge to the
 // opposite edge of the same area.
-function openAreaSizeInlineEdit(layerId, areaIndex, axis, screenX, screenY, currentValue){
-  state.areaSizeInlineEdit = {layerId, areaIndex, axis};
+function openAreaSizeInlineEdit(layerId, areaIndex, areaKind, axis, screenX, screenY, currentValue){
+  state.areaSizeInlineEdit = {layerId, areaIndex, areaKind, axis};
   // the edge clicked can extend far beyond the current pan/zoom (e.g. a long
   // area edge whose midpoint sits off-screen) — clamp into the visible
   // canvas so the popup always lands somewhere the user can actually see
@@ -4883,7 +4938,7 @@ function closeAreaSizeInlineEdit(){
 function commitAreaSizeInlineEdit(){
   const edit = state.areaSizeInlineEdit;
   if(!edit) return;
-  const found = getAreaByRef({layerId:edit.layerId, areaIndex:edit.areaIndex});
+  const found = getAreaByRef({layerId:edit.layerId, areaIndex:edit.areaIndex, areaKind:edit.areaKind});
   const v = parseFloat(areaSizeInlineInputEl.value.trim());
   if(found && !isNaN(v) && v>0.02){
     pushUndo(found.layer);
@@ -4893,7 +4948,8 @@ function commitAreaSizeInlineEdit(){
     scheduleAutosave();
   }
   closeAreaSizeInlineEdit();
-  renderAreaPanel(); requestDraw();
+  if((edit.areaKind||'reflector')==='annotation') renderAnnotationsPanel(); else renderAreaPanel();
+  requestDraw();
 }
 function cancelAreaSizeInlineEdit(){
   closeAreaSizeInlineEdit();
@@ -5416,12 +5472,21 @@ function draw(){
     ctx.strokeStyle = '#000000'; ctx.stroke();
   }
 
-  drawDimensionAnnotations();
-  drawDistToolHighlights();
   drawRelations();
   drawPatterns();
   drawGridPatterns();
   drawAnnotations();
+  // These two draw dimension lines/labels and the Dimension tool's own
+  // hover/select highlight for an area edge -- including Annotation Area
+  // edges. drawAnnotations() redraws each annotation's full shape
+  // (fill+border+label) every frame, so anything painted BEFORE it that
+  // sits ON an annotation's own border (like an edge hover highlight)
+  // gets immediately painted over and never appears. Drawing these two
+  // after annotations instead keeps them on top, the same way a
+  // Reflector Area's highlight already stays on top of its own (earlier-
+  // drawn, never-redrawn) border.
+  drawDimensionAnnotations();
+  drawDistToolHighlights();
 
   if(state.tool==='erase' && state.mouse){
     const r = Math.max(3, state.eraseRadius*state.view.scale);
@@ -6218,7 +6283,7 @@ function drawArrowAnnotation(layer, anno, isSelected){
     ctx.restore();
   }
 }
-function drawAreaAnnotation(layer, anno, isSelected){
+function drawAreaAnnotation(layer, anno, isSelected, ai){
   const pts = annotationScreenPoints(layer, anno);
   const fillStyle = annotationFillStyle(anno.fill, anno.fillColor);
   if(fillStyle){
@@ -6245,6 +6310,16 @@ function drawAreaAnnotation(layer, anno, isSelected){
   }
   if(isSelected){
     ctx.save(); ctx.fillStyle = ANNO_HANDLE_COLOR;
+    // The border itself gets a highlighted trace too, same idea as a
+    // Reflector Area's border turning white when selected -- additive
+    // (amber dashed, on top) rather than overwriting anno.color, since
+    // unlike a reflector area this border's color/width/type are the
+    // user's own chosen styling, not something to clobber.
+    ctx.save();
+    ctx.strokeStyle = ANNO_HANDLE_COLOR; ctx.lineWidth = 2; ctx.setLineDash([5,4]);
+    ctx.beginPath(); pts.forEach(([x,y],i)=>{ i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }); ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
     pts.forEach(([x,y])=>{ ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2); ctx.fill(); });
     const mid = [(pts[0][0]+pts[1][0])/2, (pts[0][1]+pts[1][1])/2];
     const edge = [pts[1][0]-pts[0][0], pts[1][1]-pts[0][1]];
@@ -6255,6 +6330,20 @@ function drawAreaAnnotation(layer, anno, isSelected){
     ctx.beginPath(); ctx.moveTo(mid[0],mid[1]); ctx.lineTo(handle[0],handle[1]); ctx.stroke();
     ctx.beginPath(); ctx.arc(handle[0],handle[1],5,0,Math.PI*2); ctx.fill();
     ctx.restore();
+  }
+  if(state.tool==='annotate'){
+    const rectForEdges = rectFromPosGroup(anno.posGroup);
+    for(const edgeKey of ['S','E','N','W']){
+      const isSelEdge = state.selectedAreaEdge && state.selectedAreaEdge.areaKind==='annotation' && state.selectedAreaEdge.layerId===layer.id && state.selectedAreaEdge.areaIndex===ai && state.selectedAreaEdge.edgeKey===edgeKey;
+      const isHoverEdge = !isSelEdge && state.hoverAreaEdge && state.hoverAreaEdge.areaKind==='annotation' && state.hoverAreaEdge.layerId===layer.id && state.hoverAreaEdge.areaIndex===ai && state.hoverAreaEdge.edgeKey===edgeKey;
+      if(!isSelEdge && !isHoverEdge) continue;
+      const [wa,wb] = edgeWorldEndpoints(layer, rectForEdges, edgeKey);
+      const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
+      const [sb0,sb1] = worldToScreen(wb[0],wb[1]);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = isHoverEdge && !isSelEdge ? 2.5 : 4;
+      ctx.beginPath(); ctx.moveTo(sa0,sa1); ctx.lineTo(sb0,sb1); ctx.stroke();
+    }
   }
 }
 function drawAnnoDraftPreview(){
@@ -6283,7 +6372,7 @@ function drawAnnotations(){
       const isSelected = state.tool==='annotate' && state.selectedAnnotation && state.selectedAnnotation.layerId===layer.id && state.selectedAnnotation.index===i;
       if(anno.type==='text') drawTextAnnotation(layer, anno, isSelected);
       else if(anno.type==='arrow') drawArrowAnnotation(layer, anno, isSelected);
-      else drawAreaAnnotation(layer, anno, isSelected);
+      else drawAreaAnnotation(layer, anno, isSelected, i);
     }
   }
   if(state.annoDraft && state.tool==='annotate') drawAnnoDraftPreview();
@@ -6333,7 +6422,17 @@ function findAreaRotateHandleAt(layer, sx, sy, pxThreshold){
 }
 
 const EDGE_CORNERS = { S:[0,1], E:[1,2], N:[2,3], W:[3,0] };
-const AXIS_TOL = 0.01;
+// A fixed METERS tolerance here (the old AXIS_TOL=0.01 approach) scales
+// with edge length under any real rotation: a layer rotated by even a
+// fraction of a degree (near-universal for scan-matched/SLAM layers,
+// never exactly 0) pushes a long edge's "should be constant" coordinate
+// past a few mm in no time, so axis detection silently failed for any
+// edge longer than roughly (TOL / sin(rotation)) -- around 1.2m at a
+// typical ~0.5 degree layer rotation. Checking the edge's direction
+// ratio instead of a raw coordinate delta makes the tolerance an ANGLE,
+// independent of edge length, so a 0.5 degree layer behaves the same
+// for a 0.5m edge and a 50m edge.
+const AXIS_ANGLE_TOL = 0.035; // ~2 degrees of residual rotation tolerated
 
 function edgeWorldEndpoints(layer, rect, edgeKey){
   const corners = posGroupFromRect(rect.cx, rect.cy, rect.w, rect.h, rect.rot);
@@ -6342,8 +6441,11 @@ function edgeWorldEndpoints(layer, rect, edgeKey){
 }
 function detectEdgeAxis(layer, rect, edgeKey){
   const [wa, wb] = edgeWorldEndpoints(layer, rect, edgeKey);
-  if(Math.abs(wa[0]-wb[0]) < AXIS_TOL) return { axis:'x', value:(wa[0]+wb[0])/2, mid:[(wa[0]+wb[0])/2, (wa[1]+wb[1])/2] };
-  if(Math.abs(wa[1]-wb[1]) < AXIS_TOL) return { axis:'y', value:(wa[1]+wb[1])/2, mid:[(wa[0]+wb[0])/2, (wa[1]+wb[1])/2] };
+  const dx = wb[0]-wa[0], dy = wb[1]-wa[1];
+  const len = Math.hypot(dx, dy);
+  if(len < 1e-6) return null;
+  if(Math.abs(dx)/len < AXIS_ANGLE_TOL) return { axis:'x', value:(wa[0]+wb[0])/2, mid:[(wa[0]+wb[0])/2, (wa[1]+wb[1])/2] };
+  if(Math.abs(dy)/len < AXIS_ANGLE_TOL) return { axis:'y', value:(wa[1]+wb[1])/2, mid:[(wa[0]+wb[0])/2, (wa[1]+wb[1])/2] };
   return null;
 }
 function applyEdgeWorldTarget(layer, rect, edgeKey, axis, targetValue, currentMid){
@@ -6357,26 +6459,51 @@ function applyEdgeWorldTarget(layer, rect, edgeKey, axis, targetValue, currentMi
 }
 
 function findAreaEdgeAt(layer, sx, sy, pxThreshold){
-  const list = layer.extra && layer.extra.advancedAreaList;
-  if(!Array.isArray(list)) return null;
   let best=null, bestD=pxThreshold;
-  for(let ai=0; ai<list.length; ai++){
-    const rect = rectFromPosGroup(list[ai].posGroup);
-    for(const edgeKey of ['S','E','N','W']){
-      const [wa,wb] = edgeWorldEndpoints(layer, rect, edgeKey);
-      const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
-      const [sb0,sb1] = worldToScreen(wb[0],wb[1]);
-      const d = distToSegmentScreen(sx,sy, sa0,sa1, sb0,sb1);
-      if(d<bestD){ bestD=d; best={areaIndex:ai, edgeKey}; }
+  const list = layer.extra && layer.extra.advancedAreaList;
+  if(Array.isArray(list)){
+    for(let ai=0; ai<list.length; ai++){
+      const rect = rectFromPosGroup(list[ai].posGroup);
+      for(const edgeKey of ['S','E','N','W']){
+        const [wa,wb] = edgeWorldEndpoints(layer, rect, edgeKey);
+        const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
+        const [sb0,sb1] = worldToScreen(wb[0],wb[1]);
+        const d = distToSegmentScreen(sx,sy, sa0,sa1, sb0,sb1);
+        if(d<bestD){ bestD=d; best={areaKind:'reflector', areaIndex:ai, edgeKey}; }
+      }
+    }
+  }
+  const annoList = layer.annotations;
+  if(Array.isArray(annoList)){
+    for(let ai=0; ai<annoList.length; ai++){
+      if(annoList[ai].type!=='area') continue;
+      const rect = rectFromPosGroup(annoList[ai].posGroup);
+      for(const edgeKey of ['S','E','N','W']){
+        const [wa,wb] = edgeWorldEndpoints(layer, rect, edgeKey);
+        const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
+        const [sb0,sb1] = worldToScreen(wb[0],wb[1]);
+        const d = distToSegmentScreen(sx,sy, sa0,sa1, sb0,sb1);
+        if(d<bestD){ bestD=d; best={areaKind:'annotation', areaIndex:ai, edgeKey}; }
+      }
     }
   }
   return best;
 }
 
+// Resolves either a Reflector Area (layer.extra.advancedAreaList) or an
+// Annotation Area (layer.annotations, type:'area') by ref -- ref.areaKind
+// is the discriminator; missing/'reflector' keeps resolving the way every
+// ref saved before this feature already does, so old saved constraints
+// keep working unchanged.
 function getAreaByRef(ref){
   if(!ref) return null;
   const layer = getLayer(ref.layerId);
-  const list = layer && layer.extra && layer.extra.advancedAreaList;
+  if(!layer) return null;
+  if(ref.areaKind==='annotation'){
+    const anno = layer.annotations && layer.annotations[ref.areaIndex];
+    return (anno && anno.type==='area') ? {layer, area:anno} : null;
+  }
+  const list = layer.extra && layer.extra.advancedAreaList;
   const area = list && list[ref.areaIndex];
   return area ? {layer, area} : null;
 }
@@ -7873,7 +8000,7 @@ function isRefEncumbered(ref){
     return fixedCP || dimPinned || relationsForParticipant(ref).length>0;
   }
   if(ref.kind==='edge'){
-    const f = getAreaByRef({layerId:ref.layerId, areaIndex:ref.areaIndex});
+    const f = getAreaByRef({layerId:ref.layerId, areaIndex:ref.areaIndex, areaKind:ref.areaKind});
     return !!f && isAreaLocked(f.area);
   }
   return false;
@@ -7885,7 +8012,7 @@ function targetShapeFromAnchor(anchor, axis){
   if(anchor.kind==='navPoint') return {kind:'navPoint', layerId:anchor.layerId, instanceName:anchor.name, axis};
   if(anchor.kind==='reflector') return {kind:'reflector', layerId:anchor.layerId, index:anchor.index, axis};
   if(anchor.kind==='controlPoint') return {kind:'controlPoint', layerId:anchor.layerId, nameA:anchor.nameA, nameB:anchor.nameB, which:anchor.which, axis};
-  if(anchor.kind==='edge') return {kind:'edge', layerId:anchor.layerId, areaIndex:anchor.areaIndex, edgeKey:anchor.edgeKey, axis};
+  if(anchor.kind==='edge') return {kind:'edge', layerId:anchor.layerId, areaIndex:anchor.areaIndex, areaKind:anchor.areaKind, edgeKey:anchor.edgeKey, axis};
   return null; // a raw scan point can't become a pinned target
 }
 // The reverse: lets a target become the new anchor (reference) when swapping.
@@ -7893,7 +8020,7 @@ function anchorShapeFromTarget(target){
   if(target.kind==='navPoint') return {kind:'navPoint', layerId:target.layerId, name:target.instanceName};
   if(target.kind==='reflector') return {kind:'reflector', layerId:target.layerId, index:target.index};
   if(target.kind==='controlPoint') return {kind:'controlPoint', layerId:target.layerId, nameA:target.nameA, nameB:target.nameB, which:target.which};
-  if(target.kind==='edge') return {kind:'edge', layerId:target.layerId, areaIndex:target.areaIndex, edgeKey:target.edgeKey};
+  if(target.kind==='edge') return {kind:'edge', layerId:target.layerId, areaIndex:target.areaIndex, areaKind:target.areaKind, edgeKey:target.edgeKey};
   return null;
 }
 function setRefFixed(ref, fixed){
@@ -8687,6 +8814,40 @@ function getSelectedAnnotation(){
   const anno = layer && layer.annotations && layer.annotations[sel.index];
   return anno ? {layer, anno} : null;
 }
+// In-memory only -- annotations never leave this app, so there's no need
+// to round-trip through the OS clipboard. Holds a deep clone with no `id`
+// (a fresh one is minted on paste).
+let annoClipboard = null;
+const ANNO_PASTE_OFFSET_M = 0.3;
+function copySelectedAnnotation(){
+  const found = getSelectedAnnotation();
+  if(!found) return;
+  const {id, ...rest} = found.anno;
+  annoClipboard = JSON.parse(JSON.stringify(rest));
+}
+function pasteAnnotation(){
+  if(!annoClipboard) return;
+  const layer = getEditableActiveLayer();
+  if(!layer) return;
+  layer.annotations = layer.annotations || [];
+  pushUndo(layer);
+  const clone = JSON.parse(JSON.stringify(annoClipboard));
+  clone.id = 'anno'+(annoIdCounter++);
+  if(clone.type==='text'){
+    clone.pos.x += ANNO_PASTE_OFFSET_M; clone.pos.y += ANNO_PASTE_OFFSET_M;
+  } else if(clone.type==='arrow'){
+    clone.from.x += ANNO_PASTE_OFFSET_M; clone.from.y += ANNO_PASTE_OFFSET_M;
+    clone.to.x += ANNO_PASTE_OFFSET_M; clone.to.y += ANNO_PASTE_OFFSET_M;
+  } else if(clone.type==='area'){
+    const rect = rectFromPosGroup(clone.posGroup);
+    clone.posGroup = posGroupFromRect(rect.cx+ANNO_PASTE_OFFSET_M, rect.cy+ANNO_PASTE_OFFSET_M, rect.w, rect.h, rect.rot);
+  }
+  layer.annotations.push(clone);
+  state.selectedAnnotation = {layerId:layer.id, index:layer.annotations.length-1};
+  scheduleAutosave();
+  renderAnnotationsPanel();
+  requestDraw();
+}
 function renderAnnotationsPanel(){
   document.getElementById('annoModeText').classList.toggle('active', state.annoMode==='text');
   document.getElementById('annoModeArea').classList.toggle('active', state.annoMode==='area');
@@ -8786,6 +8947,60 @@ function renderAnnotationsPanel(){
     checkField('Outline', anno.outline, (a,v)=>{ a.outline = v; });
     segField('Fill', ANNO_FILL_OPTS, anno.fill, (a,v)=>{ a.fill = v; });
     if(anno.fill!=='none') colorField('Fill color', anno.fillColor, (a,v)=>{ a.fillColor = v; });
+    // Same __locked flag and isAreaLocked() the Reflector Area tool's own
+    // "Lock position" checkbox uses -- blocks body/corner/rotate dragging
+    // only; the Dimension tool still works on a locked area either way.
+    checkField('Lock position', !!anno.__locked, (a,v)=>{ if(v) a.__locked = true; else delete a.__locked; });
+
+    // Edge selection/highlight mirrors the Reflector Area tool's own
+    // edge panel exactly (see renderAreaEdgePanel) -- same state shape
+    // (state.selectedAreaEdge), same unconstrained-edge messaging, same
+    // offset/Unpin controls once a constraint exists. A constraint is
+    // only ever created via the Dimension tool, never from here.
+    const divider = document.createElement('div');
+    divider.style.cssText = 'margin-top:10px; padding-top:8px; border-top:1px solid var(--border);';
+    const subLabel = document.createElement('div'); subLabel.className = 'label-sub';
+    const edgeSel = (state.selectedAreaEdge && state.selectedAreaEdge.areaKind==='annotation' && state.selectedAreaEdge.layerId===layer.id && state.selectedAreaEdge.areaIndex===state.selectedAnnotation.index) ? state.selectedAreaEdge : null;
+    subLabel.textContent = edgeSel ? ('Selected edge '+edgeSel.edgeKey) : 'Edge';
+    divider.appendChild(subLabel);
+    fieldsEl.appendChild(divider);
+    if(!edgeSel){
+      const hint = document.createElement('div'); hint.className = 'tool-hint'; hint.style.marginTop = '0';
+      hint.textContent = 'Click an edge (S/E/N/W border) to select it.';
+      fieldsEl.appendChild(hint);
+    } else {
+      const constraint = anno.__edgeConstraints && anno.__edgeConstraints[edgeSel.edgeKey];
+      if(!constraint){
+        const hint = document.createElement('div'); hint.className = 'tool-hint'; hint.style.marginTop = '0';
+        hint.textContent = 'Use the Dimension tool (D) to pin this edge to a point or another edge.';
+        fieldsEl.appendChild(hint);
+      } else {
+        const statLine = document.createElement('div'); statLine.className = 'stat-line';
+        const span = document.createElement('span'); span.textContent = 'Pinned to';
+        const b = document.createElement('b'); b.className = 'mono'; b.textContent = formatEdgeAnchorLabel(constraint);
+        statLine.append(span, b); fieldsEl.appendChild(statLine);
+        const offInput = document.createElement('input');
+        offInput.type = 'number'; offInput.step = '0.01'; offInput.value = Math.abs(constraint.offset).toFixed(3);
+        offInput.addEventListener('change', ()=>{
+          const v = parseFloat(offInput.value);
+          if(isNaN(v)){ renderAnnotationsPanel(); return; }
+          pushUndo(layer);
+          applyPositiveOffsetInput(constraint, v);
+          resolveAllConstraints();
+          scheduleAutosave(); requestDraw(); renderAnnotationsPanel();
+        });
+        row(constraint.axis==='x' ? 'dx' : 'dy', offInput);
+        const unpinBtn = document.createElement('button');
+        unpinBtn.className = 'btn'; unpinBtn.style.width = '100%'; unpinBtn.textContent = 'Unpin';
+        unpinBtn.addEventListener('click', ()=>{
+          pushUndo(layer);
+          delete anno.__edgeConstraints[edgeSel.edgeKey];
+          if(Object.keys(anno.__edgeConstraints).length===0) delete anno.__edgeConstraints;
+          scheduleAutosave(); requestDraw(); renderAnnotationsPanel();
+        });
+        fieldsEl.appendChild(unpinBtn);
+      }
+    }
   }
 }
 document.getElementById('annoModeText').addEventListener('click', ()=>{ state.annoMode='text'; renderAnnotationsPanel(); });
@@ -9484,7 +9699,7 @@ function resolveAnchorWorldValue(constraint, depth){
     return anchorValue + constraint.offset;
   }
   if(constraint.anchorKind==='edge'){
-    const found = getAreaByRef({layerId:constraint.anchorLayerId, areaIndex:constraint.anchorAreaIndex});
+    const found = getAreaByRef({layerId:constraint.anchorLayerId, areaIndex:constraint.anchorAreaIndex, areaKind:constraint.anchorAreaKind});
     if(!found) return null;
     const rect = rectFromPosGroup(found.area.posGroup);
     const anchorConstraint = found.area.__edgeConstraints && found.area.__edgeConstraints[constraint.anchorEdgeKey];
@@ -9521,8 +9736,8 @@ function constraintChainHitsTarget(constraint, target, depth){
   depth = depth||0;
   if(depth>20) return true; // treat runaway chains as a conflict, refuse
   if(constraint.anchorKind==='edge'){
-    if(target.kind==='edge' && constraint.anchorLayerId===target.layerId && constraint.anchorAreaIndex===target.areaIndex && constraint.anchorEdgeKey===target.edgeKey) return true;
-    const found = getAreaByRef({layerId:constraint.anchorLayerId, areaIndex:constraint.anchorAreaIndex});
+    if(target.kind==='edge' && constraint.anchorLayerId===target.layerId && (constraint.anchorAreaKind||'reflector')===(target.areaKind||'reflector') && constraint.anchorAreaIndex===target.areaIndex && constraint.anchorEdgeKey===target.edgeKey) return true;
+    const found = getAreaByRef({layerId:constraint.anchorLayerId, areaIndex:constraint.anchorAreaIndex, areaKind:constraint.anchorAreaKind});
     const next = found && found.area.__edgeConstraints && found.area.__edgeConstraints[constraint.anchorEdgeKey];
     return next ? constraintChainHitsTarget(next, target, depth+1) : false;
   }
@@ -9548,28 +9763,35 @@ function constraintChainHitsTarget(constraint, target, depth){
   return false;
 }
 
+// Moves one area's (reflector OR annotation) edges to satisfy whatever
+// distance constraints are pinned on it -- shared by both loops in
+// resolveAllConstraints below so the actual solving logic exists once.
+function resolveAreaEdgeConstraints(layer, area){
+  const constraints = area.__edgeConstraints;
+  if(!constraints) return;
+  let rect = rectFromPosGroup(area.posGroup);
+  let changed = false;
+  for(const edgeKey of ['S','E','N','W']){
+    const c = constraints[edgeKey];
+    if(!c) continue;
+    const target = resolveAnchorWorldValue(c);
+    if(target==null) continue;
+    const det = detectEdgeAxis(layer, rect, edgeKey);
+    const mid = det ? det.mid : edgeWorldEndpoints(layer, rect, edgeKey).reduce((a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2]);
+    const newRect = applyEdgeWorldTarget(layer, rect, edgeKey, c.axis, target, mid);
+    if(newRect){ rect = newRect; changed = true; }
+  }
+  if(changed) area.posGroup = posGroupFromRect(rect.cx, rect.cy, rect.w, rect.h, rect.rot);
+}
 function resolveAllConstraints(){
   for(const layer of state.layers){
     const list = layer.extra && layer.extra.advancedAreaList;
     if(Array.isArray(list)){
-      for(let ai=0; ai<list.length; ai++){
-        const area = list[ai];
-        const constraints = area.__edgeConstraints;
-        if(!constraints) continue;
-        let rect = rectFromPosGroup(area.posGroup);
-        let changed = false;
-        for(const edgeKey of ['S','E','N','W']){
-          const c = constraints[edgeKey];
-          if(!c) continue;
-          const target = resolveAnchorWorldValue(c);
-          if(target==null) continue;
-          const det = detectEdgeAxis(layer, rect, edgeKey);
-          const mid = det ? det.mid : edgeWorldEndpoints(layer, rect, edgeKey).reduce((a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2]);
-          const newRect = applyEdgeWorldTarget(layer, rect, edgeKey, c.axis, target, mid);
-          if(newRect){ rect = newRect; changed = true; }
-        }
-        if(changed) area.posGroup = posGroupFromRect(rect.cx, rect.cy, rect.w, rect.h, rect.rot);
-      }
+      for(const area of list) resolveAreaEdgeConstraints(layer, area);
+    }
+    const annoAreas = layer.annotations;
+    if(Array.isArray(annoAreas)){
+      for(const anno of annoAreas){ if(anno.type==='area') resolveAreaEdgeConstraints(layer, anno); }
     }
     const pts = layer.extra && layer.extra.advancedPointList;
     if(Array.isArray(pts)){
@@ -9670,16 +9892,38 @@ function findPickableAnchorAt(sx, sy, pxThreshold, excludeRef, requiredAxis){
     const areas = layer.extra && layer.extra.advancedAreaList;
     if(Array.isArray(areas)){
       for(let ai=0; ai<areas.length; ai++){
-        if(excludeRef && excludeRef.areaIndex!=null && excludeRef.layerId===layer.id && excludeRef.areaIndex===ai) continue;
         const rect = rectFromPosGroup(areas[ai].posGroup);
         for(const edgeKey of ['S','E','N','W']){
+          // Excludes only the exact edge just pinned as the target, not
+          // every edge of its area -- a different edge of the SAME area
+          // (e.g. the opposite side) is a perfectly valid anchor, needed
+          // to dimension an area's width/height by picking both of its
+          // own sides.
+          if(excludeRef && excludeRef.areaIndex!=null && excludeRef.layerId===layer.id && excludeRef.areaIndex===ai && (!excludeRef.areaKind || excludeRef.areaKind==='reflector') && excludeRef.edgeKey===edgeKey) continue;
           const det = detectEdgeAxis(layer, rect, edgeKey);
           if(!det || (requiredAxis!=null && det.axis!==requiredAxis)) continue;
           const [wa,wb] = edgeWorldEndpoints(layer, rect, edgeKey);
           const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
           const [sb0,sb1] = worldToScreen(wb[0],wb[1]);
           const d = distToSegmentScreen(sx,sy, sa0,sa1, sb0,sb1);
-          if(d<bestD){ bestD=d; best={kind:'edge', layerId:layer.id, areaIndex:ai, edgeKey, axis:det.axis, value:det.value}; }
+          if(d<bestD){ bestD=d; best={kind:'edge', layerId:layer.id, areaKind:'reflector', areaIndex:ai, edgeKey, axis:det.axis, value:det.value}; }
+        }
+      }
+    }
+    const annoAreas = layer.annotations;
+    if(Array.isArray(annoAreas)){
+      for(let ai=0; ai<annoAreas.length; ai++){
+        if(annoAreas[ai].type!=='area') continue;
+        const rect = rectFromPosGroup(annoAreas[ai].posGroup);
+        for(const edgeKey of ['S','E','N','W']){
+          if(excludeRef && excludeRef.areaIndex!=null && excludeRef.layerId===layer.id && excludeRef.areaIndex===ai && excludeRef.areaKind==='annotation' && excludeRef.edgeKey===edgeKey) continue;
+          const det = detectEdgeAxis(layer, rect, edgeKey);
+          if(!det || (requiredAxis!=null && det.axis!==requiredAxis)) continue;
+          const [wa,wb] = edgeWorldEndpoints(layer, rect, edgeKey);
+          const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
+          const [sb0,sb1] = worldToScreen(wb[0],wb[1]);
+          const d = distToSegmentScreen(sx,sy, sa0,sa1, sb0,sb1);
+          if(d<bestD){ bestD=d; best={kind:'edge', layerId:layer.id, areaKind:'annotation', areaIndex:ai, edgeKey, axis:det.axis, value:det.value}; }
         }
       }
     }
@@ -9799,7 +10043,28 @@ function findConstrainableTargetAt(sx, sy, pxThreshold){
           const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
           const [sb0,sb1] = worldToScreen(wb[0],wb[1]);
           const d = distToSegmentScreen(sx,sy, sa0,sa1, sb0,sb1);
-          if(d<bestD){ bestD=d; best={kind:'edge', layerId:layer.id, areaIndex:ai, edgeKey, axis:det.axis}; }
+          if(d<bestD){ bestD=d; best={kind:'edge', layerId:layer.id, areaKind:'reflector', areaIndex:ai, edgeKey, axis:det.axis}; }
+        }
+      }
+    }
+    // Same edge-pin support for Annotation Areas (layer.annotations,
+    // type:'area') -- same posGroup/rect shape as a reflector area, so
+    // detectEdgeAxis/edgeWorldEndpoints work unchanged; areaKind:'annotation'
+    // is the only thing that tells getAreaByRef (and everywhere else a
+    // ref gets resolved) which list to look in.
+    const annoAreas = layer.annotations;
+    if(Array.isArray(annoAreas)){
+      for(let ai=0; ai<annoAreas.length; ai++){
+        if(annoAreas[ai].type!=='area') continue;
+        const rect = rectFromPosGroup(annoAreas[ai].posGroup);
+        for(const edgeKey of ['S','E','N','W']){
+          const det = detectEdgeAxis(layer, rect, edgeKey);
+          if(!det) continue;
+          const [wa,wb] = edgeWorldEndpoints(layer, rect, edgeKey);
+          const [sa0,sa1] = worldToScreen(wa[0],wa[1]);
+          const [sb0,sb1] = worldToScreen(wb[0],wb[1]);
+          const d = distToSegmentScreen(sx,sy, sa0,sa1, sb0,sb1);
+          if(d<bestD){ bestD=d; best={kind:'edge', layerId:layer.id, areaKind:'annotation', areaIndex:ai, edgeKey, axis:det.axis}; }
         }
       }
     }
@@ -9929,7 +10194,11 @@ function collectGroupSelectMatches(){
   }
   if(groupSelAreas.checked){
     const areas = layer.extra && layer.extra.advancedAreaList;
-    if(Array.isArray(areas)) areas.forEach((a,i)=>out.push({kind:'area', layerId:layer.id, areaIndex:i}));
+    if(Array.isArray(areas)) areas.forEach((a,i)=>out.push({kind:'area', areaKind:'reflector', layerId:layer.id, areaIndex:i}));
+  }
+  if(groupSelAnnotations.checked){
+    const annos = layer.annotations;
+    if(Array.isArray(annos)) annos.forEach((a,i)=>{ if(a.type==='area') out.push({kind:'area', areaKind:'annotation', layerId:layer.id, areaIndex:i}); });
   }
   if(groupSelReflectors.checked) layer.reflectors.forEach((r,i)=>out.push({kind:'reflector', layerId:layer.id, index:i}));
   if(groupSelWalls.checked) layer.manualLines.forEach((l,i)=>out.push({kind:'line', layerId:layer.id, index:i}));
@@ -9967,8 +10236,8 @@ function applyGroupLock(locked){
       if(item.kind==='navPoint' || item.kind==='reflector'){
         setRefFixed({kind:item.kind, layerId, instanceName:item.instanceName, index:item.index}, locked);
       } else if(item.kind==='area'){
-        const obj = layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[item.areaIndex];
-        if(obj){ if(locked) obj.__locked = true; else delete obj.__locked; }
+        const found = getAreaByRef({layerId, areaIndex:item.areaIndex, areaKind:item.areaKind});
+        if(found){ if(locked) found.area.__locked = true; else delete found.area.__locked; }
       } else if(item.kind==='line'){
         const obj = layer.manualLines[item.index];
         if(obj){ if(locked) obj.__locked = true; else delete obj.__locked; }
@@ -9978,7 +10247,7 @@ function applyGroupLock(locked){
     }
   }
   resolveFixedPositions();
-  scheduleAutosave(); requestDraw(); renderDetailPanel(); renderAreaPanel(); renderNavPointPanel(); renderRelPanel();
+  scheduleAutosave(); requestDraw(); renderDetailPanel(); renderAreaPanel(); renderNavPointPanel(); renderRelPanel(); renderAnnotationsPanel();
 }
 btnGroupSelectAll.addEventListener('click', ()=>{
   state.groupSelection = collectGroupSelectMatches();
@@ -10002,8 +10271,11 @@ btnGroupDelete.addEventListener('click', ()=>{
         return !((a===item.nameA && b===item.nameB) || (a===item.nameB && b===item.nameA));
       });
     }
-    const areaObjs = items.filter(i=>i.kind==='area').map(i=>layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[i.areaIndex]).filter(Boolean);
-    if(areaObjs.length) removeAreasWithIndexFix(layer, a=>areaObjs.includes(a));
+    const areaItems = items.filter(i=>i.kind==='area');
+    const reflAreaObjs = areaItems.filter(i=>(i.areaKind||'reflector')==='reflector').map(i=>layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[i.areaIndex]).filter(Boolean);
+    if(reflAreaObjs.length) removeAreasWithIndexFix(layer, a=>reflAreaObjs.includes(a));
+    const annoAreaObjs = areaItems.filter(i=>i.areaKind==='annotation').map(i=>layer.annotations && layer.annotations[i.areaIndex]).filter(Boolean);
+    if(annoAreaObjs.length) removeAnnotationAreasWithIndexFix(layer, a=>annoAreaObjs.includes(a));
     const reflIdxSet = new Set(items.filter(i=>i.kind==='reflector').map(i=>i.index));
     if(reflIdxSet.size) removeReflectorsWithIndexFix(layer, (r,i)=>reflIdxSet.has(i));
     const lineIdxs = items.filter(i=>i.kind==='line').map(i=>i.index).sort((a,b)=>b-a);
@@ -10011,7 +10283,7 @@ btnGroupDelete.addEventListener('click', ()=>{
   }
   state.groupSelection = [];
   renderGroupSelectResult();
-  scheduleAutosave(); requestDraw(); renderDetailPanel(); renderAreaPanel(); renderNavPointPanel(); renderPathPanel();
+  scheduleAutosave(); requestDraw(); renderDetailPanel(); renderAreaPanel(); renderNavPointPanel(); renderPathPanel(); renderAnnotationsPanel();
 });
 // A visible highlight ring/outline for whatever the Select tool currently
 // has picked — a single Basic-select click, and/or the whole group-select
@@ -10040,7 +10312,8 @@ function drawSelectHighlights(){
       const [sx,sy] = worldToScreen(wx,wy);
       ctx.beginPath(); ctx.arc(sx,sy,14,0,Math.PI*2); ctx.stroke();
     } else if(item.kind==='area'){
-      const area = layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[item.areaIndex];
+      const found = getAreaByRef({layerId:item.layerId, areaIndex:item.areaIndex, areaKind:item.areaKind});
+      const area = found && found.area;
       if(!area || !Array.isArray(area.posGroup)) continue;
       ctx.beginPath();
       area.posGroup.forEach((p,i)=>{
@@ -10812,7 +11085,8 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     const rotHit = (rotHitIdx>=0 && rotHitIdx===selArea.areaIndex) ? rotHitIdx : -1;
     const vHit = (!locked && rotHit<0 && selArea && selArea.areaIndex!=null) ? findAreaVertexAt(layer, sx, sy, 12) : null;
     const vHitMatchesSelected = vHit && vHit.areaIndex===selArea.areaIndex;
-    const edgeHit = (rotHit<0 && !vHitMatchesSelected) ? findAreaEdgeAt(layer, sx, sy, 8) : null;
+    const edgeHitRaw = (rotHit<0 && !vHitMatchesSelected) ? findAreaEdgeAt(layer, sx, sy, 8) : null;
+    const edgeHit = (edgeHitRaw && edgeHitRaw.areaKind==='reflector') ? edgeHitRaw : null;
 
     if(rotHit>=0){
       const area = layer.extra.advancedAreaList[rotHit];
@@ -10832,7 +11106,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     } else if(edgeHit){
       const area = layer.extra.advancedAreaList[edgeHit.areaIndex];
       state.selectedArea = {layerId:layer.id, groupId:area.__group, areaIndex:edgeHit.areaIndex};
-      state.selectedAreaEdge = {layerId:layer.id, areaIndex:edgeHit.areaIndex, edgeKey:edgeHit.edgeKey};
+      state.selectedAreaEdge = {layerId:layer.id, areaIndex:edgeHit.areaIndex, areaKind:'reflector', edgeKey:edgeHit.edgeKey};
       renderAreaPanel();
     } else {
       const areaIdx = findAreaBodyAt(layer, sx, sy);
@@ -10868,7 +11142,11 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     // regardless of which sub-mode button happens to be armed.
     layer.annotations = layer.annotations || [];
     const sel = (state.selectedAnnotation && state.selectedAnnotation.layerId===layer.id) ? layer.annotations[state.selectedAnnotation.index] : null;
-    const handleHit = sel ? findAnnotationHandleAt(layer, sel, sx, sy, 10) : null;
+    // isAreaLocked is reused unchanged from the Reflector Area tool -- same
+    // semantics: a locked area's body/corners/rotate handle can't be
+    // dragged, but it's still selectable and the Dimension tool still
+    // works on it (edge-click-to-select below never checks this).
+    const handleHit = (sel && !(sel.type==='area' && isAreaLocked(sel))) ? findAnnotationHandleAt(layer, sel, sx, sy, 10) : null;
     if(handleHit){
       pushUndo(layer);
       if(sel.type==='area' && handleHit.kind==='rotate'){
@@ -10885,14 +11163,28 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       }
       dragging = true;
     } else {
+      const annoEdgeHitRaw = findAreaEdgeAt(layer, sx, sy, 8);
+      const annoEdgeHit = (annoEdgeHitRaw && annoEdgeHitRaw.areaKind==='annotation') ? annoEdgeHitRaw : null;
+      if(annoEdgeHit){
+        state.selectedAnnotation = {layerId:layer.id, index:annoEdgeHit.areaIndex};
+        state.selectedAreaEdge = {layerId:layer.id, areaIndex:annoEdgeHit.areaIndex, areaKind:'annotation', edgeKey:annoEdgeHit.edgeKey};
+        renderAnnotationsPanel();
+        requestDraw();
+        return;
+      }
       const hit = findAnnotationAt(layer, sx, sy, 12);
       if(hit){
         state.selectedAnnotation = {layerId:layer.id, index:hit.index};
-        pushUndo(layer);
-        state.annoAction = {type:'move', layerId:layer.id, index:hit.index, lastWorld:screenToWorld(sx,sy)};
-        dragging = true;
+        state.selectedAreaEdge = null;
+        const hitAnno = layer.annotations[hit.index];
+        if(!(hitAnno.type==='area' && isAreaLocked(hitAnno))){
+          pushUndo(layer);
+          state.annoAction = {type:'move', layerId:layer.id, index:hit.index, lastWorld:screenToWorld(sx,sy)};
+          dragging = true;
+        }
       } else {
         state.selectedAnnotation = null;
+        state.selectedAreaEdge = null;
         const [wx,wy] = screenToWorld(sx,sy);
         if(state.annoMode==='text'){
           pushUndo(layer);
@@ -10930,7 +11222,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     }
     let target = state.distTarget;
     let excludeRef = {layerId:target.layerId};
-    if(target.kind==='edge') excludeRef.areaIndex = target.areaIndex;
+    if(target.kind==='edge'){ excludeRef.areaIndex = target.areaIndex; excludeRef.areaKind = target.areaKind; excludeRef.edgeKey = target.edgeKey; }
     else if(target.kind==='reflector') excludeRef.reflectorIndex = target.index;
     else if(target.kind==='controlPoint'){ excludeRef.cpNameA = target.nameA; excludeRef.cpNameB = target.nameB; excludeRef.cpWhich = target.which; }
     else excludeRef.instanceName = target.instanceName;
@@ -10977,9 +11269,13 @@ canvasEl.addEventListener('pointerdown', (e)=>{
           } else {
             resolveAllConstraints();
             if(target.kind==='edge'){
-              const found = getAreaByRef({layerId:target.layerId, areaIndex:target.areaIndex});
-              state.selectedArea = {layerId:target.layerId, groupId:found.area.__group, areaIndex:target.areaIndex};
-              state.selectedAreaEdge = {layerId:target.layerId, areaIndex:target.areaIndex, edgeKey:target.edgeKey};
+              if((target.areaKind||'reflector')==='annotation'){
+                state.selectedAnnotation = {layerId:target.layerId, index:target.areaIndex};
+              } else {
+                const found = getAreaByRef({layerId:target.layerId, areaIndex:target.areaIndex, areaKind:target.areaKind});
+                state.selectedArea = {layerId:target.layerId, groupId:found.area.__group, areaIndex:target.areaIndex};
+                state.selectedAreaEdge = {layerId:target.layerId, areaIndex:target.areaIndex, edgeKey:target.edgeKey};
+              }
             } else if(target.kind==='navPoint'){
               state.selectedNavPoint = {layerId:target.layerId, instanceName:target.instanceName};
               state.selectedPath = null;
@@ -10993,7 +11289,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
           state.distTarget = null;
           state.distPickHover = null;
           updateDistHint();
-          renderAreaPanel(); renderNavPointPanel(); renderPathPanel(); requestDraw();
+          renderAreaPanel(); renderNavPointPanel(); renderPathPanel(); renderAnnotationsPanel(); requestDraw();
           confirmed = true;
         }
       }
@@ -11154,7 +11450,7 @@ canvasEl.addEventListener('pointermove', (e)=>{
   if(state.tool==='dist' && state.distTarget){
     const target = state.distTarget;
     const excludeRef = {layerId:target.layerId};
-    if(target.kind==='edge') excludeRef.areaIndex = target.areaIndex;
+    if(target.kind==='edge'){ excludeRef.areaIndex = target.areaIndex; excludeRef.areaKind = target.areaKind; excludeRef.edgeKey = target.edgeKey; }
     else if(target.kind==='reflector') excludeRef.reflectorIndex = target.index;
     else if(target.kind==='controlPoint'){ excludeRef.cpNameA = target.nameA; excludeRef.cpNameB = target.nameB; excludeRef.cpWhich = target.which; }
     else excludeRef.instanceName = target.instanceName;
@@ -11183,12 +11479,21 @@ canvasEl.addEventListener('pointermove', (e)=>{
         if(v && v.areaIndex===selArea.areaIndex) vHit = v;
       }
     }
-    const edgeHit = (hoverLayer && rotHit<0 && !(vHit && vHit.areaIndex===(selArea&&selArea.areaIndex))) ? findAreaEdgeAt(hoverLayer, sx, sy, 8) : null;
-    const edgeHitTagged = edgeHit && hoverLayer ? {layerId:hoverLayer.id, areaIndex:edgeHit.areaIndex, edgeKey:edgeHit.edgeKey} : null;
+    const edgeHitRaw = (hoverLayer && rotHit<0 && !(vHit && vHit.areaIndex===(selArea&&selArea.areaIndex))) ? findAreaEdgeAt(hoverLayer, sx, sy, 8) : null;
+    const edgeHit = (edgeHitRaw && edgeHitRaw.areaKind==='reflector') ? edgeHitRaw : null;
+    const edgeHitTagged = edgeHit && hoverLayer ? {layerId:hoverLayer.id, areaIndex:edgeHit.areaIndex, areaKind:'reflector', edgeKey:edgeHit.edgeKey} : null;
     if(JSON.stringify(vHit)!==JSON.stringify(state.hoverAreaVertex) || rotHit!==state.hoverAreaRotate || JSON.stringify(edgeHitTagged)!==JSON.stringify(state.hoverAreaEdge)){
       state.hoverAreaVertex = vHit; state.hoverAreaRotate = rotHit; state.hoverAreaEdge = edgeHitTagged; requestDraw();
     }
-  } else if(state.tool!=='area' && (state.hoverAreaVertex || state.hoverAreaRotate>=0 || state.hoverAreaEdge)){
+  } else if(state.tool==='annotate' && !dragging){
+    const hoverLayer = getEditableActiveLayer();
+    const annoEdgeHitRaw = hoverLayer ? findAreaEdgeAt(hoverLayer, sx, sy, 8) : null;
+    const annoEdgeHit = (annoEdgeHitRaw && annoEdgeHitRaw.areaKind==='annotation') ? annoEdgeHitRaw : null;
+    const edgeHitTagged = annoEdgeHit && hoverLayer ? {layerId:hoverLayer.id, areaIndex:annoEdgeHit.areaIndex, areaKind:'annotation', edgeKey:annoEdgeHit.edgeKey} : null;
+    if(JSON.stringify(edgeHitTagged)!==JSON.stringify(state.hoverAreaEdge)){
+      state.hoverAreaEdge = edgeHitTagged; requestDraw();
+    }
+  } else if(state.tool!=='area' && state.tool!=='annotate' && (state.hoverAreaVertex || state.hoverAreaRotate>=0 || state.hoverAreaEdge)){
     state.hoverAreaVertex = null; state.hoverAreaRotate = -1; state.hoverAreaEdge = null;
   }
 
@@ -11729,13 +12034,15 @@ document.addEventListener('keydown', (e)=>{
 
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z' && !isTextField){ undo(); e.preventDefault(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s' && !isTextField){ saveProject(); e.preventDefault(); return; }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='c' && !isTextField && state.tool==='annotate'){ copySelectedAnnotation(); e.preventDefault(); return; }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='v' && !isTextField && state.tool==='annotate'){ pasteAnnotation(); e.preventDefault(); return; }
   if(tag==='input' || tag==='textarea') return;
   if(e.code==='Space' && state.tool!=='pan'){ state.prevTool=state.tool; setTool('pan'); e.preventDefault(); return; }
   if(e.key==='Escape' && state.measure){ state.measure = null; requestDraw(); return; }
   if(e.key==='Escape' && state.distTarget){ state.distTarget = null; state.distPickHover = null; updateDistHint(); requestDraw(); return; }
   if(e.key==='Enter' && state.distTarget && state.distTarget.kind==='edge'){
     const target = state.distTarget;
-    const found = getAreaByRef({layerId:target.layerId, areaIndex:target.areaIndex});
+    const found = getAreaByRef({layerId:target.layerId, areaIndex:target.areaIndex, areaKind:target.areaKind});
     if(found){
       const rect = rectFromPosGroup(found.area.posGroup);
       const det = detectEdgeAxis(found.layer, rect, target.edgeKey);
@@ -11744,7 +12051,7 @@ document.addEventListener('keydown', (e)=>{
         const [wa,wb] = edgeWorldEndpoints(found.layer, rect, target.edgeKey);
         const [sx,sy] = worldToScreen((wa[0]+wb[0])/2, (wa[1]+wb[1])/2);
         state.distTarget = null; state.distPickHover = null; updateDistHint();
-        openAreaSizeInlineEdit(target.layerId, target.areaIndex, det.axis, sx, sy, currentSize);
+        openAreaSizeInlineEdit(target.layerId, target.areaIndex, target.areaKind, det.axis, sx, sy, currentSize);
         e.preventDefault(); requestDraw(); return;
       }
     }
@@ -11758,7 +12065,7 @@ document.addEventListener('keydown', (e)=>{
   if(e.key==='Escape' && state.pathPatternArm){ state.pathPatternArm = null; renderPatternPanel(); renderPathPanel(); requestDraw(); return; }
   if(e.key==='Escape' && Array.isArray(state.splitQuad)){ clearSplitQuad(); return; }
   if(e.key==='Escape' && state.tool==='annotate' && (state.annoDraft || state.selectedAnnotation)){
-    state.annoDraft = null; state.annoAction = null; state.selectedAnnotation = null;
+    state.annoDraft = null; state.annoAction = null; state.selectedAnnotation = null; state.selectedAreaEdge = null;
     renderAnnotationsPanel(); requestDraw(); return;
   }
   if(e.key==='Enter' && Array.isArray(state.splitQuad) && state.tool==='boxsplit'){
@@ -11875,6 +12182,21 @@ function keyLabel(k){
   if(k.length>1) return k;
   return k.toUpperCase();
 }
+// Keeps each toolbar button's own "(X)" suffix in sync with KEYMAP,
+// independent of the Shortcuts panel's own list (which only exists while
+// that popover is open) -- the toolbar buttons are always on screen, so a
+// rebind should be reflected there immediately, and a custom keymap saved
+// in an earlier session (before this existed) needs the same refresh once
+// at startup, not just after a fresh rebind in THIS session.
+function updateToolButtonLabels(){
+  for(const action of TOOL_KEY_ACTIONS){
+    const btn = document.querySelector('.tool-btn[data-tool="'+action+'"]');
+    const labelEl = btn && btn.querySelector('.tool-btn-label');
+    if(!labelEl) continue;
+    const base = labelEl.textContent.replace(/\s*\([^)]*\)\s*$/, '');
+    labelEl.textContent = base+' ('+keyLabel(KEYMAP[action])+')';
+  }
+}
 function renderShortcutsList(){
   shortcutsListEl.innerHTML = '';
   for(const action of Object.keys(KEYMAP_DEFAULTS)){
@@ -11915,6 +12237,7 @@ function applyRebind(action, key){
   rebindingAction = null;
   shortcutsConflictMsgEl.hidden = true;
   renderShortcutsList();
+  updateToolButtonLabels();
 }
 // Capture phase + stopImmediatePropagation so a key pressed while listening
 // is consumed here only — it must never also reach the main dispatch
@@ -11947,6 +12270,7 @@ document.getElementById('btnShortcutsReset').addEventListener('click', ()=>{
   saveKeymap();
   rebindingAction = null;
   renderShortcutsList();
+  updateToolButtonLabels();
 });
 document.getElementById('btnShortcutsExport').addEventListener('click', ()=>{
   downloadJSON(KEYMAP, 'smap_editor_shortcuts_'+Date.now()+'.json');
@@ -11970,6 +12294,7 @@ document.getElementById('fileInputShortcuts').addEventListener('change', (e)=>{
       }
       saveKeymap();
       renderShortcutsList();
+      updateToolButtonLabels();
       if(!imported) alert('No recognized shortcut keys found in that file.');
     }catch(err){ alert('Could not parse shortcuts file: '+err.message); }
   };
@@ -11977,6 +12302,7 @@ document.getElementById('fileInputShortcuts').addEventListener('change', (e)=>{
   e.target.value = '';
 });
 renderShortcutsList();
+updateToolButtonLabels();
 
 const ro = new ResizeObserver(()=>{ resizeCanvas(); requestDraw(); });
 ro.observe(mainEl);
