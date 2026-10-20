@@ -724,8 +724,10 @@
           <div class="field-row"><label for="gridSelDy">dy</label><input type="number" id="gridSelDy" step="0.01"></div>
           <div class="field-row"><label for="gridSelCountX">Columns</label><input type="number" id="gridSelCountX" step="1" min="1"></div>
           <div class="field-row"><label for="gridSelCountY">Rows</label><input type="number" id="gridSelCountY" step="1" min="1"></div>
+          <div class="stat-line"><span>Overridden rows/cols</span><b id="gridSelOverrideCount" class="mono"></b></div>
           <div class="stat-line"><span>Skipped cells</span><b id="gridSelSkipCount" class="mono"></b></div>
-          <button class="btn" id="btnGridSelUnskipAll" style="width:100%; margin-top:8px;">Un-skip all cells</button>
+          <button class="btn" id="btnGridSelResetOverrides" style="width:100%; margin-top:8px;">Reset row/col overrides</button>
+          <button class="btn" id="btnGridSelUnskipAll" style="width:100%; margin-top:6px;">Un-skip all cells</button>
           <button class="btn danger" id="btnGridSelDelete" style="width:100%; margin-top:6px;">Delete grid pattern</button>
         </div>
         <div id="pathPatBox" hidden>
@@ -1225,6 +1227,7 @@ const state = {
   draggingPatternInstance: null,
   gridPatterns: [],
   selectedGridPattern: null,
+  draggingGridCell: null,
   patMenuFor: null,
   annoMode: 'text',          // which sub-mode (text/area/arrow) the Annotate tool is armed with
   selectedAnnotation: null,  // {layerId, index} of the currently selected annotation
@@ -4406,6 +4409,9 @@ function matchesSelectedDimension(kind, layerId, extra){
   if(kind==='reflector') return s.index===extra.index && s.axis===extra.axis;
   if(kind==='controlPoint') return s.nameA===extra.nameA && s.nameB===extra.nameB && s.which===extra.which && s.axis===extra.axis;
   if(kind==='patternStep') return s.patId===extra.patId && s.index===extra.index && s.axis===extra.axis;
+  if(kind==='gridColStep') return s.gridId===extra.gridId && s.col===extra.col;
+  if(kind==='gridRowStep') return s.gridId===extra.gridId && s.row===extra.row;
+  if(kind==='gridCol0' || kind==='gridRow0') return s.gridId===extra.gridId;
   return s.instanceName===extra.instanceName && s.axis===extra.axis;
 }
 
@@ -4547,6 +4553,71 @@ function drawDimensionAnnotations(){
           if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, patId:pat.id, patIndex:i, axis:'y'});
         }
         prevWorld = world;
+      }
+    }
+    for(const grid of state.gridPatterns){
+      const layer = getLayer(grid.layerId);
+      if(!layer || !layer.visible) continue;
+      const seedPt = findNavPointByName(layer, grid.seedName);
+      if(!seedPt) continue;
+      const seedWorld = layerToWorld(layer, seedPt.pos.x, seedPt.pos.y);
+      // One label per overridden column step, drawn along row 0 — the step
+      // applies to every row at once, so drawing it per-row would just
+      // repeat the same label countY times.
+      for(let c=1; c<grid.countX; c++){
+        const stepOverride = grid.colSteps[c];
+        if(stepOverride==null) continue;
+        const cell = grid.cells[gridCellKey(0,c)];
+        if(!cell || cell.skipped) continue;
+        const pt = findNavPointByName(layer, cell.name);
+        if(!pt) continue;
+        const world = layerToWorld(layer, pt.pos.x, pt.pos.y);
+        const prevWorld = c===1 ? seedWorld : gridCellWorldTarget(grid, seedWorld, 0, c-1);
+        const isSel = matchesSelectedDimension('gridColStep', layer.id, {gridId:grid.id, col:c});
+        const label = Math.abs(stepOverride).toFixed(3);
+        const {box, lineA, lineB} = drawCadDimension('x', world, prevWorld, 24, label, isSel?selColor:PAT_OVERRIDE_COLOR, 0.5);
+        if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, gridId:grid.id, gridCol:c});
+      }
+      // Same idea for row steps, drawn along column 0.
+      for(let r=1; r<grid.countY; r++){
+        const stepOverride = grid.rowSteps[r];
+        if(stepOverride==null) continue;
+        const cell = grid.cells[gridCellKey(r,0)];
+        if(!cell || cell.skipped) continue;
+        const pt = findNavPointByName(layer, cell.name);
+        if(!pt) continue;
+        const world = layerToWorld(layer, pt.pos.x, pt.pos.y);
+        const prevWorld = r===1 ? seedWorld : gridCellWorldTarget(grid, seedWorld, r-1, 0);
+        const isSel = matchesSelectedDimension('gridRowStep', layer.id, {gridId:grid.id, row:r});
+        const label = Math.abs(stepOverride).toFixed(3);
+        const {box, lineA, lineB} = drawCadDimension('y', world, prevWorld, 24, label, isSel?selColor:PAT_OVERRIDE_COLOR, 0.5);
+        if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, gridId:grid.id, gridRow:r});
+      }
+      // col0/row0 overrides are absolute from the seed, so their label
+      // compares straight against seedWorld rather than a "previous" cell.
+      if(grid.colOverride0!=null){
+        let repCell = null;
+        for(let r=1; r<grid.countY; r++){ const c=grid.cells[gridCellKey(r,0)]; if(c && !c.skipped){ repCell=c; break; } }
+        const pt = repCell && findNavPointByName(layer, repCell.name);
+        if(pt){
+          const world = layerToWorld(layer, pt.pos.x, pt.pos.y);
+          const isSel = matchesSelectedDimension('gridCol0', layer.id, {gridId:grid.id});
+          const label = Math.abs(grid.colOverride0).toFixed(3);
+          const {box, lineA, lineB} = drawCadDimension('x', world, seedWorld, 24, label, isSel?selColor:PAT_OVERRIDE_COLOR, 0.5);
+          if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, gridId:grid.id, gridCol0:true});
+        }
+      }
+      if(grid.rowOverride0!=null){
+        let repCell = null;
+        for(let c=1; c<grid.countX; c++){ const cc=grid.cells[gridCellKey(0,c)]; if(cc && !cc.skipped){ repCell=cc; break; } }
+        const pt = repCell && findNavPointByName(layer, repCell.name);
+        if(pt){
+          const world = layerToWorld(layer, pt.pos.x, pt.pos.y);
+          const isSel = matchesSelectedDimension('gridRow0', layer.id, {gridId:grid.id});
+          const label = Math.abs(grid.rowOverride0).toFixed(3);
+          const {box, lineA, lineB} = drawCadDimension('y', world, seedWorld, 24, label, isSel?selColor:PAT_OVERRIDE_COLOR, 0.5);
+          if(box) state.dimLabelHitboxes.push({x:box.x, y:box.y, w:box.w, h:box.h, lineA, lineB, layerId:layer.id, gridId:grid.id, gridRow0:true});
+        }
       }
     }
   }
@@ -4889,6 +4960,45 @@ function openInlineEditForLabelHit(labelHit, sx, sy){
     openDimInlineEdit(ref, sx, sy, cur, false);
     return true;
   }
+  if(labelHit.gridId!=null){
+    const grid = state.gridPatterns.find(g=>g.id===labelHit.gridId);
+    if(!grid) return false;
+    if(labelHit.gridCol!=null){
+      const cur = grid.colSteps[labelHit.gridCol];
+      if(cur==null) return false;
+      const ref = {kind:'gridColStep', layerId:labelHit.layerId, gridId:grid.id, col:labelHit.gridCol};
+      state.selectedGridPattern = grid.id;
+      renderPatternPanel();
+      openDimInlineEdit(ref, sx, sy, cur, false);
+      return true;
+    }
+    if(labelHit.gridRow!=null){
+      const cur = grid.rowSteps[labelHit.gridRow];
+      if(cur==null) return false;
+      const ref = {kind:'gridRowStep', layerId:labelHit.layerId, gridId:grid.id, row:labelHit.gridRow};
+      state.selectedGridPattern = grid.id;
+      renderPatternPanel();
+      openDimInlineEdit(ref, sx, sy, cur, false);
+      return true;
+    }
+    if(labelHit.gridCol0){
+      if(grid.colOverride0==null) return false;
+      const ref = {kind:'gridCol0', layerId:labelHit.layerId, gridId:grid.id};
+      state.selectedGridPattern = grid.id;
+      renderPatternPanel();
+      openDimInlineEdit(ref, sx, sy, grid.colOverride0, false);
+      return true;
+    }
+    if(labelHit.gridRow0){
+      if(grid.rowOverride0==null) return false;
+      const ref = {kind:'gridRow0', layerId:labelHit.layerId, gridId:grid.id};
+      state.selectedGridPattern = grid.id;
+      renderPatternPanel();
+      openDimInlineEdit(ref, sx, sy, grid.rowOverride0, false);
+      return true;
+    }
+    return false;
+  }
   return false;
 }
 
@@ -4936,6 +5046,40 @@ function commitDimInlineEdit(){
         }
       }
       resolveAllPatterns();
+      scheduleAutosave();
+      renderPatternPanel();
+    }
+    closeDimInlineEdit();
+    requestDraw();
+    return;
+  }
+  if(edit.targetRef.kind==='gridColStep' || edit.targetRef.kind==='gridRowStep' || edit.targetRef.kind==='gridCol0' || edit.targetRef.kind==='gridRow0'){
+    const ref = edit.targetRef;
+    const grid = state.gridPatterns.find(g=>g.id===ref.gridId);
+    if(grid){
+      const layer = getLayer(grid.layerId);
+      if(layer) pushUndo(layer);
+      const v = raw==='' ? null : parseFloat(raw);
+      if(ref.kind==='gridColStep'){
+        if(v==null) delete grid.colSteps[ref.col];
+        else if(!isNaN(v)){
+          const curEff = grid.colSteps[ref.col]!=null ? grid.colSteps[ref.col] : grid.dx;
+          grid.colSteps[ref.col] = round3((curEff<0?-1:1)*Math.abs(v));
+        }
+      } else if(ref.kind==='gridRowStep'){
+        if(v==null) delete grid.rowSteps[ref.row];
+        else if(!isNaN(v)){
+          const curEff = grid.rowSteps[ref.row]!=null ? grid.rowSteps[ref.row] : grid.dy;
+          grid.rowSteps[ref.row] = round3((curEff<0?-1:1)*Math.abs(v));
+        }
+      } else if(ref.kind==='gridCol0'){
+        if(v==null) grid.colOverride0 = null;
+        else if(!isNaN(v)) grid.colOverride0 = round3(((grid.colOverride0||0)<0?-1:1)*Math.abs(v));
+      } else if(ref.kind==='gridRow0'){
+        if(v==null) grid.rowOverride0 = null;
+        else if(!isNaN(v)) grid.rowOverride0 = round3(((grid.rowOverride0||0)<0?-1:1)*Math.abs(v));
+      }
+      resolveAllGridPatterns();
       scheduleAutosave();
       renderPatternPanel();
     }
@@ -7612,14 +7756,34 @@ function prunePatterns(){
 // ---------------- grid patterns (nav points only, a different object from
 // linear patterns) ----------------
 // state.gridPatterns is a flat list of {id, layerId, seedName, dx, dy,
-// countX, countY, cells}. cells is a sparse map keyed by "row,col" (row 0..
-// countY-1, col 0..countX-1); (0,0) is always the seed itself and never has
-// a cells entry. Unlike a linear pattern's chain, a cell's position depends
-// only on its own (row,col) and the grid's global dx/dy — skipping one cell
-// never shifts any other, since there's no cascade to break.
+// countX, countY, cells, colOverride0, rowOverride0, colSteps, rowSteps}.
+// cells is a sparse map keyed by "row,col" (row 0..countY-1, col 0..countX-1);
+// (0,0) is always the seed itself and never has a cells entry.
+//
+// Column 0 and row 0 are special: they can't participate in a cascade
+// (nothing precedes them), so colOverride0/rowOverride0 are independent
+// ABSOLUTE offsets from the seed, defaulting to 0. Columns 1+ and rows 1+
+// instead cascade like a linear pattern's chain — colSteps[c]/rowSteps[r]
+// override just the (c-1)->c / (r-1)->r step (default grid.dx/dy), and that
+// shift carries into every later column/row, which then resumes normal
+// spacing. Critically, this cascade is always anchored to the seed's TRUE
+// position, ignoring wherever colOverride0/rowOverride0 put column 0 / row 0
+// — dragging row 0 never moves row 1+, and vice versa.
 function gridCellKey(row, col){ return row+','+col; }
+function colOffsetX(grid, col){
+  if(col===0) return grid.colOverride0!=null ? grid.colOverride0 : 0;
+  let sum = 0;
+  for(let c=1; c<=col; c++) sum += (grid.colSteps[c]!=null ? grid.colSteps[c] : grid.dx);
+  return sum;
+}
+function rowOffsetY(grid, row){
+  if(row===0) return grid.rowOverride0!=null ? grid.rowOverride0 : 0;
+  let sum = 0;
+  for(let r=1; r<=row; r++) sum += (grid.rowSteps[r]!=null ? grid.rowSteps[r] : grid.dy);
+  return sum;
+}
 function gridCellWorldTarget(grid, seedWorld, row, col){
-  return [seedWorld[0] + col*grid.dx, seedWorld[1] + row*grid.dy];
+  return [seedWorld[0] + colOffsetX(grid, col), seedWorld[1] + rowOffsetY(grid, row)];
 }
 function appendGridCell(grid, layer, row, col){
   const name = createInstancePointFromSeed(layer, grid.seedName);
@@ -7629,7 +7793,8 @@ function appendGridCell(grid, layer, row, col){
 }
 let gridIdCounter = 1;
 function createGridPattern(layer, seedName, dx, dy, countX, countY){
-  const grid = {id:'grid'+(gridIdCounter++), layerId:layer.id, seedName, dx, dy, countX:0, countY:0, cells:{}};
+  const grid = {id:'grid'+(gridIdCounter++), layerId:layer.id, seedName, dx, dy, countX:0, countY:0, cells:{},
+    colOverride0:null, rowOverride0:null, colSteps:{}, rowSteps:{}};
   state.gridPatterns.push(grid);
   setGridPatternSize(grid, countX, countY, layer);
   return grid;
@@ -9169,6 +9334,9 @@ function renderPatternPanel(){
     const total = grid.countX*grid.countY - 1;
     const skippedCount = Object.values(grid.cells).filter(c=>c.skipped).length;
     document.getElementById('gridSelSkipCount').textContent = skippedCount+' / '+total;
+    const overriddenCount = (grid.colOverride0!=null?1:0) + (grid.rowOverride0!=null?1:0)
+      + Object.keys(grid.colSteps).length + Object.keys(grid.rowSteps).length;
+    document.getElementById('gridSelOverrideCount').textContent = overriddenCount;
   }
   renderPathPatternToolPanel();
 }
@@ -9448,6 +9616,13 @@ let gridFieldsUndoPushed = false;
     setGridPatternSize(grid, cx, cy, layer);
     renderPatternPanel(); renderNavPointPanel(); scheduleAutosave(); requestDraw();
   });
+});
+document.getElementById('btnGridSelResetOverrides').addEventListener('click', ()=>{
+  const grid = state.gridPatterns.find(g=>g.id===state.selectedGridPattern); if(!grid) return;
+  const layer = getLayer(grid.layerId); if(layer) pushUndo(layer);
+  grid.colOverride0 = null; grid.rowOverride0 = null; grid.colSteps = {}; grid.rowSteps = {};
+  resolveAllGridPatterns();
+  renderPatternPanel(); scheduleAutosave(); requestDraw();
 });
 document.getElementById('btnGridSelUnskipAll').addEventListener('click', ()=>{
   const grid = state.gridPatterns.find(g=>g.id===state.selectedGridPattern); if(!grid) return;
@@ -11433,6 +11608,12 @@ canvasEl.addEventListener('pointerdown', (e)=>{
         state.selectedGridPattern = foundGrid.grid.id;
         state.selectedPattern = null;
         state.patDraft = null;
+        if(foundGrid.role==='cell'){
+          pushUndo(layer);
+          const [wx0, wy0] = screenToWorld(sx, sy);
+          state.draggingGridCell = {gridId:foundGrid.grid.id, row:foundGrid.row, col:foundGrid.col, startWorld:[wx0,wy0]};
+          dragging = true;
+        }
       } else {
         state.patDraft = {layerId:layer.id, seedName:hit.instanceName, type:'linear', follow:'axis', axis:'x', dx:1, dy:0, count:3, connected:false, connectDirection:'both', gridDx:1, gridDy:1, countX:3, countY:3, wall:null};
         state.selectedPattern = null;
@@ -11719,6 +11900,28 @@ canvasEl.addEventListener('pointermove', (e)=>{
         requestDraw();
       }
     }
+  } else if(state.tool==='pattern' && state.draggingGridCell && layer){
+    const {gridId, row, col, startWorld} = state.draggingGridCell;
+    const grid = state.gridPatterns.find(g=>g.id===gridId);
+    const seedPt = grid && findNavPointByName(layer, grid.seedName);
+    if(grid && seedPt){
+      const seedWorld = layerToWorld(layer, seedPt.pos.x, seedPt.pos.y);
+      // Locks to whichever axis has moved more (cumulatively, from where the
+      // drag started) rather than letting the cell move freely — re-evaluated
+      // every move, so a drag that bends partway through can still flip once,
+      // but a roughly-straight drag stays on one axis the whole time.
+      const totalDx = wx - startWorld[0], totalDy = wy - startWorld[1];
+      if(Math.abs(totalDx) >= Math.abs(totalDy)){
+        if(col===0) grid.colOverride0 = round3(wx - seedWorld[0]);
+        else grid.colSteps[col] = round3(wx - (seedWorld[0] + colOffsetX(grid, col-1)));
+      } else {
+        if(row===0) grid.rowOverride0 = round3(wy - seedWorld[1]);
+        else grid.rowSteps[row] = round3(wy - (seedWorld[1] + rowOffsetY(grid, row-1)));
+      }
+      resolveAllGridPatterns();
+      renderPatternPanel();
+      requestDraw();
+    }
   } else if(state.tool==='area' && state.areaAction && layer){
     const action = state.areaAction;
     const areaList = layer.extra && layer.extra.advancedAreaList;
@@ -11937,6 +12140,10 @@ function endPointer(e){
   }
   if(state.tool==='pattern' && state.draggingPatternInstance){
     state.draggingPatternInstance = null;
+    scheduleAutosave();
+  }
+  if(state.tool==='pattern' && state.draggingGridCell){
+    state.draggingGridCell = null;
     scheduleAutosave();
   }
   if(state.tool==='area' && state.areaAction){
@@ -12700,6 +12907,12 @@ function loadProjectData(data){
   state.patDraft = null;
   patIdCounter = Math.max(patIdCounter, resyncIdsAndDedupe(state.patterns, 'pat'));
   state.gridPatterns = Array.isArray(data.gridPatterns) ? data.gridPatterns : [];
+  for(const g of state.gridPatterns){
+    if(g.colOverride0===undefined) g.colOverride0 = null;
+    if(g.rowOverride0===undefined) g.rowOverride0 = null;
+    if(!g.colSteps) g.colSteps = {};
+    if(!g.rowSteps) g.rowSteps = {};
+  }
   state.selectedGridPattern = null;
   gridIdCounter = Math.max(gridIdCounter, resyncIdsAndDedupe(state.gridPatterns, 'grid'));
   state.pathPatterns = Array.isArray(data.pathPatterns) ? data.pathPatterns : [];
