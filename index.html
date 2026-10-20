@@ -435,6 +435,7 @@
       <div class="field-row"><label for="fY">Y (m)</label><input type="number" id="fY" step="0.01"></div>
       <div class="field-row"><label for="fRot">Rot (°)</label><input type="number" id="fRot" step="0.5"></div>
       <button class="btn" id="btnResetTransform" style="width:100%;">Reset transform</button>
+      <button class="btn" id="btnBakeTransform" style="width:100%; margin-top:6px;" title="Keeps the layer exactly where it is on screen, but rewrites every point so the layer's own X/Y/Rot become 0 — makes the current orientation the new ground truth instead of an offset from raw 0.">Bake transform</button>
       <button class="btn" id="btnExportThisLayer" style="width:100%; margin-top:6px;">Export this layer as .smap</button>
     </div>
 
@@ -1611,6 +1612,7 @@ const fX = document.getElementById('fX'), fY = document.getElementById('fY'), fR
 
 const hiddenLayerHint = document.getElementById('hiddenLayerHint');
 const btnResetTransform = document.getElementById('btnResetTransform');
+const btnBakeTransform = document.getElementById('btnBakeTransform');
 const detFileRow = document.getElementById('detFileRow');
 const detPointsRow = document.getElementById('detPointsRow');
 const detRssiRow = document.getElementById('detRssiRow');
@@ -1650,6 +1652,9 @@ function renderDetailPanel(){
   fRot.value = round3(layer.transform.rot * 180/Math.PI);
   hiddenLayerHint.hidden = layer.visible;
   fX.disabled = fY.disabled = fRot.disabled = btnResetTransform.disabled = !layer.visible;
+  // Baking rewrites raw vector coordinates -- an image layer has none (it's
+  // pixels, positioned purely by transform), so there's nothing to bake.
+  btnBakeTransform.disabled = !layer.visible || isImage;
 }
 imgScale.addEventListener('change', ()=>{
   const layer = getActiveLayer();
@@ -1686,6 +1691,88 @@ btnResetTransform.addEventListener('click', ()=>{
   const layer = getEditableActiveLayer(); if(!layer) return;
   pushUndo(layer);
   layer.transform = {tx:0, ty:0, rot:0};
+  renderDetailPanel(); scheduleAutosave(); requestDraw();
+});
+// Opposite of Reset: nothing on screen moves, but the layer's own
+// transform becomes identity -- every stored coordinate is rewritten to
+// its current WORLD value (same math layerToWorld already does), and
+// every nav point's `dir` absorbs the old rotation (dir += transform.rot)
+// so worldDir (= dir + transform.rot) is unchanged. That last part is
+// what keeps everything defined relative to a point's own heading --
+// pickup far-LM placement (resolvePickupOffsets), anchored curve handles
+// (anchoredControlWorldPos) -- correct with no changes of their own:
+// they already recompute from worldDir every frame, and worldDir didn't
+// move. Anything already in pure world-space (Dimension-tool edge
+// constraints, H/V/O relations) needs no changes either, since a rigid
+// bake preserves world positions and distances exactly.
+function bakeLayerTransform(layer){
+  const {tx, ty, rot} = layer.transform;
+  if(tx===0 && ty===0 && rot===0) return false;
+  const cos = Math.cos(rot), sin = Math.sin(rot);
+  const p = layer.pivot;
+  function bake(lx, ly){
+    const dx = lx-p.x, dy = ly-p.y;
+    return [round3(p.x + dx*cos - dy*sin + tx), round3(p.y + dx*sin + dy*cos + ty)];
+  }
+  function bakeXY(obj){ const [nx,ny] = bake(obj.x, obj.y); return {x:nx, y:ny}; }
+
+  for(const arr of [layer.points, layer.rssi]){
+    for(let i=0;i<arr.length;i+=2){
+      const [nx,ny] = bake(arr[i], arr[i+1]);
+      arr[i] = nx; arr[i+1] = ny;
+    }
+  }
+  for(const r of layer.reflectors){
+    const [nx,ny] = bake(r.x, r.y);
+    r.x = nx; r.y = ny;
+  }
+  if(layer.extra){
+    if(Array.isArray(layer.extra.advancedPointList)){
+      for(const pt of layer.extra.advancedPointList){
+        pt.pos = bakeXY(pt.pos);
+        if(typeof pt.dir==='number') pt.dir = Math.atan2(Math.sin(pt.dir+rot), Math.cos(pt.dir+rot));
+      }
+    }
+    if(Array.isArray(layer.extra.advancedAreaList)){
+      for(const area of layer.extra.advancedAreaList){
+        if(Array.isArray(area.posGroup)) area.posGroup = area.posGroup.map(bakeXY);
+      }
+    }
+    if(Array.isArray(layer.extra.advancedCurveList)){
+      for(const c of layer.extra.advancedCurveList){
+        if(c.controlPos1) c.controlPos1 = bakeXY(c.controlPos1);
+        if(c.controlPos2) c.controlPos2 = bakeXY(c.controlPos2);
+        if(c.startPos && c.startPos.pos) c.startPos.pos = bakeXY(c.startPos.pos);
+        if(c.endPos && c.endPos.pos) c.endPos.pos = bakeXY(c.endPos.pos);
+      }
+    }
+    if(Array.isArray(layer.extra.advancedLineList)){
+      for(const item of layer.extra.advancedLineList){
+        if(item.line && item.line.startPos) item.line.startPos = bakeXY(item.line.startPos);
+        if(item.line && item.line.endPos) item.line.endPos = bakeXY(item.line.endPos);
+      }
+    }
+  }
+  for(const ln of layer.manualLines){
+    const a = bakeXY({x:ln.x1,y:ln.y1}), b = bakeXY({x:ln.x2,y:ln.y2});
+    ln.x1=a.x; ln.y1=a.y; ln.x2=b.x; ln.y2=b.y;
+  }
+  for(const anno of (layer.annotations||[])){
+    if(anno.type==='text'){ anno.pos = bakeXY(anno.pos); }
+    else if(anno.type==='arrow'){ anno.from = bakeXY(anno.from); anno.to = bakeXY(anno.to); }
+    else if(anno.type==='area' && Array.isArray(anno.posGroup)){ anno.posGroup = anno.posGroup.map(bakeXY); }
+  }
+  layer.transform = {tx:0, ty:0, rot:0};
+  layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : (layer.reflectors.length ? layer.reflectors.flatMap(r=>[r.x,r.y]) : [0,0]));
+  return true;
+}
+btnBakeTransform.addEventListener('click', ()=>{
+  const layer = getEditableActiveLayer(); if(!layer) return;
+  const {tx, ty, rot} = layer.transform;
+  if(tx===0 && ty===0 && rot===0) return;
+  pushUndo(layer);
+  bakeLayerTransform(layer);
+  resolveAllConstraints(); resolveAllRelations(); resolvePickupOffsets(); resolveAnchoredControlPoints();
   renderDetailPanel(); scheduleAutosave(); requestDraw();
 });
 
