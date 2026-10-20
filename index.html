@@ -10569,6 +10569,16 @@ function mergeSelectionRefs(existing, added){
   for(const ref of added){ if(!out.some(e=>selectionRefEquals(e,ref))) out.push(ref); }
   return out;
 }
+// Ctrl/Cmd+click support: whether to add or remove is decided by the
+// PRIMARY clicked ref's current membership (not every ref in the expanded
+// set, so clicking one new member of an already-partially-selected rigid
+// group still reliably ADDS the whole group rather than toggling it off).
+function toggleSelectionRefs(primaryRef, refs){
+  const current = state.groupSelection.length ? state.groupSelection : (state.selectBasic ? [state.selectBasic] : []);
+  const isSelected = current.some(c=>selectionRefEquals(c, primaryRef));
+  if(isSelected) return current.filter(c=>!refs.some(r=>selectionRefEquals(r,c)));
+  return mergeSelectionRefs(current, refs);
+}
 // The single backing object a ref points at, for the kinds that have one of
 // their own -- paths don't -- their shape is derived from their two
 // endpoint nav points, so they carry no position/flags of their own to read
@@ -11444,6 +11454,18 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       // the "select the existing one" path rather than "create a new one."
       setTool(target.tool);
       state.selectFullEditActive = true;
+    } else if(target && (e.ctrlKey || e.metaKey)){
+      // Ctrl/Cmd+click toggles the clicked object -- or its whole rigid
+      // group, so a group always toggles as one unit -- in or out of the
+      // current selection, without starting a drag. Pure selection
+      // modifier, same as Ctrl/Cmd+click in most editors.
+      const refs = expandRigidGroupRefs([target]);
+      const result = toggleSelectionRefs(target, refs);
+      if(result.length>1){ state.groupSelection = result; state.selectBasic = null; }
+      else if(result.length===1){ state.groupSelection = []; state.selectBasic = result[0]; }
+      else { state.groupSelection = []; state.selectBasic = null; }
+      renderSelectPanel(); renderGroupSelectResult(); requestDraw();
+      return;
     } else if(target){
       // Clicking a member of the CURRENT multi-selection drags the whole
       // selection; clicking anything else drags just that one object (or,
@@ -11466,13 +11488,14 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       renderGroupSelectResult();
       return;
     } else {
-      // A miss clears the current selection unless Shift is held — Shift
-      // means "I'm about to drag a box to ADD to what's already selected,"
-      // so the existing selection has to survive until the box-select
-      // actually resolves on pointerup.
-      if(!e.shiftKey){ state.groupSelection = []; state.selectBasic = null; renderSelectPanel(); renderGroupSelectResult(); }
+      // A miss clears the current selection unless Shift or Ctrl/Cmd is
+      // held — either means "I'm about to drag a box to ADD to what's
+      // already selected," so the existing selection has to survive until
+      // the box-select actually resolves on pointerup.
+      const additive = e.shiftKey || e.ctrlKey || e.metaKey;
+      if(!additive){ state.groupSelection = []; state.selectBasic = null; renderSelectPanel(); renderGroupSelectResult(); }
       const [wx0,wy0] = screenToWorld(sx,sy);
-      state.selectBoxRect = {x1:wx0, y1:wy0, x2:wx0, y2:wy0, additive:e.shiftKey};
+      state.selectBoxRect = {x1:wx0, y1:wy0, x2:wx0, y2:wy0, additive};
       dragging = true;
       requestDraw();
       return;
