@@ -456,6 +456,7 @@
           <div class="field-row" id="selectBasicNameRow"><label for="selectBasicName">Name</label><input type="text" id="selectBasicName" class="mono"></div>
           <div class="field-row"><label for="selectBasicX">X (m)</label><input type="number" id="selectBasicX" step="0.01"></div>
           <div class="field-row"><label for="selectBasicY">Y (m)</label><input type="number" id="selectBasicY" step="0.01"></div>
+          <button class="btn danger" id="btnSelectBasicDelete" style="width:100%; margin-top:8px;">Delete</button>
         </div>
         <div class="tool-hint" id="selectEmptyHint" style="margin-top:8px;">Click any nav point, path, area, reflector, or wall to select it.</div>
         <div class="label-sub" style="margin-top:14px;">Group select</div>
@@ -469,7 +470,12 @@
         <label class="check-inline"><input type="checkbox" id="groupSelReflectors"> Reflectors</label>
         <label class="check-inline"><input type="checkbox" id="groupSelWalls"> Walls</label>
         <button class="btn" id="btnGroupSelectAll" style="width:100%; margin-top:8px;">Select matching</button>
+        <div class="tool-hint" style="margin-top:8px;">Or drag a box over the canvas to select matching objects there — Shift+drag adds to the current selection.</div>
         <div class="stat-line" id="groupSelResult" style="margin-top:8px;" hidden><span>Selected</span><b id="groupSelCount" class="mono">0</b></div>
+        <button class="btn" id="btnGroupGroup" style="width:100%; margin-top:4px;" hidden>Group</button>
+        <button class="btn" id="btnGroupUngroup" style="width:100%; margin-top:4px;" hidden>Ungroup</button>
+        <button class="btn" id="btnGroupCopy" style="width:100%; margin-top:4px;" hidden>Copy</button>
+        <button class="btn" id="btnGroupPaste" style="width:100%; margin-top:4px;" hidden>Paste</button>
         <button class="btn" id="btnGroupLock" style="width:100%; margin-top:4px;" hidden>Lock</button>
         <button class="btn" id="btnGroupUnlock" style="width:100%; margin-top:4px;" hidden>Unlock</button>
         <button class="btn danger" id="btnGroupDelete" style="width:100%; margin-top:4px;" hidden>Delete</button>
@@ -1166,6 +1172,8 @@ const state = {
   selectFullEdit: false,
   selectFullEditActive: false,
   selectBasic: null,
+  selectBoxRect: null,
+  draggingSelection: null,
   groupSelection: [],
   pathPatterns: [],
   pathPatternArm: null,
@@ -3244,6 +3252,11 @@ const btnGroupLock = document.getElementById('btnGroupLock');
 const btnGroupUnlock = document.getElementById('btnGroupUnlock');
 const btnGroupDelete = document.getElementById('btnGroupDelete');
 const btnGroupClear = document.getElementById('btnGroupClear');
+const btnGroupGroup = document.getElementById('btnGroupGroup');
+const btnGroupUngroup = document.getElementById('btnGroupUngroup');
+const btnGroupCopy = document.getElementById('btnGroupCopy');
+const btnGroupPaste = document.getElementById('btnGroupPaste');
+const btnSelectBasicDelete = document.getElementById('btnSelectBasicDelete');
 function setSelectFullEdit(full){
   state.selectFullEdit = full;
   selectModeBasic.classList.toggle('active', !full);
@@ -3369,6 +3382,7 @@ function setTool(tool){
   if(tool!=='pattern' && tool!=='pan'){ state.patDraft = null; state.selectedPattern = null; state.selectedGridPattern = null; }
   if(tool!=='boxsplit' && tool!=='pan'){ state.splitQuad = null; state.splitDraftRect = null; state.draggingSplitCorner = null; }
   if(tool!=='annotate' && tool!=='pan'){ state.selectedAnnotation = null; state.annoAction = null; state.annoDraft = null; }
+  if(tool!=='select' && tool!=='pan'){ state.selectBoxRect = null; state.draggingSelection = null; }
   closeRelMenu();
   closeIsolateMenu();
   state.tool = tool;
@@ -5577,6 +5591,20 @@ function draw(){
     const rw = Math.abs(sx2-sx1), rh = Math.abs(sy2-sy1);
     ctx.fillStyle = state.printFriendly ? 'rgba(217,96,15,0.12)' : 'rgba(255,90,69,0.18)';
     ctx.strokeStyle = state.printFriendly ? '#c0392b' : '#ff5a45';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6,4]);
+    ctx.fillRect(rx,ry,rw,rh);
+    ctx.strokeRect(rx,ry,rw,rh);
+    ctx.setLineDash([]);
+  }
+
+  if(state.selectBoxRect){
+    const [sx1,sy1] = worldToScreen(state.selectBoxRect.x1, state.selectBoxRect.y1);
+    const [sx2,sy2] = worldToScreen(state.selectBoxRect.x2, state.selectBoxRect.y2);
+    const rx = Math.min(sx1,sx2), ry = Math.min(sy1,sy2);
+    const rw = Math.abs(sx2-sx1), rh = Math.abs(sy2-sy1);
+    ctx.fillStyle = 'rgba(0,194,255,0.14)';
+    ctx.strokeStyle = '#00c2ff';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([6,4]);
     ctx.fillRect(rx,ry,rw,rh);
@@ -10466,20 +10494,163 @@ function collectGroupSelectMatches(){
   if(groupSelWalls.checked) layer.manualLines.forEach((l,i)=>out.push({kind:'line', layerId:layer.id, index:i}));
   return out;
 }
+// Geometric counterpart to collectGroupSelectMatches -- same type-filter
+// checkboxes, but scoped to a screen-drawn rectangle on ONE layer (the
+// active/editable one the Select tool is already working on, not the Group
+// Select panel's own layer dropdown) instead of "every object of this type
+// on the whole layer". Mirrors applyRectSelectDelete's per-kind hit tests
+// exactly, just collecting refs instead of deleting.
+function collectBoxSelectMatches(layer, rect){
+  const minX = Math.min(rect.x1, rect.x2), maxX = Math.max(rect.x1, rect.x2);
+  const minY = Math.min(rect.y1, rect.y2), maxY = Math.max(rect.y1, rect.y2);
+  const out = [];
+  if(maxX-minX < 0.02 || maxY-minY < 0.02) return out; // ignore an accidental click/near-zero drag
+  const inRect = (wx,wy) => wx>=minX && wx<=maxX && wy>=minY && wy<=maxY;
+  if(groupSelNav.checked && layer.extra && Array.isArray(layer.extra.advancedPointList)){
+    for(const pt of layer.extra.advancedPointList){
+      const [wx,wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
+      if(inRect(wx,wy)) out.push({kind:'navPoint', layerId:layer.id, instanceName:pt.instanceName});
+    }
+  }
+  if(groupSelPaths.checked && layer.extra && Array.isArray(layer.extra.advancedCurveList)){
+    const seen = new Set();
+    for(const c of layer.extra.advancedCurveList){
+      const sp = c.startPos && c.startPos.pos, ep = c.endPos && c.endPos.pos;
+      if(!sp || !ep) continue;
+      const [wx1,wy1] = layerToWorld(layer, sp.x, sp.y);
+      const [wx2,wy2] = layerToWorld(layer, ep.x, ep.y);
+      if(!inRect(wx1,wy1) && !inRect(wx2,wy2)) continue;
+      const key = [c.startPos.instanceName, c.endPos.instanceName].sort().join('|');
+      if(seen.has(key)) continue;
+      seen.add(key);
+      out.push({kind:'path', layerId:layer.id, nameA:c.startPos.instanceName, nameB:c.endPos.instanceName});
+    }
+  }
+  if(groupSelAreas.checked && layer.extra && Array.isArray(layer.extra.advancedAreaList)){
+    layer.extra.advancedAreaList.forEach((a,i)=>{
+      const r = rectFromPosGroup(a.posGroup);
+      const [wx,wy] = layerToWorld(layer, r.cx, r.cy);
+      if(inRect(wx,wy)) out.push({kind:'area', areaKind:'reflector', layerId:layer.id, areaIndex:i});
+    });
+  }
+  if(groupSelAnnotations.checked && Array.isArray(layer.annotations)){
+    layer.annotations.forEach((a,i)=>{
+      if(a.type!=='area') return;
+      const r = rectFromPosGroup(a.posGroup);
+      const [wx,wy] = layerToWorld(layer, r.cx, r.cy);
+      if(inRect(wx,wy)) out.push({kind:'area', areaKind:'annotation', layerId:layer.id, areaIndex:i});
+    });
+  }
+  if(groupSelReflectors.checked){
+    layer.reflectors.forEach((r,i)=>{
+      const [wx,wy] = layerToWorld(layer, r.x, r.y);
+      if(inRect(wx,wy)) out.push({kind:'reflector', layerId:layer.id, index:i});
+    });
+  }
+  if(groupSelWalls.checked){
+    layer.manualLines.forEach((l,i)=>{
+      const [wx1,wy1] = layerToWorld(layer, l.x1, l.y1);
+      const [wx2,wy2] = layerToWorld(layer, l.x2, l.y2);
+      if(inRect(wx1,wy1) || inRect(wx2,wy2)) out.push({kind:'line', layerId:layer.id, index:i});
+    });
+  }
+  return out;
+}
+function selectionRefEquals(a, b){
+  if(!a || !b || a.kind!==b.kind || a.layerId!==b.layerId) return false;
+  if(a.kind==='navPoint') return a.instanceName===b.instanceName;
+  if(a.kind==='path') return (a.nameA===b.nameA && a.nameB===b.nameB) || (a.nameA===b.nameB && a.nameB===b.nameA);
+  if(a.kind==='area') return (a.areaKind||'reflector')===(b.areaKind||'reflector') && a.areaIndex===b.areaIndex;
+  if(a.kind==='reflector' || a.kind==='line') return a.index===b.index;
+  return false;
+}
+function mergeSelectionRefs(existing, added){
+  const out = existing.slice();
+  for(const ref of added){ if(!out.some(e=>selectionRefEquals(e,ref))) out.push(ref); }
+  return out;
+}
+// The single backing object a ref points at, for the kinds that have one of
+// their own -- paths don't -- their shape is derived from their two
+// endpoint nav points, so they carry no position/flags of their own to read
+// or tag.
+function objectForRef(ref){
+  const layer = getLayer(ref.layerId);
+  if(!layer) return null;
+  if(ref.kind==='navPoint') return findNavPointByName(layer, ref.instanceName);
+  if(ref.kind==='reflector') return layer.reflectors[ref.index];
+  if(ref.kind==='line') return layer.manualLines[ref.index];
+  if(ref.kind==='area'){ const found = getAreaByRef(ref); return found && found.area; }
+  return null;
+}
+// If the clicked/dragged object belongs to a rigid group (__rigidGroup, set
+// by the Group button below), picking it up picks up every other member on
+// the same layer too -- same "click any one, the whole group comes along"
+// behavior as grouping in a vector editor.
+function expandRigidGroupRefs(refs){
+  const out = [];
+  const add = (r)=>{ if(!out.some(e=>selectionRefEquals(e,r))) out.push(r); };
+  for(const ref of refs){
+    const obj = objectForRef(ref);
+    const gid = obj && obj.__rigidGroup;
+    if(!gid){ add(ref); continue; }
+    const layer = getLayer(ref.layerId);
+    if(!layer) continue;
+    (layer.extra && layer.extra.advancedPointList || []).forEach(pt=>{ if(pt.__rigidGroup===gid) add({kind:'navPoint', layerId:layer.id, instanceName:pt.instanceName}); });
+    layer.reflectors.forEach((r,i)=>{ if(r.__rigidGroup===gid) add({kind:'reflector', layerId:layer.id, index:i}); });
+    layer.manualLines.forEach((l,i)=>{ if(l.__rigidGroup===gid) add({kind:'line', layerId:layer.id, index:i}); });
+    (layer.extra && layer.extra.advancedAreaList || []).forEach((a,i)=>{ if(a.__rigidGroup===gid) add({kind:'area', areaKind:'reflector', layerId:layer.id, areaIndex:i}); });
+    (layer.annotations || []).forEach((a,i)=>{ if(a.type==='area' && a.__rigidGroup===gid) add({kind:'area', areaKind:'annotation', layerId:layer.id, areaIndex:i}); });
+  }
+  return out;
+}
+// Shifts every ref's own position by the SAME world-space drag delta.
+// refs are all on one layer, so the delta only needs converting into that
+// layer's local frame once (worldToLayer is a rigid transform -- rotation +
+// translation, no scale -- so the delta is position-independent). Paths
+// have no position of their own; they just follow once both endpoints move.
+function moveSelectionByWorldDelta(layer, refs, wx0, wy0, wx1, wy1){
+  const [lx0,ly0] = worldToLayer(layer, wx0, wy0);
+  const [lx1,ly1] = worldToLayer(layer, wx1, wy1);
+  const ldx = lx1-lx0, ldy = ly1-ly0;
+  if(!ldx && !ldy) return;
+  for(const ref of refs){
+    if(ref.kind==='navPoint'){
+      const pt = findNavPointByName(layer, ref.instanceName); if(!pt) continue;
+      const oldLX = pt.pos.x, oldLY = pt.pos.y;
+      pt.pos.x = round3(pt.pos.x+ldx); pt.pos.y = round3(pt.pos.y+ldy);
+      syncCurvesForPoint(layer, pt.instanceName, oldLX, oldLY);
+    } else if(ref.kind==='reflector'){
+      const r = layer.reflectors[ref.index]; if(!r) continue;
+      r.x = round3(r.x+ldx); r.y = round3(r.y+ldy);
+    } else if(ref.kind==='line'){
+      const obj = layer.manualLines[ref.index]; if(!obj) continue;
+      obj.x1 = round3(obj.x1+ldx); obj.y1 = round3(obj.y1+ldy);
+      obj.x2 = round3(obj.x2+ldx); obj.y2 = round3(obj.y2+ldy);
+    } else if(ref.kind==='area'){
+      const found = getAreaByRef(ref); if(!found) continue;
+      const rect = rectFromPosGroup(found.area.posGroup);
+      found.area.posGroup = posGroupFromRect(rect.cx+ldx, rect.cy+ldy, rect.w, rect.h, rect.rot);
+    }
+  }
+}
 function renderGroupSelectResult(){
   const n = state.groupSelection.length;
   groupSelResult.hidden = n===0;
   groupSelCount.textContent = n;
-  btnGroupLock.hidden = btnGroupUnlock.hidden = btnGroupDelete.hidden = btnGroupClear.hidden = n===0;
+  btnGroupLock.hidden = btnGroupUnlock.hidden = btnGroupDelete.hidden = btnGroupClear.hidden = btnGroupCopy.hidden = n===0;
+  btnGroupGroup.hidden = n<2;
+  btnGroupUngroup.hidden = n===0 || !state.groupSelection.some(ref=>{ const obj=objectForRef(ref); return obj && obj.__rigidGroup; });
+  btnGroupPaste.hidden = !selectionClipboard || !selectionClipboard.length;
 }
-function groupSelectionByLayer(){
+function refsByLayer(refs){
   const byLayer = new Map();
-  for(const item of state.groupSelection){
+  for(const item of refs){
     if(!byLayer.has(item.layerId)) byLayer.set(item.layerId, []);
     byLayer.get(item.layerId).push(item);
   }
   return byLayer;
 }
+function groupSelectionByLayer(){ return refsByLayer(state.groupSelection); }
 function applyGroupLock(locked){
   for(const [layerId, items] of groupSelectionByLayer()){
     const layer = getLayer(layerId);
@@ -10513,14 +10684,18 @@ function applyGroupLock(locked){
 }
 btnGroupSelectAll.addEventListener('click', ()=>{
   state.groupSelection = collectGroupSelectMatches();
-  renderGroupSelectResult();
+  state.selectBasic = null;
+  renderGroupSelectResult(); renderSelectPanel();
   requestDraw();
 });
-btnGroupClear.addEventListener('click', ()=>{ state.groupSelection = []; renderGroupSelectResult(); requestDraw(); });
+btnGroupClear.addEventListener('click', ()=>{ state.groupSelection = []; state.selectBasic = null; renderGroupSelectResult(); renderSelectPanel(); requestDraw(); });
 btnGroupLock.addEventListener('click', ()=>applyGroupLock(true));
 btnGroupUnlock.addEventListener('click', ()=>applyGroupLock(false));
-btnGroupDelete.addEventListener('click', ()=>{
-  for(const [layerId, items] of groupSelectionByLayer()){
+// Shared by both the group-delete button and the single Basic-select
+// delete button below -- takes a plain refs array rather than reading
+// state.groupSelection directly, so either caller can pass its own set.
+function deleteSelectionRefs(refs){
+  for(const [layerId, items] of refsByLayer(refs)){
     const layer = getLayer(layerId);
     if(!layer) continue;
     pushUndo(layer);
@@ -10543,6 +10718,173 @@ btnGroupDelete.addEventListener('click', ()=>{
     const lineIdxs = items.filter(i=>i.kind==='line').map(i=>i.index).sort((a,b)=>b-a);
     for(const idx of lineIdxs) layer.manualLines.splice(idx,1);
   }
+  scheduleAutosave(); requestDraw(); renderDetailPanel(); renderAreaPanel(); renderNavPointPanel(); renderPathPanel(); renderAnnotationsPanel();
+}
+// ---- Rigid groups: tags every member of the current selection with a
+// shared __rigidGroup id (same __flag convention __locked/__group already
+// use elsewhere on these same object types), so picking up any one member
+// later -- click or drag -- picks up the whole set (expandRigidGroupRefs).
+// Paths carry no tag of their own since they have no position; they just
+// come along implicitly whenever both their endpoints move together.
+let rigidGroupIdCounter = 1;
+function groupCurrentSelection(){
+  if(state.groupSelection.length<2) return;
+  for(const [layerId, items] of refsByLayer(state.groupSelection)){
+    const layer = getLayer(layerId);
+    if(!layer) continue;
+    pushUndo(layer);
+    const gid = 'rg'+(rigidGroupIdCounter++);
+    for(const ref of items){ const obj = objectForRef(ref); if(obj) obj.__rigidGroup = gid; }
+  }
+  scheduleAutosave(); requestDraw(); renderGroupSelectResult();
+}
+function ungroupCurrentSelection(){
+  for(const [layerId, items] of refsByLayer(state.groupSelection)){
+    const layer = getLayer(layerId);
+    if(!layer) continue;
+    pushUndo(layer);
+    for(const ref of items){ const obj = objectForRef(ref); if(obj) delete obj.__rigidGroup; }
+  }
+  scheduleAutosave(); requestDraw(); renderGroupSelectResult();
+}
+// ---- Select-tool clipboard: generalizes the Annotate tool's annoClipboard
+// pattern (in-memory only, deep clone, fresh ids/names on paste) across
+// every object kind the Select tool can pick. Copying a path auto-pulls in
+// its two endpoint nav points even if they weren't individually selected --
+// a path can't be pasted without endpoints of its own to attach to.
+let selectionClipboard = null;
+const SELECT_PASTE_OFFSET_M = 0.3;
+function stripInternalFields(obj){
+  const clone = JSON.parse(JSON.stringify(obj));
+  for(const key of Object.keys(clone)){ if(key.startsWith('__')) delete clone[key]; }
+  return clone;
+}
+function buildSelectionClipboard(refs){
+  const entries = [];
+  const seenPoints = new Set();
+  const addPointEntry = (layer, name)=>{
+    const key = layer.id+'|'+name;
+    if(seenPoints.has(key)) return;
+    const pt = findNavPointByName(layer, name);
+    if(!pt) return;
+    seenPoints.add(key);
+    entries.push({kind:'navPoint', layerId:layer.id, data:stripInternalFields(pt)});
+  };
+  for(const ref of refs){
+    const layer = getLayer(ref.layerId);
+    if(!layer) continue;
+    if(ref.kind==='navPoint'){
+      addPointEntry(layer, ref.instanceName);
+    } else if(ref.kind==='reflector'){
+      const r = layer.reflectors[ref.index];
+      if(r) entries.push({kind:'reflector', layerId:layer.id, data:stripInternalFields(r)});
+    } else if(ref.kind==='line'){
+      const l = layer.manualLines[ref.index];
+      if(l) entries.push({kind:'line', layerId:layer.id, data:stripInternalFields(l)});
+    } else if(ref.kind==='area'){
+      const found = getAreaByRef(ref);
+      if(found) entries.push({kind:'area', layerId:layer.id, areaKind:ref.areaKind||'reflector', data:stripInternalFields(found.area)});
+    } else if(ref.kind==='path'){
+      addPointEntry(layer, ref.nameA);
+      addPointEntry(layer, ref.nameB);
+      const fwd = findCurveByEndpoints(layer, ref.nameA, ref.nameB);
+      const bwd = findCurveByEndpoints(layer, ref.nameB, ref.nameA);
+      entries.push({kind:'path', layerId:layer.id, nameA:ref.nameA, nameB:ref.nameB,
+        forward: fwd ? stripInternalFields(fwd) : null, backward: bwd ? stripInternalFields(bwd) : null});
+    }
+  }
+  return entries;
+}
+function copyCurrentSelection(){
+  const refs = state.groupSelection.length ? state.groupSelection : (state.selectBasic ? [state.selectBasic] : []);
+  if(!refs.length) return;
+  selectionClipboard = buildSelectionClipboard(refs);
+  renderGroupSelectResult();
+}
+function pasteSelectionClipboard(){
+  if(!selectionClipboard || !selectionClipboard.length) return;
+  const layer = getEditableActiveLayer();
+  if(!layer) return;
+  pushUndo(layer);
+  const nameMap = new Map(); // original instanceName -> freshly-minted one
+  const newRefs = [];
+  for(const entry of selectionClipboard){
+    if(entry.kind!=='navPoint') continue;
+    const oldName = entry.data.instanceName;
+    const name = generateNavPointName(layer, NAV_POINT_TYPE_PREFIX[entry.data.className] || 'LM');
+    nameMap.set(oldName, name);
+    const clone = JSON.parse(JSON.stringify(entry.data));
+    clone.instanceName = name;
+    clone.pos = {x: round3(clone.pos.x+SELECT_PASTE_OFFSET_M), y: round3(clone.pos.y+SELECT_PASTE_OFFSET_M)};
+    if(!layer.extra) layer.extra = {};
+    if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
+    layer.extra.advancedPointList.push(clone);
+    newRefs.push({kind:'navPoint', layerId:layer.id, instanceName:name});
+  }
+  for(const entry of selectionClipboard){
+    if(entry.kind==='reflector'){
+      const clone = JSON.parse(JSON.stringify(entry.data));
+      clone.x = round3(clone.x+SELECT_PASTE_OFFSET_M); clone.y = round3(clone.y+SELECT_PASTE_OFFSET_M);
+      layer.reflectors.push(clone);
+      newRefs.push({kind:'reflector', layerId:layer.id, index:layer.reflectors.length-1});
+    } else if(entry.kind==='line'){
+      const clone = JSON.parse(JSON.stringify(entry.data));
+      clone.x1 = round3(clone.x1+SELECT_PASTE_OFFSET_M); clone.y1 = round3(clone.y1+SELECT_PASTE_OFFSET_M);
+      clone.x2 = round3(clone.x2+SELECT_PASTE_OFFSET_M); clone.y2 = round3(clone.y2+SELECT_PASTE_OFFSET_M);
+      layer.manualLines.push(clone);
+      newRefs.push({kind:'line', layerId:layer.id, index:layer.manualLines.length-1});
+    } else if(entry.kind==='area'){
+      const clone = JSON.parse(JSON.stringify(entry.data));
+      const rect = rectFromPosGroup(clone.posGroup);
+      clone.posGroup = posGroupFromRect(rect.cx+SELECT_PASTE_OFFSET_M, rect.cy+SELECT_PASTE_OFFSET_M, rect.w, rect.h, rect.rot);
+      if(entry.areaKind==='annotation'){
+        layer.annotations = layer.annotations || [];
+        layer.annotations.push(clone);
+        newRefs.push({kind:'area', areaKind:'annotation', layerId:layer.id, areaIndex:layer.annotations.length-1});
+      } else {
+        if(!layer.extra) layer.extra = {};
+        if(!Array.isArray(layer.extra.advancedAreaList)) layer.extra.advancedAreaList = [];
+        layer.extra.advancedAreaList.push(clone);
+        newRefs.push({kind:'area', areaKind:'reflector', layerId:layer.id, areaIndex:layer.extra.advancedAreaList.length-1});
+      }
+    } else if(entry.kind==='path'){
+      const newA = nameMap.get(entry.nameA), newB = nameMap.get(entry.nameB);
+      if(!newA || !newB) continue;
+      let fwdNew = null, bwdNew = null;
+      if(entry.forward && entry.backward){ fwdNew = createBidirPath(layer, newA, newB); bwdNew = findCurveByEndpoints(layer, newB, newA); }
+      else if(entry.forward) fwdNew = createOneWayPath(layer, newA, newB);
+      else if(entry.backward) bwdNew = createOneWayPath(layer, newB, newA);
+      const reshape = (newCurve, oldCurve)=>{
+        if(!newCurve || !oldCurve) return;
+        setIntProperty(newCurve, 'direction', getIntProperty(oldCurve, 'direction', 0));
+        setIntProperty(newCurve, 'movestyle', getIntProperty(oldCurve, 'movestyle', 0));
+        const sp = oldCurve.startPos && oldCurve.startPos.pos, ep = oldCurve.endPos && oldCurve.endPos.pos;
+        const ntp0 = newCurve.startPos && newCurve.startPos.pos, ntp1 = newCurve.endPos && newCurve.endPos.pos;
+        if(sp && ep && ntp0 && ntp1 && oldCurve.controlPos1) newCurve.controlPos1 = applyChordRelativeControl(ntp0, ntp1, chordRelativeControl(sp, ep, oldCurve.controlPos1));
+        if(sp && ep && ntp0 && ntp1 && oldCurve.controlPos2) newCurve.controlPos2 = applyChordRelativeControl(ntp0, ntp1, chordRelativeControl(sp, ep, oldCurve.controlPos2));
+      };
+      reshape(fwdNew, entry.forward);
+      reshape(bwdNew, entry.backward);
+      newRefs.push({kind:'path', layerId:layer.id, nameA:newA, nameB:newB});
+    }
+  }
+  state.groupSelection = newRefs;
+  state.selectBasic = null;
+  scheduleAutosave(); requestDraw();
+  renderSelectPanel(); renderGroupSelectResult(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderAnnotationsPanel(); renderDetailPanel();
+}
+btnGroupGroup.addEventListener('click', groupCurrentSelection);
+btnGroupUngroup.addEventListener('click', ungroupCurrentSelection);
+btnGroupCopy.addEventListener('click', copyCurrentSelection);
+btnGroupPaste.addEventListener('click', pasteSelectionClipboard);
+btnSelectBasicDelete.addEventListener('click', ()=>{
+  if(!state.selectBasic) return;
+  deleteSelectionRefs([state.selectBasic]);
+  state.selectBasic = null;
+  renderSelectPanel();
+});
+btnGroupDelete.addEventListener('click', ()=>{
+  deleteSelectionRefs(state.groupSelection);
   state.groupSelection = [];
   renderGroupSelectResult();
   scheduleAutosave(); requestDraw(); renderDetailPanel(); renderAreaPanel(); renderNavPointPanel(); renderPathPanel(); renderAnnotationsPanel();
@@ -11102,9 +11444,37 @@ canvasEl.addEventListener('pointerdown', (e)=>{
       // the "select the existing one" path rather than "create a new one."
       setTool(target.tool);
       state.selectFullEditActive = true;
+    } else if(target){
+      // Clicking a member of the CURRENT multi-selection drags the whole
+      // selection; clicking anything else drags just that one object (or,
+      // if it's part of a rigid group, the whole group — see
+      // expandRigidGroupRefs). Undo isn't pushed until pointermove actually
+      // moves something, so a plain click-to-select never pollutes the
+      // undo stack.
+      const alreadyInGroup = state.groupSelection.some(r=>selectionRefEquals(r,target));
+      const refs = alreadyInGroup ? state.groupSelection : expandRigidGroupRefs([target]);
+      const [wx0,wy0] = screenToWorld(sx,sy);
+      if(refs.length>1){
+        state.groupSelection = refs;
+        state.selectBasic = null;
+      } else {
+        state.groupSelection = [];
+        applySelectBasicClick(target);
+      }
+      state.draggingSelection = {layerId:layer.id, refs, lastWorld:[wx0,wy0], moved:false};
+      dragging = true;
+      renderGroupSelectResult();
+      return;
     } else {
-      if(target) applySelectBasicClick(target);
-      else if(state.selectBasic){ state.selectBasic = null; renderSelectPanel(); requestDraw(); }
+      // A miss clears the current selection unless Shift is held — Shift
+      // means "I'm about to drag a box to ADD to what's already selected,"
+      // so the existing selection has to survive until the box-select
+      // actually resolves on pointerup.
+      if(!e.shiftKey){ state.groupSelection = []; state.selectBasic = null; renderSelectPanel(); renderGroupSelectResult(); }
+      const [wx0,wy0] = screenToWorld(sx,sy);
+      state.selectBoxRect = {x1:wx0, y1:wy0, x2:wx0, y2:wy0, additive:e.shiftKey};
+      dragging = true;
+      requestDraw();
       return;
     }
   }
@@ -11778,7 +12148,27 @@ canvasEl.addEventListener('pointermove', (e)=>{
   if(!dragging) return;
   const layer = getEditableActiveLayer();
 
-  if(state.tool==='pan'){
+  if(state.tool==='select' && state.draggingSelection){
+    const ds = state.draggingSelection;
+    const dsLayer = getLayer(ds.layerId);
+    if(dsLayer){
+      if(!ds.moved){
+        // Undo isn't pushed until the FIRST real movement -- a plain
+        // click-to-select that never drags shouldn't leave a no-op undo
+        // entry behind.
+        pushUndo(dsLayer);
+        ds.moved = true;
+      }
+      moveSelectionByWorldDelta(dsLayer, ds.refs, ds.lastWorld[0], ds.lastWorld[1], wx, wy);
+      ds.lastWorld = [wx, wy];
+      renderSelectPanel();
+      scheduleAutosave();
+      requestDraw();
+    }
+  } else if(state.tool==='select' && state.selectBoxRect){
+    state.selectBoxRect.x2 = wx; state.selectBoxRect.y2 = wy;
+    requestDraw();
+  } else if(state.tool==='pan'){
     const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
     state.view.tx+=dx; state.view.ty+=dy; requestDraw();
   } else if(state.tool==='move' && layer){
@@ -12035,6 +12425,26 @@ function endPointer(e){
     const layer = getEditableActiveLayer();
     if(layer) applyRectSelectDelete(layer, state.selectionRect);
     state.selectionRect = null;
+  }
+
+  if(state.tool==='select' && state.draggingSelection){
+    state.draggingSelection = null;
+    scheduleAutosave();
+    renderSelectPanel(); renderGroupSelectResult();
+  }
+  if(state.tool==='select' && dragging && state.selectBoxRect){
+    const rect = state.selectBoxRect;
+    state.selectBoxRect = null;
+    const layer = getEditableActiveLayer();
+    if(layer){
+      const matches = collectBoxSelectMatches(layer, rect);
+      if(matches.length){
+        const base = rect.additive ? (state.selectBasic ? mergeSelectionRefs(state.groupSelection, [state.selectBasic]) : state.groupSelection) : [];
+        state.groupSelection = rect.additive ? mergeSelectionRefs(base, matches) : matches;
+        state.selectBasic = null;
+      }
+    }
+    renderSelectPanel(); renderGroupSelectResult(); requestDraw();
   }
 
   if(state.tool==='boxsplit' && dragging && state.splitDraftRect){
@@ -12330,6 +12740,8 @@ document.addEventListener('keydown', (e)=>{
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s' && !isTextField){ saveProject(); e.preventDefault(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='c' && !isTextField && state.tool==='annotate'){ copySelectedAnnotation(); e.preventDefault(); return; }
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='v' && !isTextField && state.tool==='annotate'){ pasteAnnotation(); e.preventDefault(); return; }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='c' && !isTextField && state.tool==='select'){ copyCurrentSelection(); e.preventDefault(); return; }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='v' && !isTextField && state.tool==='select'){ pasteSelectionClipboard(); e.preventDefault(); return; }
   if(tag==='input' || tag==='textarea') return;
   if(e.code==='Space' && state.tool!=='pan'){ state.prevTool=state.tool; setTool('pan'); e.preventDefault(); return; }
   if(e.key==='Escape' && state.measure){ state.measure = null; requestDraw(); return; }
@@ -12358,6 +12770,10 @@ document.addEventListener('keydown', (e)=>{
   if(e.key==='Enter' && state.patWallPickArmed){ finishWallPick(); return; }
   if(e.key==='Escape' && state.pathPatternArm){ state.pathPatternArm = null; renderPatternPanel(); renderPathPanel(); requestDraw(); return; }
   if(e.key==='Escape' && Array.isArray(state.splitQuad)){ clearSplitQuad(); return; }
+  if(e.key==='Escape' && state.tool==='select' && (state.groupSelection.length || state.selectBasic)){
+    state.groupSelection = []; state.selectBasic = null;
+    renderSelectPanel(); renderGroupSelectResult(); requestDraw(); return;
+  }
   if(e.key==='Escape' && state.tool==='annotate' && (state.annoDraft || state.selectedAnnotation)){
     state.annoDraft = null; state.annoAction = null; state.selectedAnnotation = null; state.selectedAreaEdge = null;
     renderAnnotationsPanel(); requestDraw(); return;
@@ -12369,6 +12785,8 @@ document.addEventListener('keydown', (e)=>{
   }
   if(e.key==='Delete' || e.key==='Backspace'){
     if(state.selectedDimension){ deleteSelectedDimension(); e.preventDefault(); return; }
+    if(state.tool==='select' && state.groupSelection.length){ btnGroupDelete.click(); e.preventDefault(); return; }
+    if(state.tool==='select' && state.selectBasic){ btnSelectBasicDelete.click(); e.preventDefault(); return; }
     if(state.tool==='nav' && state.selectedNavPoint){ btnDeleteNavPoint.click(); e.preventDefault(); return; }
     if((state.tool==='nav' || state.tool==='path') && state.selectedPath){
       const sel = getSelectedPath();
