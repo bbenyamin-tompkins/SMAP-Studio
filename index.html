@@ -469,6 +469,9 @@
         <label class="check-inline"><input type="checkbox" id="groupSelAnnotations"> Annotation areas</label>
         <label class="check-inline"><input type="checkbox" id="groupSelReflectors"> Reflectors</label>
         <label class="check-inline"><input type="checkbox" id="groupSelWalls"> Walls</label>
+        <div style="margin-top:8px; padding:6px 8px; border-radius:6px; border:1.5px solid var(--accent); background:var(--panel-2);">
+          <label class="check-inline" style="margin:0; font-weight:600; color:var(--accent);"><input type="checkbox" id="groupSelIncludeHidden"> Also select hidden objects</label>
+        </div>
         <button class="btn" id="btnGroupSelectAll" style="width:100%; margin-top:8px;">Select matching</button>
         <div class="tool-hint" style="margin-top:8px;">Or drag a box over the canvas to select matching objects there — Shift+drag adds to the current selection.</div>
         <div class="stat-line" id="groupSelResult" style="margin-top:8px;" hidden><span>Selected</span><b id="groupSelCount" class="mono">0</b></div>
@@ -3245,6 +3248,7 @@ const groupSelAreas = document.getElementById('groupSelAreas');
 const groupSelAnnotations = document.getElementById('groupSelAnnotations');
 const groupSelReflectors = document.getElementById('groupSelReflectors');
 const groupSelWalls = document.getElementById('groupSelWalls');
+const groupSelIncludeHidden = document.getElementById('groupSelIncludeHidden');
 const btnGroupSelectAll = document.getElementById('btnGroupSelectAll');
 const groupSelResult = document.getElementById('groupSelResult');
 const groupSelCount = document.getElementById('groupSelCount');
@@ -10461,15 +10465,22 @@ function refreshGroupSelectLayerOptions(){
   if(state.layers.some(l=>l.id===prev)) groupSelLayer.value = prev;
   else if(state.activeLayerId) groupSelLayer.value = state.activeLayerId;
 }
+// Whether a type should be selectable right now -- either it's actually
+// visible on screen (same state.typeVisibility flags the eye-icon panel and
+// a plain click already respect), or the "Also select hidden objects"
+// override is checked.
+function typeVisibleForSelect(key){
+  return groupSelIncludeHidden.checked || state.typeVisibility[key];
+}
 function collectGroupSelectMatches(){
   const layer = getLayer(Number(groupSelLayer.value));
   const out = [];
   if(!layer) return out;
-  if(groupSelNav.checked){
+  if(groupSelNav.checked && typeVisibleForSelect('nav')){
     const pts = layer.extra && layer.extra.advancedPointList;
     if(Array.isArray(pts)) for(const pt of pts) out.push({kind:'navPoint', layerId:layer.id, instanceName:pt.instanceName});
   }
-  if(groupSelPaths.checked){
+  if(groupSelPaths.checked && typeVisibleForSelect('nav')){
     const curves = layer.extra && layer.extra.advancedCurveList;
     if(Array.isArray(curves)){
       const seen = new Set();
@@ -10482,16 +10493,16 @@ function collectGroupSelectMatches(){
       }
     }
   }
-  if(groupSelAreas.checked){
+  if(groupSelAreas.checked && typeVisibleForSelect('areas')){
     const areas = layer.extra && layer.extra.advancedAreaList;
     if(Array.isArray(areas)) areas.forEach((a,i)=>out.push({kind:'area', areaKind:'reflector', layerId:layer.id, areaIndex:i}));
   }
-  if(groupSelAnnotations.checked){
+  if(groupSelAnnotations.checked && typeVisibleForSelect('annotations')){
     const annos = layer.annotations;
     if(Array.isArray(annos)) annos.forEach((a,i)=>{ if(a.type==='area') out.push({kind:'area', areaKind:'annotation', layerId:layer.id, areaIndex:i}); });
   }
-  if(groupSelReflectors.checked) layer.reflectors.forEach((r,i)=>out.push({kind:'reflector', layerId:layer.id, index:i}));
-  if(groupSelWalls.checked) layer.manualLines.forEach((l,i)=>out.push({kind:'line', layerId:layer.id, index:i}));
+  if(groupSelReflectors.checked && typeVisibleForSelect('reflector')) layer.reflectors.forEach((r,i)=>out.push({kind:'reflector', layerId:layer.id, index:i}));
+  if(groupSelWalls.checked && typeVisibleForSelect('extra')) layer.manualLines.forEach((l,i)=>out.push({kind:'line', layerId:layer.id, index:i}));
   return out;
 }
 // Geometric counterpart to collectGroupSelectMatches -- same type-filter
@@ -10506,13 +10517,13 @@ function collectBoxSelectMatches(layer, rect){
   const out = [];
   if(maxX-minX < 0.02 || maxY-minY < 0.02) return out; // ignore an accidental click/near-zero drag
   const inRect = (wx,wy) => wx>=minX && wx<=maxX && wy>=minY && wy<=maxY;
-  if(groupSelNav.checked && layer.extra && Array.isArray(layer.extra.advancedPointList)){
+  if(groupSelNav.checked && typeVisibleForSelect('nav') && layer.extra && Array.isArray(layer.extra.advancedPointList)){
     for(const pt of layer.extra.advancedPointList){
       const [wx,wy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
       if(inRect(wx,wy)) out.push({kind:'navPoint', layerId:layer.id, instanceName:pt.instanceName});
     }
   }
-  if(groupSelPaths.checked && layer.extra && Array.isArray(layer.extra.advancedCurveList)){
+  if(groupSelPaths.checked && typeVisibleForSelect('nav') && layer.extra && Array.isArray(layer.extra.advancedCurveList)){
     const seen = new Set();
     for(const c of layer.extra.advancedCurveList){
       const sp = c.startPos && c.startPos.pos, ep = c.endPos && c.endPos.pos;
@@ -10526,14 +10537,14 @@ function collectBoxSelectMatches(layer, rect){
       out.push({kind:'path', layerId:layer.id, nameA:c.startPos.instanceName, nameB:c.endPos.instanceName});
     }
   }
-  if(groupSelAreas.checked && layer.extra && Array.isArray(layer.extra.advancedAreaList)){
+  if(groupSelAreas.checked && typeVisibleForSelect('areas') && layer.extra && Array.isArray(layer.extra.advancedAreaList)){
     layer.extra.advancedAreaList.forEach((a,i)=>{
       const r = rectFromPosGroup(a.posGroup);
       const [wx,wy] = layerToWorld(layer, r.cx, r.cy);
       if(inRect(wx,wy)) out.push({kind:'area', areaKind:'reflector', layerId:layer.id, areaIndex:i});
     });
   }
-  if(groupSelAnnotations.checked && Array.isArray(layer.annotations)){
+  if(groupSelAnnotations.checked && typeVisibleForSelect('annotations') && Array.isArray(layer.annotations)){
     layer.annotations.forEach((a,i)=>{
       if(a.type!=='area') return;
       const r = rectFromPosGroup(a.posGroup);
@@ -10541,13 +10552,13 @@ function collectBoxSelectMatches(layer, rect){
       if(inRect(wx,wy)) out.push({kind:'area', areaKind:'annotation', layerId:layer.id, areaIndex:i});
     });
   }
-  if(groupSelReflectors.checked){
+  if(groupSelReflectors.checked && typeVisibleForSelect('reflector')){
     layer.reflectors.forEach((r,i)=>{
       const [wx,wy] = layerToWorld(layer, r.x, r.y);
       if(inRect(wx,wy)) out.push({kind:'reflector', layerId:layer.id, index:i});
     });
   }
-  if(groupSelWalls.checked){
+  if(groupSelWalls.checked && typeVisibleForSelect('extra')){
     layer.manualLines.forEach((l,i)=>{
       const [wx1,wy1] = layerToWorld(layer, l.x1, l.y1);
       const [wx2,wy2] = layerToWorld(layer, l.x2, l.y2);
