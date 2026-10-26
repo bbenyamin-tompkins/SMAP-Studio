@@ -185,6 +185,7 @@
   .field-row input[type="number"].solve-computed{opacity:0.4; cursor:pointer;}
   .field-row input[type="checkbox"]{accent-color:var(--accent); width:14px; height:14px; cursor:pointer; flex:0 0 auto;}
   .new-point-fields .field-row label{width:122px;}
+  .fields-disabled{opacity:0.4; pointer-events:none;}
   .stat-line{font-size:12px; color:var(--ink-dim); display:flex; justify-content:space-between; margin-bottom:4px;}
   .stat-line b{color:var(--ink); font-weight:500;}
   .field-card{background:var(--bg); border:1px solid var(--panel-2); border-radius:8px; padding:10px; margin-bottom:10px;}
@@ -801,6 +802,7 @@
           <button class="btn" id="btnGridSelResetOverrides" style="width:100%; margin-top:8px;">Reset row/col overrides</button>
           <button class="btn" id="btnGridSelUnskipAll" style="width:100%; margin-top:6px;">Un-skip all cells</button>
           <button class="btn" id="btnGridSelNaming" style="width:100%; margin-top:6px;">Naming…</button>
+          <button class="btn" id="btnGridSelConnect" style="width:100%; margin-top:6px;">Connect…</button>
           <button class="btn danger" id="btnGridSelDelete" style="width:100%; margin-top:6px;">Delete grid pattern</button>
         </div>
         <div id="pathPatBox" hidden>
@@ -1300,6 +1302,55 @@
           </table>
         </div>
         <div class="rds-edit-err" id="rdsTableErr"></div>
+      </div>
+    </div>
+    <div class="footprint-modal-backdrop" id="gridConnectModalBackdrop" hidden>
+      <div class="footprint-modal" style="width:640px;">
+        <div class="footprint-modal-head">
+          <div style="font-weight:600; font-size:14px;">Connect…</div>
+          <button class="layer-mini-btn" id="btnGridConnectClose" title="Close" style="font-size:16px;">✕</button>
+        </div>
+        <div class="footprint-modal-body">
+          <div style="flex:0 0 230px; display:flex; flex-direction:column; gap:2px;">
+            <label class="check-inline" style="margin-bottom:8px;"><input type="checkbox" id="gcConnected"> Connect nav points with paths</label>
+            <div id="gcFields">
+              <div class="field-row"><label>Axis</label>
+                <div class="shape-toggle">
+                  <button type="button" class="shape-btn active" id="gcAxisX">X</button>
+                  <button type="button" class="shape-btn" id="gcAxisY">Y</button>
+                </div>
+              </div>
+              <div class="field-row"><label>Path</label>
+                <div class="shape-toggle">
+                  <button type="button" class="shape-btn active" id="gcPathBoth" title="Bidirectional">Bi</button>
+                  <button type="button" class="shape-btn" id="gcPathFwd" title="Forward only">Fwd</button>
+                  <button type="button" class="shape-btn" id="gcPathBwd" title="Backward only">Bwd</button>
+                </div>
+              </div>
+              <div class="label-sub" style="margin-top:8px;">Robot direction</div>
+              <div class="field-row" id="gcFwdRow"><label for="gcFwdDir" id="gcFwdLabel">Root → Next</label>
+                <select id="gcFwdDir" style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
+                  <option value="0">0 — Forward</option>
+                  <option value="1">1 — Backward</option>
+                </select>
+              </div>
+              <div class="field-row" id="gcBwdRow"><label for="gcBwdDir" id="gcBwdLabel">Next → Root</label>
+                <select id="gcBwdDir" style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
+                  <option value="0">0 — Forward</option>
+                  <option value="1">1 — Backward</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div style="flex:1 1 320px; display:flex; flex-direction:column; align-items:center; gap:6px;">
+            <div class="tool-hint" style="margin-top:0;">Preview</div>
+            <svg id="gcPairSvg" width="260" height="100"></svg>
+            <div class="tool-hint" id="gcGridHint" style="margin-top:4px; text-align:center;">Applies to every adjacent pair along the chosen axis</div>
+            <div style="max-width:320px; max-height:260px; overflow:auto;">
+              <svg id="gcGridSvg"></svg>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="shortcuts-popover" id="shortcutsPopover" hidden>
@@ -8619,6 +8670,99 @@ function prunePatterns(){
 // so it's the rotation's pivot for free, and nothing about dx/dy/the step
 // overrides needs to change when the grid is rotated.
 function gridCellKey(row, col){ return row+','+col; }
+// Ordered name chains along one axis of a grid pattern -- one chain per row
+// (connectAxis 'x') or per column ('y'); a skipped cell is simply absent
+// from its chain (its neighbors on either side connect straight across the
+// gap), same semantics as Linear patterns' patternMaterializedChain.
+function gridConnectionChains(grid){
+  const chains = [];
+  const alongY = grid.connectAxis==='y';
+  const outer = alongY ? grid.countX : grid.countY;
+  const inner = alongY ? grid.countY : grid.countX;
+  for(let o=0; o<outer; o++){
+    const chain = [];
+    for(let i=0; i<inner; i++){
+      const row = alongY ? i : o, col = alongY ? o : i;
+      if(row===0 && col===0){ chain.push(grid.seedName); continue; }
+      const cell = grid.cells[gridCellKey(row,col)];
+      if(cell && !cell.skipped) chain.push(cell.name);
+    }
+    chains.push(chain);
+  }
+  return chains;
+}
+// Keeps a connected grid pattern's auto-generated paths in sync with its
+// current chains and direction settings (mirrors syncPatternPaths for
+// Linear patterns -- only touches curves this grid itself created, tagged
+// __gridPathId, and never clobbers a hand-made or hand-edited one). Unlike
+// Linear's connect feature, this also stamps the SEER `direction` property
+// (connectFwdDir for the a->b leg, connectBwdDir for b->a) onto every curve
+// it owns, so the robot-facing direction is set up front instead of having
+// to hand-edit each generated path afterward.
+function syncGridPaths(grid, layer){
+  layer = layer || getLayer(grid.layerId);
+  if(!layer) return;
+  const chains = grid.connected ? gridConnectionChains(grid) : [];
+  const dir = grid.connectDirection || 'both';
+  const wantedKeys = new Set();
+  for(const chain of chains){
+    for(let i=1;i<chain.length;i++){
+      const a = chain[i-1], b = chain[i];
+      if(dir!=='backward') wantedKeys.add(a+'\u0000'+b);
+      if(dir!=='forward') wantedKeys.add(b+'\u0000'+a);
+    }
+  }
+  const curves = layer.extra && layer.extra.advancedCurveList;
+  if(Array.isArray(curves)){
+    layer.extra.advancedCurveList = curves.filter(c=>{
+      if(c.__gridPathId!==grid.id) return true;
+      const a = c.startPos && c.startPos.instanceName, b = c.endPos && c.endPos.instanceName;
+      return wantedKeys.has(a+'\u0000'+b);
+    });
+  }
+  const fwdDir = grid.connectFwdDir||0, bwdDir = grid.connectBwdDir||0;
+  for(const chain of chains){
+    for(let i=1;i<chain.length;i++){
+      const a = chain[i-1], b = chain[i];
+      const wantFwd = wantedKeys.has(a+'\u0000'+b), wantBwd = wantedKeys.has(b+'\u0000'+a);
+      let fwdCurve = findCurveByEndpoints(layer,a,b), bwdCurve = findCurveByEndpoints(layer,b,a);
+      if(wantFwd && wantBwd && !fwdCurve && !bwdCurve){
+        fwdCurve = createBidirPath(layer, a, b);
+        if(fwdCurve){
+          fwdCurve.__gridPathId = grid.id;
+          bwdCurve = findCurveByEndpoints(layer, b, a);
+          if(bwdCurve) bwdCurve.__gridPathId = grid.id;
+        }
+      } else {
+        if(wantFwd && !fwdCurve){ fwdCurve = createOneWayPath(layer, a, b); if(fwdCurve) fwdCurve.__gridPathId = grid.id; }
+        if(wantBwd && !bwdCurve){ bwdCurve = createOneWayPath(layer, b, a); if(bwdCurve) bwdCurve.__gridPathId = grid.id; }
+      }
+      if(wantFwd && fwdCurve && fwdCurve.__gridPathId===grid.id) setIntProperty(fwdCurve, 'direction', fwdDir);
+      if(wantBwd && bwdCurve && bwdCurve.__gridPathId===grid.id) setIntProperty(bwdCurve, 'direction', bwdDir);
+    }
+  }
+}
+function setGridConnected(grid, connected, layer){
+  layer = layer || getLayer(grid.layerId); if(!layer) return;
+  grid.connected = !!connected;
+  syncGridPaths(grid, layer);
+}
+function setGridConnectAxis(grid, axis, layer){
+  layer = layer || getLayer(grid.layerId); if(!layer) return;
+  grid.connectAxis = axis;
+  syncGridPaths(grid, layer);
+}
+function setGridConnectDirection(grid, direction, layer){
+  layer = layer || getLayer(grid.layerId); if(!layer) return;
+  grid.connectDirection = direction;
+  syncGridPaths(grid, layer);
+}
+function setGridConnectLegDirs(grid, fwdDir, bwdDir, layer){
+  layer = layer || getLayer(grid.layerId); if(!layer) return;
+  grid.connectFwdDir = fwdDir;
+  grid.connectBwdDir = bwdDir;
+  syncGridPaths(grid, layer);
+}
 function colOffsetX(grid, col){
   if(col===0) return grid.colOverride0!=null ? grid.colOverride0 : 0;
   let sum = 0;
@@ -8660,7 +8804,8 @@ let gridIdCounter = 1;
 function createGridPattern(layer, seedName, dx, dy, countX, countY){
   const grid = {id:'grid'+(gridIdCounter++), layerId:layer.id, seedName, dx, dy, countX:0, countY:0, cells:{},
     colOverride0:null, rowOverride0:null, colSteps:{}, rowSteps:{}, angleOn:false, angle:0,
-    namingSide:'left', namingArrow:{left:'down', right:'down', top:'right', bottom:'right'}};
+    namingSide:'left', namingArrow:{left:'down', right:'down', top:'right', bottom:'right'},
+    connected:false, connectAxis:'x', connectDirection:'both', connectFwdDir:0, connectBwdDir:0};
   state.gridPatterns.push(grid);
   setGridPatternSize(grid, countX, countY, layer);
   return grid;
@@ -8804,6 +8949,7 @@ function setGridPatternSize(grid, newCountX, newCountY, layer){
   }
   grid.countX = newCountX; grid.countY = newCountY;
   resolveAllGridPatterns();
+  syncGridPaths(grid, layer);
 }
 // Grid analog of renumberPatternInstances — row-major rank over grid.cells
 // (matching the iteration order used everywhere else: draw, setGridPatternSize),
@@ -8842,6 +8988,7 @@ function toggleGridCellSkip(grid, row, col){
   }
   renumberGridCells(grid, layer);
   resolveAllGridPatterns();
+  syncGridPaths(grid, layer);
 }
 function deleteGridPattern(grid){
   const layer = getLayer(grid.layerId);
@@ -10568,6 +10715,168 @@ document.getElementById('btnGridSelDelete').addEventListener('click', ()=>{
   state.selectedGridPattern = null;
   renderPatternPanel(); renderNavPointPanel(); renderPathPanel(); scheduleAutosave(); requestDraw();
 });
+
+// ---- Grid pattern "Connect…" popup: lets a grid pattern's rows (axis 'x')
+// or columns (axis 'y') -- one axis at a time -- get auto-connected with
+// paths, same non-destructive sync approach as Linear patterns'
+// "Connect nav points with paths" (syncGridPaths mirrors syncPatternPaths),
+// plus up-front control of each leg's SEER `direction` property, which
+// Linear's own connect feature doesn't offer.
+(function initGridConnectModal(){
+  const backdrop = document.getElementById('gridConnectModalBackdrop');
+  let gcGrid = null;
+
+  function gcNameFor(grid, row, col){
+    if(row===0 && col===0) return grid.seedName;
+    const cell = grid.cells[gridCellKey(row,col)];
+    return (cell && !cell.skipped) ? cell.name : null;
+  }
+  function gcIsSkipped(grid, row, col){
+    if(row===0 && col===0) return false;
+    const cell = grid.cells[gridCellKey(row,col)];
+    return !cell || cell.skipped;
+  }
+  function gcArrowMarker(id, color){
+    return '<marker id="'+id+'" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="'+color+'"/></marker>';
+  }
+  function renderGridConnectPreview(grid){
+    const mode = grid.connectDirection||'both';
+    const wantFwd = grid.connected && (mode==='forward' || mode==='both');
+    const wantBwd = grid.connected && (mode==='backward' || mode==='both');
+
+    // ---- single representative pair (root -> its axis-neighbor) ----
+    let svg = '<defs>'+gcArrowMarker('gcAF','#5a6fcf')+gcArrowMarker('gcAB','#cf5a7b')+'</defs>';
+    svg += '<rect x="20" y="40" width="26" height="26" rx="3" fill="#caa15a" stroke="#8a6a2f"/>';
+    svg += '<rect x="214" y="40" width="26" height="26" rx="3" fill="#5a6fcf" stroke="#33408a"/>';
+    const bothOn = wantFwd && wantBwd;
+    const fwdY = bothOn ? 50 : 55, bwdY = bothOn ? 60 : 55;
+    if(wantFwd) svg += '<path d="M48,'+fwdY+' L212,'+fwdY+'" stroke="#5a6fcf" stroke-width="2" fill="none" marker-end="url(#gcAF)"/>';
+    if(wantBwd) svg += '<path d="M212,'+bwdY+' L48,'+bwdY+'" stroke="#cf5a7b" stroke-width="2" fill="none" marker-end="url(#gcAB)"/>';
+    const nextRC = grid.connectAxis==='y' ? [1,0] : [0,1];
+    const rootName = grid.seedName, nextName = gcNameFor(grid, nextRC[0], nextRC[1]) || '(skipped)';
+    svg += '<text x="22" y="30" font-size="10" fill="#6b756f">Root — <tspan font-weight="600" fill="#44493f">'+rootName+'</tspan></text>';
+    svg += '<text x="190" y="30" font-size="10" fill="#6b756f">Next — <tspan font-weight="600" fill="#44493f">'+nextName+'</tspan></text>';
+    if(wantFwd) svg += '<text x="100" y="'+(fwdY-6)+'" font-size="9" fill="#5a6fcf">'+((grid.connectFwdDir||0)===1?'1 — Bwd':'0 — Fwd')+'</text>';
+    if(wantBwd) svg += '<text x="100" y="'+(bwdY+14)+'" font-size="9" fill="#cf5a7b">'+((grid.connectBwdDir||0)===1?'1 — Bwd':'0 — Fwd')+'</text>';
+    if(!grid.connected) svg += '<text x="60" y="90" font-size="10" fill="#b0b6b1">(connections off)</text>';
+    document.getElementById('gcPairSvg').innerHTML = svg;
+
+    // ---- whole-grid coverage preview, the grid's ACTUAL size + skips ----
+    // Fixed step sizes (never shrunk to force-fit a box) so a label never
+    // has to compete for space with its row/column neighbor -- the SVG
+    // instead grows with the grid and scrolls inside its fixed-size wrapper.
+    // The name label sits BELOW each cell for axis 'x' (clear of the
+    // horizontal connector, which stays near the row's own center-line) but
+    // to the SIDE for axis 'y' (the vertical connector's two arrows run
+    // right through the space directly below/above a cell, so a label there
+    // would sit on top of them).
+    const cols = grid.countX, rows = grid.countY;
+    const alongY = grid.connectAxis==='y';
+    const stepX = 68, stepY = 48;
+    const x0=30, y0=20;
+    const pos = (r,c)=>[x0+c*stepX, y0+r*stepY];
+    const svgW = x0*2 + (cols-1)*stepX + (alongY ? 40 : 0);
+    const svgH = y0 + (rows-1)*stepY + (alongY ? 16 : 26);
+    const gridSvgEl = document.getElementById('gcGridSvg');
+    gridSvgEl.setAttribute('width', svgW);
+    gridSvgEl.setAttribute('height', svgH);
+    let gsvg = '<defs>'+gcArrowMarker('gcGF','#5a6fcf')+gcArrowMarker('gcGB','#cf5a7b')+'</defs>';
+    if(grid.connected){
+      if(alongY){
+        for(let c=0;c<cols;c++){
+          const chain = [];
+          for(let r=0;r<rows;r++){ if(!gcIsSkipped(grid,r,c)) chain.push(r); }
+          for(let i=1;i<chain.length;i++){
+            const [x1,y1]=pos(chain[i-1],c), [x2,y2]=pos(chain[i],c);
+            if(wantFwd) gsvg += '<path d="M'+(x1-3)+','+(y1+9)+' L'+(x2-3)+','+(y2-9)+'" stroke="#5a6fcf" stroke-width="1.6" fill="none" marker-end="url(#gcGF)"/>';
+            if(wantBwd) gsvg += '<path d="M'+(x2+3)+','+(y2-9)+' L'+(x1+3)+','+(y1+9)+'" stroke="#cf5a7b" stroke-width="1.6" fill="none" marker-end="url(#gcGB)"/>';
+          }
+        }
+      } else {
+        for(let r=0;r<rows;r++){
+          const chain = [];
+          for(let c=0;c<cols;c++){ if(!gcIsSkipped(grid,r,c)) chain.push(c); }
+          for(let i=1;i<chain.length;i++){
+            const [x1,y1]=pos(r,chain[i-1]), [x2,y2]=pos(r,chain[i]);
+            if(wantFwd) gsvg += '<path d="M'+(x1+9)+','+(y1-3)+' L'+(x2-9)+','+(y2-3)+'" stroke="#5a6fcf" stroke-width="1.6" fill="none" marker-end="url(#gcGF)"/>';
+            if(wantBwd) gsvg += '<path d="M'+(x2-9)+','+(y2+3)+' L'+(x1+9)+','+(y1+3)+'" stroke="#cf5a7b" stroke-width="1.6" fill="none" marker-end="url(#gcGB)"/>';
+          }
+        }
+      }
+    }
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const [x,y]=pos(r,c);
+        const isRoot = r===0&&c===0;
+        const skipped = gcIsSkipped(grid,r,c);
+        gsvg += '<rect x="'+(x-7)+'" y="'+(y-7)+'" width="14" height="14" rx="2.5" fill="'+(skipped?'#fff':(isRoot?'#caa15a':'#5a6fcf'))+'" stroke="'+(isRoot?'#8a6a2f':(skipped?'#b0b6b1':'#33408a'))+'" stroke-dasharray="'+(skipped?'2 2':'none')+'"/>';
+        const label = skipped ? 'skipped' : gcNameFor(grid,r,c);
+        const lblStyle = 'font-size="8.5" fill="'+(skipped?'#b0b6b1':'#44493f')+'" font-style="'+(skipped?'italic':'normal')+'"';
+        gsvg += alongY
+          ? '<text x="'+(x+11)+'" y="'+(y+3)+'" '+lblStyle+' text-anchor="start">'+label+'</text>'
+          : '<text x="'+x+'" y="'+(y+20)+'" '+lblStyle+' text-anchor="middle">'+label+'</text>';
+      }
+    }
+    gridSvgEl.innerHTML = gsvg;
+  }
+
+  function renderGridConnectModal(){
+    if(!gcGrid) return;
+    const grid = gcGrid;
+    document.getElementById('gcConnected').checked = !!grid.connected;
+    document.getElementById('gcFields').classList.toggle('fields-disabled', !grid.connected);
+    document.getElementById('gcAxisX').classList.toggle('active', grid.connectAxis!=='y');
+    document.getElementById('gcAxisY').classList.toggle('active', grid.connectAxis==='y');
+    const mode = grid.connectDirection||'both';
+    document.getElementById('gcPathBoth').classList.toggle('active', mode==='both');
+    document.getElementById('gcPathFwd').classList.toggle('active', mode==='forward');
+    document.getElementById('gcPathBwd').classList.toggle('active', mode==='backward');
+    document.getElementById('gcFwdRow').style.display = (mode==='forward'||mode==='both') ? 'flex' : 'none';
+    document.getElementById('gcBwdRow').style.display = (mode==='backward'||mode==='both') ? 'flex' : 'none';
+    document.getElementById('gcFwdLabel').textContent = mode==='both' ? 'Root → Next' : 'Direction';
+    document.getElementById('gcBwdLabel').textContent = mode==='both' ? 'Next → Root' : 'Direction';
+    document.getElementById('gcFwdDir').value = String(grid.connectFwdDir||0);
+    document.getElementById('gcBwdDir').value = String(grid.connectBwdDir||0);
+    renderGridConnectPreview(grid);
+  }
+
+  function openGridConnectModal(grid){
+    gcGrid = grid;
+    renderGridConnectModal();
+    backdrop.hidden = false;
+  }
+  function closeGridConnectModal(){ backdrop.hidden = true; gcGrid = null; }
+  document.getElementById('btnGridConnectClose').addEventListener('click', closeGridConnectModal);
+  backdrop.addEventListener('pointerdown', e=>{ if(e.target===backdrop) closeGridConnectModal(); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && !backdrop.hidden) closeGridConnectModal(); });
+
+  function withGcGrid(mutate){
+    if(!gcGrid) return;
+    const layer = getLayer(gcGrid.layerId); if(!layer) return;
+    pushUndo(layer);
+    mutate(layer);
+    renderGridConnectModal();
+    scheduleAutosave(); requestDraw();
+  }
+  document.getElementById('gcConnected').addEventListener('change', e=>withGcGrid(layer=>setGridConnected(gcGrid, e.target.checked, layer)));
+  document.getElementById('gcAxisX').addEventListener('click', ()=>withGcGrid(layer=>setGridConnectAxis(gcGrid, 'x', layer)));
+  document.getElementById('gcAxisY').addEventListener('click', ()=>withGcGrid(layer=>setGridConnectAxis(gcGrid, 'y', layer)));
+  document.getElementById('gcPathBoth').addEventListener('click', ()=>withGcGrid(layer=>setGridConnectDirection(gcGrid, 'both', layer)));
+  document.getElementById('gcPathFwd').addEventListener('click', ()=>withGcGrid(layer=>setGridConnectDirection(gcGrid, 'forward', layer)));
+  document.getElementById('gcPathBwd').addEventListener('click', ()=>withGcGrid(layer=>setGridConnectDirection(gcGrid, 'backward', layer)));
+  function applyLegDirs(layer){
+    const fwdDir = parseInt(document.getElementById('gcFwdDir').value,10)||0;
+    const bwdDir = parseInt(document.getElementById('gcBwdDir').value,10)||0;
+    setGridConnectLegDirs(gcGrid, fwdDir, bwdDir, layer);
+  }
+  document.getElementById('gcFwdDir').addEventListener('change', ()=>withGcGrid(applyLegDirs));
+  document.getElementById('gcBwdDir').addEventListener('change', ()=>withGcGrid(applyLegDirs));
+
+  document.getElementById('btnGridSelConnect').addEventListener('click', ()=>{
+    const grid = state.gridPatterns.find(g=>g.id===state.selectedGridPattern); if(!grid) return;
+    openGridConnectModal(grid);
+  });
+})();
 
 const patMenuEl = document.getElementById('patMenu');
 function closePatMenu(){ patMenuEl.hidden = true; state.patMenuFor = null; }
