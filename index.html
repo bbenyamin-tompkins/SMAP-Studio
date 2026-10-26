@@ -1187,6 +1187,7 @@
             <div class="field-row"><label for="rdsMajorStart">Major starts at</label><input type="number" id="rdsMajorStart" class="mono" min="0"></div>
             <div class="field-row"><label for="rdsMinorStart">Minor starts at</label><input type="number" id="rdsMinorStart" class="mono" min="0"></div>
             <div class="field-row"><label for="rdsContinueMode" title="Picks up right after the highest existing name under this prefix">Continue existing</label><input type="checkbox" id="rdsContinueMode"></div>
+            <div class="field-row" title="A Pickup's near LM (its Station partner) is auto-named this prefix + the Pickup's own name, and can't be typed into directly"><label for="rdsPickupPrefix">Pickup near-LM prefix</label><input type="text" id="rdsPickupPrefix" class="mono"></div>
             <div class="field-row" id="rdsDirRow" hidden>
               <label>Direction</label>
               <div class="shape-toggle">
@@ -1228,6 +1229,7 @@
               <div class="field-row"><label for="rdsGMinorStart">Minor starts</label><input type="number" id="rdsGMinorStart" class="mono" min="0"></div>
             </div>
             <div class="field-row"><label for="rdsGContinueMode" title="Picks up right after the highest existing name under this prefix">Continue existing</label><input type="checkbox" id="rdsGContinueMode"></div>
+            <div class="field-row" title="A Pickup's near LM (its Station partner) is auto-named this prefix + the Pickup's own name, and can't be typed into directly"><label for="rdsGPickupPrefix">Pickup near-LM prefix</label><input type="text" id="rdsGPickupPrefix" class="mono"></div>
             <div class="label-sub" style="margin-top:8px;">On collision</div>
             <div class="shape-toggle">
               <button type="button" class="shape-btn active" id="rdsGCollBlock">Block</button>
@@ -6315,10 +6317,12 @@ function generateNavPointName(layer, prefix){
 // layer.extra wholesale, so layer.extra.binLocationsList just works for
 // load/export with no extra plumbing -- see Features/RDS Marker/reverse-eng.md.
 function defaultRdsRule(){
-  return {prefix:'Loc', sep:'-', majorPad:1, minorPad:1, majorStart:1, minorStart:1};
+  return {prefix:'Loc', sep:'-', majorPad:1, minorPad:1, majorStart:1, minorStart:1, pickupPrefix:'pre-'};
 }
 function getRdsRule(layer){
   if(!layer.rdsRule) layer.rdsRule = defaultRdsRule();
+  // Lazily backfills pickupPrefix onto rules saved before this field existed.
+  if(layer.rdsRule.pickupPrefix==null) layer.rdsRule.pickupPrefix = defaultRdsRule().pickupPrefix;
   return layer.rdsRule;
 }
 function fmtRdsName(rule, major, minor){
@@ -6524,13 +6528,24 @@ function renderRdsEditTable(tbody, errEl, layer, pointsFn, opts){
     }
     tr.appendChild(ptTd);
 
+    // A Pickup's near LM is never typed into directly -- its name is always
+    // "<rule.pickupPrefix>"+its AP's own name, kept in sync wherever the AP's
+    // name changes (see applyRdsNaming/syncPickupNearLmName and the AP-side
+    // handlers below).
+    const isPickupNear = isPickupNearLm(layer, pt);
     const nameTd = document.createElement('td');
-    const nameInput = document.createElement('input');
     const current = findBinLocationByPointName(layer, pt.instanceName);
     const ownCurrent = current ? current.instanceName : '';
-    nameInput.value = ownCurrent;
-    nameInput.placeholder = '(none)';
-    nameTd.appendChild(nameInput);
+    let nameInput = null;
+    if(isPickupNear){
+      nameTd.className = 'mono';
+      nameTd.textContent = ownCurrent || '(auto)';
+    } else {
+      nameInput = document.createElement('input');
+      nameInput.value = ownCurrent;
+      nameInput.placeholder = '(none)';
+      nameTd.appendChild(nameInput);
+    }
     tr.appendChild(nameTd);
 
     if(opts.showXY){
@@ -6544,35 +6559,39 @@ function renderRdsEditTable(tbody, errEl, layer, pointsFn, opts){
     delBtn.className = 'rds-edit-del-btn';
     delBtn.innerHTML = '&#128465;';
     delBtn.title = 'Clear this location';
-    delBtn.hidden = !current;
+    delBtn.hidden = !current || isPickupNear;
     delTd.appendChild(delBtn);
     tr.appendChild(delTd);
 
-    function isDupe(){
-      const v = nameInput.value.trim();
-      return !!(v && v!==ownCurrent && allRdsNames(layer).has(v));
-    }
-    nameInput.addEventListener('input', ()=>{ nameInput.classList.toggle('collision', isDupe()); });
-    nameInput.addEventListener('change', ()=>{
-      const v = nameInput.value.trim();
-      if(v===ownCurrent) return;
-      if(isDupe()){
-        showErr('“'+v+'” is already used by another point on this layer.');
-        nameInput.value = ownCurrent;
-        nameInput.classList.remove('collision');
-        return;
+    if(nameInput){
+      function isDupe(){
+        const v = nameInput.value.trim();
+        return !!(v && v!==ownCurrent && allRdsNames(layer).has(v));
       }
-      showErr('');
-      pushUndo(layer);
-      if(!v) removeRdsName(layer, pt);
-      else setRdsName(layer, pt, v);
-      scheduleAutosave(); requestDraw();
-      if(opts.onChange) opts.onChange();
-      rerender();
-    });
+      nameInput.addEventListener('input', ()=>{ nameInput.classList.toggle('collision', isDupe()); });
+      nameInput.addEventListener('change', ()=>{
+        const v = nameInput.value.trim();
+        if(v===ownCurrent) return;
+        if(isDupe()){
+          showErr('“'+v+'” is already used by another point on this layer.');
+          nameInput.value = ownCurrent;
+          nameInput.classList.remove('collision');
+          return;
+        }
+        showErr('');
+        pushUndo(layer);
+        if(!v) removeRdsName(layer, pt);
+        else setRdsName(layer, pt, v);
+        if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
+        scheduleAutosave(); requestDraw();
+        if(opts.onChange) opts.onChange();
+        rerender();
+      });
+    }
     delBtn.addEventListener('click', ()=>{
       pushUndo(layer);
       removeRdsName(layer, pt);
+      if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
       scheduleAutosave(); requestDraw();
       if(opts.onChange) opts.onChange();
       rerender();
@@ -6596,22 +6615,30 @@ function applyRdsNaming(layer, targets, rule, fmtFn, mode){
     const {pt, major, minor} = targets[i];
     const targetName = fmtFn(rule, major, minor);
     const existing = findBinLocationByPointName(layer, pt.instanceName);
-    if(existing){ continue; } // already named -- correctly, or a manual override; either way, leave it
-    if(taken.has(targetName)){
-      if(mode==='block'){ blockedAt = i; break; }
-      continue;
-    }
-    setRdsName(layer, pt, targetName);
-    taken.add(targetName);
-    appliedCount++;
+    if(!existing){
+      if(taken.has(targetName)){
+        if(mode==='block'){ blockedAt = i; break; }
+        continue;
+      }
+      setRdsName(layer, pt, targetName);
+      taken.add(targetName);
+      appliedCount++;
+    } // else already named -- correctly, or a manual override; either way, leave it
+    // A Pickup AP's near LM is never its own target (see rdsTargetsForList) --
+    // it's kept in sync here instead, whether pt was freshly named above or
+    // already had a name from an earlier apply.
+    if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
   }
   return {appliedCount, blockedAt};
 }
 // Generic ordered-list application (Group Select panel, and Linear
 // patterns): only Minor increments across the list, Major stays fixed at
-// the rule's own starting value.
-function rdsTargetsForList(pts, rule){
-  return pts.map((pt,i)=>({pt, major:rule.majorStart, minor:rule.minorStart+i}));
+// the rule's own starting value. A Pickup's near LM is excluded -- its name
+// is fully derived from its AP (applyRdsNaming/syncPickupNearLmName), so it
+// must never consume a sequence slot of its own.
+function rdsTargetsForList(layer, pts, rule){
+  const seq = pts.filter(pt=>!isPickupNearLm(layer, pt));
+  return seq.map((pt,i)=>({pt, major:rule.majorStart, minor:rule.minorStart+i}));
 }
 // Linear pattern naming order: "From root" (direction 'ltr') walks the
 // pattern's own instance order -- seed first, then each instance in the
@@ -9243,6 +9270,32 @@ function pickupApForPoint(layer, pt){
     if(ap && isPickupAp(ap)) return ap;
   }
   return null;
+}
+// The Station's near LM, specifically when its AP is a Pickup (not a plain
+// Station) -- this is the point RDS naming auto-derives as
+// rule.pickupPrefix+apName, so it must never consume its own Major/Minor
+// sequence slot and is never independently typed into in the RDS tables.
+function isPickupNearLm(layer, pt){
+  if(!layer || !pt || !isStationFollower(pt)) return false;
+  const ap = findNavPointByName(layer, pt.__pairedAP);
+  return !!(ap && isPickupAp(ap));
+}
+// Keeps a Pickup AP's near LM's RDS name mirroring rule.pickupPrefix+the
+// AP's own RDS name -- called anywhere the AP's own RDS name may have just
+// changed (naming-rule apply, manual table edit, manual clear). Returns
+// whether the near LM's RDS state actually changed.
+function syncPickupNearLmName(layer, apPt){
+  if(!isPickupAp(apPt)) return false;
+  const nearLm = getStationPartner(layer, apPt);
+  if(!nearLm) return false;
+  const apEntry = findBinLocationByPointName(layer, apPt.instanceName);
+  if(!apEntry) return removeRdsName(layer, nearLm);
+  const rule = getRdsRule(layer);
+  const derived = (rule.pickupPrefix || 'pre-') + apEntry.instanceName;
+  const current = findBinLocationByPointName(layer, nearLm.instanceName);
+  if(current && current.instanceName===derived) return false;
+  setRdsName(layer, nearLm, derived);
+  return true;
 }
 // Whether a point's position is currently derived (Station's near LM always
 // is; a Pickup's far LM is too, unless its "Position via Dimension tool"
@@ -14627,7 +14680,7 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
     // applyRdsContinuation) so it isn't the literal name of the first new
     // point -- show the name that point will actually get instead.
     if(rdsContinueMode){
-      const pts = rdsCtx.buildPoints(rdsDirection);
+      const pts = rdsCtx.buildPoints(rdsDirection).filter(pt=>!isPickupNearLm(layer, pt));
       const firstUnnamedIdx = pts.findIndex(pt=>!findBinLocationByPointName(layer, pt.instanceName));
       if(firstUnnamedIdx>=0) minor = rule.minorStart+firstUnnamedIdx;
     }
@@ -14650,7 +14703,7 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
     // minorStart has to be backed off by the first not-yet-named point's own
     // index, or every new name would land further out than "next available"
     // by however many already-named points precede it.
-    const pts = rdsCtx.buildPoints(rdsDirection);
+    const pts = rdsCtx.buildPoints(rdsDirection).filter(pt=>!isPickupNearLm(layer, pt));
     const firstUnnamedIdx = pts.findIndex(pt=>!findBinLocationByPointName(layer, pt.instanceName));
     rule.minorStart = Math.max(0, firstUnnamedIdx>=0 ? nextMinor-firstUnnamedIdx : nextMinor);
     document.getElementById('rdsMajorStart').value = rule.majorStart;
@@ -14668,6 +14721,7 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
     document.getElementById('rdsMinorPad').value = rule.minorPad;
     document.getElementById('rdsMajorStart').value = rule.majorStart;
     document.getElementById('rdsMinorStart').value = rule.minorStart;
+    document.getElementById('rdsPickupPrefix').value = rule.pickupPrefix;
     document.getElementById('rdsDirRow').hidden = !ctx.showDirection;
     rdsDirection = ctx.initialDirection || 'ltr';
     updateRdsDirButtons();
@@ -14695,7 +14749,7 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
   document.getElementById('rdsShowXY').addEventListener('change', e=>{ setRdsShowXY(e.target.checked); renderRdsModalTable(); });
   document.getElementById('rdsContinueMode').addEventListener('change', e=>{ setRdsContinueMode(e.target.checked); applyRdsContinuation(); });
   function closeRdsModal(){ simpleBackdrop.hidden = true; rdsCtx = null; }
-  ['rdsPrefix','rdsSep','rdsMajorPad','rdsMinorPad','rdsMajorStart','rdsMinorStart'].forEach(id=>{
+  ['rdsPrefix','rdsSep','rdsMajorPad','rdsMinorPad','rdsMajorStart','rdsMinorStart','rdsPickupPrefix'].forEach(id=>{
     document.getElementById(id).addEventListener('input', ()=>{
       if(!rdsCtx) return;
       const layer = getLayer(rdsCtx.layerId); if(!layer) return;
@@ -14706,6 +14760,7 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
       rule.minorPad = Math.max(1, parseInt(document.getElementById('rdsMinorPad').value)||1);
       rule.majorStart = Math.max(0, parseInt(document.getElementById('rdsMajorStart').value)||0);
       rule.minorStart = Math.max(0, parseInt(document.getElementById('rdsMinorStart').value)||0);
+      rule.pickupPrefix = document.getElementById('rdsPickupPrefix').value || 'pre-';
       renderRdsPreview();
     });
   });
@@ -14723,7 +14778,7 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
     note.hidden = false;
     if(!pts.length){ note.textContent = 'Nothing to name.'; return; }
     pushUndo(layer);
-    const targets = rdsTargetsForList(pts, rule);
+    const targets = rdsTargetsForList(layer, pts, rule);
     const {appliedCount, blockedAt} = applyRdsNaming(layer, targets, rule, fmtRdsName, rdsCollisionMode);
     if(appliedCount===0 && blockedAt==null){ state.undoStack.pop(); updateUndoButton(); }
     note.textContent = blockedAt!=null
@@ -14741,7 +14796,10 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
     if(!pts.length) return;
     pushUndo(layer);
     let cleared = 0;
-    for(const pt of pts){ if(removeRdsName(layer, pt)) cleared++; }
+    for(const pt of pts){
+      if(removeRdsName(layer, pt)) cleared++;
+      if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
+    }
     if(!cleared){ state.undoStack.pop(); updateUndoButton(); return; }
     scheduleAutosave(); requestDraw();
     renderRdsModalTable();
@@ -14820,6 +14878,7 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
     document.getElementById('rdsGMinorPad').value = rule.minorPad;
     document.getElementById('rdsGMajorStart').value = rule.majorStart;
     document.getElementById('rdsGMinorStart').value = rule.minorStart;
+    document.getElementById('rdsGPickupPrefix').value = rule.pickupPrefix;
     rdsGCollisionMode = 'block';
     updateRdsGCollButtons();
     document.getElementById('rdsGResultNote').hidden = true;
@@ -14844,7 +14903,7 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
   document.getElementById('rdsGShowXY').addEventListener('change', e=>{ setRdsShowXY(e.target.checked); renderRdsGridModalTable(); });
   document.getElementById('rdsGContinueMode').addEventListener('change', e=>{ setRdsContinueMode(e.target.checked); applyRdsGContinuation(); });
   function closeRdsGridModal(){ gridBackdrop.hidden = true; rdsGridTarget = null; }
-  ['rdsGPrefix','rdsGSep','rdsGMajorPad','rdsGMinorPad','rdsGMajorStart','rdsGMinorStart'].forEach(id=>{
+  ['rdsGPrefix','rdsGSep','rdsGMajorPad','rdsGMinorPad','rdsGMajorStart','rdsGMinorStart','rdsGPickupPrefix'].forEach(id=>{
     document.getElementById(id).addEventListener('input', ()=>{
       if(!rdsGridTarget) return;
       const layer = getLayer(rdsGridTarget.layerId); if(!layer) return;
@@ -14855,6 +14914,7 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
       rule.minorPad = Math.max(1, parseInt(document.getElementById('rdsGMinorPad').value)||1);
       rule.majorStart = Math.max(0, parseInt(document.getElementById('rdsGMajorStart').value)||0);
       rule.minorStart = Math.max(0, parseInt(document.getElementById('rdsGMinorStart').value)||0);
+      rule.pickupPrefix = document.getElementById('rdsGPickupPrefix').value || 'pre-';
     });
   });
   document.getElementById('rdsGCollBlock').addEventListener('click', ()=>{ rdsGCollisionMode='block'; updateRdsGCollButtons(); });
@@ -14884,7 +14944,10 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
     if(!pts.length) return;
     pushUndo(layer);
     let cleared = 0;
-    for(const pt of pts){ if(removeRdsName(layer, pt)) cleared++; }
+    for(const pt of pts){
+      if(removeRdsName(layer, pt)) cleared++;
+      if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
+    }
     if(!cleared){ state.undoStack.pop(); updateUndoButton(); return; }
     scheduleAutosave(); requestDraw();
     renderRdsGridModalTable();
