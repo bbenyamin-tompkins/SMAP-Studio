@@ -178,6 +178,11 @@
   }
   .field-row input[type="number"]:focus-visible{outline:none; box-shadow:var(--focus);}
   .field-row input[type="number"]:disabled{opacity:0.4; cursor:not-allowed;}
+  /* Same grayed-out look as :disabled, but for the linear pattern's
+     "computed" dx/dy/angle field -- readonly rather than disabled so a
+     click on it still bubbles (disabled form controls swallow clicks
+     entirely) and can be caught to reassign which field is computed. */
+  .field-row input[type="number"].solve-computed{opacity:0.4; cursor:pointer;}
   .field-row input[type="checkbox"]{accent-color:var(--accent); width:14px; height:14px; cursor:pointer; flex:0 0 auto;}
   .new-point-fields .field-row label{width:122px;}
   .stat-line{font-size:12px; color:var(--ink-dim); display:flex; justify-content:space-between; margin-bottom:4px;}
@@ -333,6 +338,58 @@
   .footprint-drawing{flex:0 0 auto; background:var(--bg); border:1px solid var(--line); border-radius:8px;}
   .footprint-fields{width:190px; flex:0 0 auto; display:flex; flex-direction:column; gap:2px; padding-top:8px;}
   .footprint-fields .field-row label{width:108px; flex:0 0 auto;}
+  /* Grid naming square picker -- click a side to pick it, click again to
+     flip the arrow. Mirrors the confirmed demo artifact's own layout. */
+  .rds-naming-square-wrap{padding:36px;}
+  .rds-naming-square{position:relative; width:160px; height:160px; margin-bottom:30px; border:1.5px solid var(--line); border-radius:4px; background:var(--panel-2);}
+  .rds-naming-sidezone{position:absolute; cursor:pointer;}
+  .rds-naming-sidezone.top{top:0; left:14px; right:14px; height:14px;}
+  .rds-naming-sidezone.bottom{bottom:0; left:14px; right:14px; height:14px;}
+  .rds-naming-sidezone.left{left:0; top:14px; bottom:14px; width:14px;}
+  .rds-naming-sidezone.right{right:0; top:14px; bottom:14px; width:14px;}
+  .rds-naming-sidezone:hover{background:var(--accent); opacity:0.25;}
+  .rds-naming-sidebar{position:absolute; background:var(--line);}
+  .rds-naming-sidebar.top{top:0; left:0; right:0; height:4px;}
+  .rds-naming-sidebar.bottom{bottom:0; left:0; right:0; height:4px;}
+  .rds-naming-sidebar.left{left:0; top:0; bottom:0; width:4px;}
+  .rds-naming-sidebar.right{right:0; top:0; bottom:0; width:4px;}
+  .rds-naming-sidebar.active{background:var(--accent);}
+  .rds-naming-rootdot{position:absolute; width:10px; height:10px; border-radius:50%; background:var(--danger); transform:translate(-50%,-50%); box-shadow:0 0 0 3px var(--panel-2);}
+  .rds-naming-arrow{position:absolute; color:var(--accent); font-size:22px; font-weight:700; line-height:1; transform:translate(-50%,-50%);}
+  /* Editable RDS points table -- shared between the per-pattern Naming…
+     modals and the global per-layer table. */
+  .rds-edit-table{width:100%; border-collapse:collapse; font-size:12px; margin-top:6px;}
+  .rds-edit-table th{text-align:left; color:var(--ink-dim); font-weight:600; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; padding:4px 6px; border-bottom:1px solid var(--line);}
+  .rds-edit-table td{padding:3px 6px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  .rds-edit-table td input{width:100%; background:var(--bg); border:1px solid var(--line); border-radius:5px; color:var(--ink); padding:4px 6px; font-size:12px; font-family:"IBM Plex Mono",ui-monospace,monospace;}
+  .rds-edit-table td input.collision{border-color:var(--danger);}
+  .rds-edit-table td.xy-cell{color:var(--ink-dim); white-space:nowrap; user-select:text; cursor:text;}
+  .rds-xy-toggle{font-size:11px; display:flex; align-items:center; gap:5px; cursor:pointer; color:var(--ink-dim); user-select:none;}
+  .rds-xy-toggle input{margin:0;}
+  .rds-edit-del-btn{background:transparent; border:none; color:var(--ink-dim); cursor:pointer; font-size:13px; padding:2px 6px; border-radius:4px;}
+  .rds-edit-del-btn:hover{color:var(--danger);}
+  .rds-edit-err{color:var(--danger); font-size:11px; margin-top:6px; min-height:14px;}
+  .rds-table-modal{width:560px;}
+  .rds-table-head-row{display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px; margin-bottom:6px;}
+  .rds-table-layer-label{font-size:11.5px; color:var(--ink-dim);}
+  .rds-table-layer-label b{color:var(--ink); font-family:"IBM Plex Mono",ui-monospace,monospace; font-weight:600;}
+  .rds-table-actions{display:flex; gap:6px; flex-wrap:wrap;}
+  .rds-table-scroll{max-height:50vh; overflow-y:auto;}
+  /* Grid naming's Prefix/Separator/padding/start fields are short enough to
+     pair up two-to-a-row instead of each taking a full line. */
+  .rds-grid-field-pair{display:flex; gap:10px; margin-bottom:8px;}
+  .rds-grid-field-pair .field-row{flex:1; margin-bottom:0; min-width:0;}
+  .rds-grid-field-pair .field-row label{width:auto; flex:0 0 auto;}
+  /* Unlike number inputs (flex:1 min-width:0 above), a plain text input has
+     no such rule and keeps its ~20ch intrinsic width as a flex-shrink floor
+     -- harmless full-width in the old single-column layout, but enough to
+     blow out a paired row here. */
+  .rds-grid-field-pair .field-row input{flex:1; min-width:0;}
+  /* .shape-toggle's flex:1 is meant for horizontal rows elsewhere -- as a
+     direct child of this column (flex-direction:column) it instead grows
+     vertically to fill whatever leftover height the taller square-picker
+     and points columns leave, ballooning Block/Skip into giant tiles. */
+  .rds-grid-fields-col .shape-toggle{flex:0 0 auto;}
   .restore-banner{
     position:absolute; top:10px; left:50%; transform:translateX(-50%);
     background:var(--accent); color:var(--accent-ink); font-size:12.5px; padding:8px 12px;
@@ -479,6 +536,7 @@
         <button class="btn" id="btnGroupUngroup" style="width:100%; margin-top:4px;" hidden>Ungroup</button>
         <button class="btn" id="btnGroupCopy" style="width:100%; margin-top:4px;" hidden>Copy</button>
         <button class="btn" id="btnGroupPaste" style="width:100%; margin-top:4px;" hidden>Paste</button>
+        <button class="btn" id="btnGroupNaming" style="width:100%; margin-top:4px;">Naming…</button>
         <button class="btn" id="btnGroupLock" style="width:100%; margin-top:4px;" hidden>Lock</button>
         <button class="btn" id="btnGroupUnlock" style="width:100%; margin-top:4px;" hidden>Unlock</button>
         <button class="btn danger" id="btnGroupDelete" style="width:100%; margin-top:4px;" hidden>Delete</button>
@@ -656,6 +714,8 @@
             <div class="field-row"><label for="patDraftGridDy">dy</label><input type="number" id="patDraftGridDy" step="0.01" value="1"></div>
             <div class="field-row"><label for="patDraftCountX">Columns</label><input type="number" id="patDraftCountX" step="1" min="1" value="3"></div>
             <div class="field-row"><label for="patDraftCountY">Rows</label><input type="number" id="patDraftCountY" step="1" min="1" value="3"></div>
+            <label class="check-inline" style="margin-top:4px;"><input type="checkbox" id="patDraftGridAngleOn"> Angle</label>
+            <div class="field-row" id="patDraftGridAngleRow" hidden><label for="patDraftGridAngle">Angle (°)</label><input type="number" id="patDraftGridAngle" step="0.5" value="0"></div>
           </div>
           <button class="btn primary" id="btnPatDraftCreate" style="width:100%; margin-top:8px;">Create pattern</button>
           <button class="btn" id="btnPatDraftCancel" style="width:100%; margin-top:6px;">Cancel</button>
@@ -725,6 +785,7 @@
           <div class="stat-line"><span>Skipped instances</span><b id="patSelSkipCount" class="mono"></b></div>
           <button class="btn" id="btnPatSelResetOverrides" style="width:100%; margin-top:8px;">Reset all instance overrides</button>
           <button class="btn" id="btnPatSelUnskipAll" style="width:100%; margin-top:6px;">Un-skip all instances</button>
+          <button class="btn" id="btnPatSelNaming" style="width:100%; margin-top:6px;">Naming…</button>
           <button class="btn danger" id="btnPatSelDelete" style="width:100%; margin-top:6px;">Delete pattern</button>
         </div>
         <div id="gridSelBox" hidden>
@@ -733,10 +794,13 @@
           <div class="field-row"><label for="gridSelDy">dy</label><input type="number" id="gridSelDy" step="0.01"></div>
           <div class="field-row"><label for="gridSelCountX">Columns</label><input type="number" id="gridSelCountX" step="1" min="1"></div>
           <div class="field-row"><label for="gridSelCountY">Rows</label><input type="number" id="gridSelCountY" step="1" min="1"></div>
+          <label class="check-inline" style="margin-top:4px;"><input type="checkbox" id="gridSelAngleOn"> Angle</label>
+          <div class="field-row" id="gridSelAngleRow" hidden><label for="gridSelAngle">Angle (°)</label><input type="number" id="gridSelAngle" step="0.5"></div>
           <div class="stat-line"><span>Overridden rows/cols</span><b id="gridSelOverrideCount" class="mono"></b></div>
           <div class="stat-line"><span>Skipped cells</span><b id="gridSelSkipCount" class="mono"></b></div>
           <button class="btn" id="btnGridSelResetOverrides" style="width:100%; margin-top:8px;">Reset row/col overrides</button>
           <button class="btn" id="btnGridSelUnskipAll" style="width:100%; margin-top:6px;">Un-skip all cells</button>
+          <button class="btn" id="btnGridSelNaming" style="width:100%; margin-top:6px;">Naming…</button>
           <button class="btn danger" id="btnGridSelDelete" style="width:100%; margin-top:6px;">Delete grid pattern</button>
         </div>
         <div id="pathPatBox" hidden>
@@ -1056,6 +1120,7 @@
         <label class="show-row" title="Annotations (text, areas, arrows)"><input type="checkbox" id="showAnnotations" checked><span class="show-swatch" style="--sw:#1f6feb;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="12" rx="2.5" fill="currentColor" fill-opacity="0.25"></rect><path d="M7 9h10M7 12.3h6"></path></svg></span><span class="show-row-label">Annotations</span></label>
         <label class="show-row" title="Walls"><input type="checkbox" id="showExtra" checked><span class="show-swatch" style="--sw:#9aa39d;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20L20 4"></path></svg></span><span class="show-row-label">Walls</span></label>
         <label class="show-row" title="Nav points / paths"><input type="checkbox" id="showNav" checked><span class="show-swatch" style="--sw:#7c6cff;"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s6-6.3 6-11a6 6 0 1 0-12 0c0 4.7 6 11 6 11z"></path></svg></span><span class="show-row-label">Nav points / paths</span></label>
+        <label class="show-row" title="RDS locations"><input type="checkbox" id="showRdsLocations" checked><span class="show-swatch" style="--sw:#ffb347;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg></span><span class="show-row-label">RDS locations</span></label>
         <label class="show-row" title="Give each nav point's own outgoing paths different colors, so you can tell overlapping paths from the same point apart"><input type="checkbox" id="showColorizePaths"><span class="show-swatch"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round"><path d="M4 20 L12 6" stroke="#e8463a"></path><path d="M9 20 L12 6" stroke="#3fa6ff"></path><path d="M15 20 L12 6" stroke="#2ecc71"></path></svg></span><span class="show-row-label">Colorize paths</span></label>
         <div class="show-row" style="justify-content:space-between;" title="Robot footprint">
           <label style="display:flex; align-items:center; gap:9px; flex:1; min-width:0; cursor:pointer;">
@@ -1088,6 +1153,153 @@
             <div class="field-row"><label for="fpFromBottom">From bottom edge</label><input type="number" id="fpFromBottom" class="mono" step="0.01" min="0"></div>
           </div>
         </div>
+      </div>
+    </div>
+    <div class="footprint-modal-backdrop" id="rdsModalBackdrop" hidden>
+      <div class="footprint-modal" style="width:580px;">
+        <div class="footprint-modal-head">
+          <div style="font-weight:600; font-size:14px;">Naming…</div>
+          <button class="layer-mini-btn" id="btnRdsClose" title="Close" style="font-size:16px;">✕</button>
+        </div>
+        <div class="tool-hint" id="rdsModalHint" style="margin-top:0; margin-bottom:10px;"></div>
+        <div class="footprint-modal-body">
+          <div style="flex:1 1 240px; min-width:220px; display:flex; flex-direction:column;">
+            <div class="rds-table-head-row" style="margin-top:0;">
+              <b style="font-size:11.5px;" id="rdsPointsTableLabel">These points</b>
+              <div class="rds-table-actions" style="align-items:center;">
+                <label class="rds-xy-toggle"><input type="checkbox" id="rdsShowXY"> X,Y</label>
+                <button class="btn danger" id="btnRdsClearAll" style="padding:3px 8px; font-size:11px;">Clear all</button>
+              </div>
+            </div>
+            <div class="rds-table-scroll">
+              <table class="rds-edit-table">
+                <tr><th>Nav point</th><th>Location name</th><th id="rdsXYHead" hidden>X, Y</th><th></th></tr>
+                <tbody id="rdsPointsTableBody"></tbody>
+              </table>
+            </div>
+            <div class="rds-edit-err" id="rdsPointsTableErr"></div>
+          </div>
+          <div style="flex:0 0 260px; display:flex; flex-direction:column; gap:2px;">
+            <div class="field-row"><label for="rdsPrefix">Prefix</label><input type="text" id="rdsPrefix" class="mono"></div>
+            <div class="field-row"><label for="rdsSep">Separator</label><input type="text" id="rdsSep" class="mono" style="width:60px;"></div>
+            <div class="field-row"><label for="rdsMajorPad">Major padding</label><input type="number" id="rdsMajorPad" class="mono" min="1" max="6"></div>
+            <div class="field-row"><label for="rdsMinorPad">Minor padding</label><input type="number" id="rdsMinorPad" class="mono" min="1" max="6"></div>
+            <div class="field-row"><label for="rdsMajorStart">Major starts at</label><input type="number" id="rdsMajorStart" class="mono" min="0"></div>
+            <div class="field-row"><label for="rdsMinorStart">Minor starts at</label><input type="number" id="rdsMinorStart" class="mono" min="0"></div>
+            <div class="field-row"><label for="rdsContinueMode" title="Picks up right after the highest existing name under this prefix">Continue existing</label><input type="checkbox" id="rdsContinueMode"></div>
+            <div class="field-row" title="A Pickup's near LM (its Station partner) is auto-named this prefix + the Pickup's own name, and can't be typed into directly"><label for="rdsPickupPrefix">Pickup near-LM prefix</label><input type="text" id="rdsPickupPrefix" class="mono"></div>
+            <div class="field-row" id="rdsDirRow" hidden>
+              <label>Direction</label>
+              <div class="shape-toggle">
+                <button type="button" class="shape-btn active" id="rdsDirLtr">From root</button>
+                <button type="button" class="shape-btn" id="rdsDirRtl">To root</button>
+              </div>
+            </div>
+            <div class="label-sub" style="margin-top:8px;">On collision</div>
+            <div class="shape-toggle">
+              <button type="button" class="shape-btn active" id="rdsCollBlock">Block</button>
+              <button type="button" class="shape-btn" id="rdsCollSkip">Skip</button>
+            </div>
+            <div class="stat-line" style="margin-top:10px;"><span>Example</span><b id="rdsPreview" class="mono"></b></div>
+            <button class="btn primary" id="rdsApplyBtn" style="width:100%; margin-top:10px;">Apply naming</button>
+            <div class="tool-hint" id="rdsResultNote" style="margin-top:8px;" hidden></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footprint-modal-backdrop" id="rdsGridModalBackdrop" hidden>
+      <div class="footprint-modal" style="width:860px;">
+        <div class="footprint-modal-head">
+          <div style="font-weight:600; font-size:14px;">Grid naming…</div>
+          <button class="layer-mini-btn" id="btnRdsGridClose" title="Close" style="font-size:16px;">✕</button>
+        </div>
+        <div class="tool-hint" style="margin-top:0; margin-bottom:10px;">Names use {Prefix}-{Minor}-{Major} here (grid exception) — Minor is position within the line, Major is the line index. Skipped cells keep their own name; the raster numbering still accounts for them.</div>
+        <div class="footprint-modal-body">
+          <div class="rds-grid-fields-col" style="flex:0 0 300px; min-width:0; display:flex; flex-direction:column; gap:2px;">
+            <div class="rds-grid-field-pair">
+              <div class="field-row"><label for="rdsGPrefix">Prefix</label><input type="text" id="rdsGPrefix" class="mono"></div>
+              <div class="field-row" style="flex:0 0 70px;"><label for="rdsGSep">Sep</label><input type="text" id="rdsGSep" class="mono" style="width:100%;"></div>
+            </div>
+            <div class="rds-grid-field-pair">
+              <div class="field-row"><label for="rdsGMajorPad">Major pad</label><input type="number" id="rdsGMajorPad" class="mono" min="1" max="6"></div>
+              <div class="field-row"><label for="rdsGMinorPad">Minor pad</label><input type="number" id="rdsGMinorPad" class="mono" min="1" max="6"></div>
+            </div>
+            <div class="rds-grid-field-pair">
+              <div class="field-row"><label for="rdsGMajorStart">Major starts</label><input type="number" id="rdsGMajorStart" class="mono" min="0"></div>
+              <div class="field-row"><label for="rdsGMinorStart">Minor starts</label><input type="number" id="rdsGMinorStart" class="mono" min="0"></div>
+            </div>
+            <div class="field-row"><label for="rdsGContinueMode" title="Picks up right after the highest existing name under this prefix">Continue existing</label><input type="checkbox" id="rdsGContinueMode"></div>
+            <div class="field-row" title="A Pickup's near LM (its Station partner) is auto-named this prefix + the Pickup's own name, and can't be typed into directly"><label for="rdsGPickupPrefix">Pickup near-LM prefix</label><input type="text" id="rdsGPickupPrefix" class="mono"></div>
+            <div class="label-sub" style="margin-top:8px;">On collision</div>
+            <div class="shape-toggle">
+              <button type="button" class="shape-btn active" id="rdsGCollBlock">Block</button>
+              <button type="button" class="shape-btn" id="rdsGCollSkip">Skip</button>
+            </div>
+            <button class="btn primary" id="rdsGApplyBtn" style="width:100%; margin-top:10px;">Apply naming</button>
+            <div class="tool-hint" id="rdsGResultNote" style="margin-top:8px;" hidden></div>
+          </div>
+          <div style="flex:1 1 220px; display:flex; flex-direction:column; align-items:center; gap:10px;">
+            <div class="rds-naming-square-wrap">
+              <div class="rds-naming-square" id="rdsNamingSquare">
+                <div class="rds-naming-sidebar top" data-side="top"></div>
+                <div class="rds-naming-sidebar right" data-side="right"></div>
+                <div class="rds-naming-sidebar bottom" data-side="bottom"></div>
+                <div class="rds-naming-sidebar left" data-side="left"></div>
+                <div class="rds-naming-sidezone top" data-side="top"></div>
+                <div class="rds-naming-sidezone right" data-side="right"></div>
+                <div class="rds-naming-sidezone bottom" data-side="bottom"></div>
+                <div class="rds-naming-sidezone left" data-side="left"></div>
+                <div class="rds-naming-rootdot" id="rdsNamingRootDot"></div>
+                <div class="rds-naming-arrow" id="rdsNamingArrow">→</div>
+              </div>
+              <div class="tool-hint" id="rdsNamingCaption" style="margin-top:10px; text-align:center;"></div>
+            </div>
+          </div>
+          <div style="flex:1 1 240px; min-width:220px; display:flex; flex-direction:column;">
+            <div class="rds-table-head-row">
+              <b style="font-size:11.5px;" id="rdsGPointsTableLabel">This grid's points</b>
+              <div class="rds-table-actions" style="align-items:center;">
+                <label class="rds-xy-toggle"><input type="checkbox" id="rdsGShowXY"> X,Y</label>
+                <button class="btn danger" id="btnRdsGClearAll" style="padding:3px 8px; font-size:11px;">Clear all</button>
+              </div>
+            </div>
+            <div class="rds-table-scroll" style="max-height:280px;">
+              <table class="rds-edit-table">
+                <tr><th>Nav point</th><th>Location name</th><th id="rdsGXYHead" hidden>X, Y</th><th></th></tr>
+                <tbody id="rdsGPointsTableBody"></tbody>
+              </table>
+            </div>
+            <div class="rds-edit-err" id="rdsGPointsTableErr"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footprint-modal-backdrop" id="rdsTableModalBackdrop" hidden>
+      <div class="footprint-modal rds-table-modal">
+        <div class="footprint-modal-head">
+          <div style="font-weight:600; font-size:14px;">RDS locations</div>
+          <button class="layer-mini-btn" id="btnRdsTableClose" title="Close" style="font-size:16px;">✕</button>
+        </div>
+        <div class="tool-hint" style="margin-top:0; margin-bottom:6px;">Every nav point on the active layer. Rename a point or its location name here, or clear a name to delete that point's location. Scoped to the active layer only.</div>
+        <div class="rds-table-layer-label">Layer: <b id="rdsTableLayerName"></b> &mdash; <span id="rdsTableStat"></span></div>
+        <div class="rds-table-head-row">
+          <div class="rds-table-actions">
+            <button class="btn" id="btnRdsTableExport" style="padding:4px 10px; font-size:11.5px;">Export CSV</button>
+            <button class="btn" id="btnRdsTableImport" style="padding:4px 10px; font-size:11.5px;">Import CSV…</button>
+            <input type="file" id="rdsTableImportInput" accept=".csv,text/csv" hidden>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <label class="rds-xy-toggle"><input type="checkbox" id="rdsTableShowXY"> X,Y</label>
+            <button class="btn danger" id="btnRdsTableClearAll" style="padding:4px 10px; font-size:11.5px;">Clear all on layer</button>
+          </div>
+        </div>
+        <div class="rds-table-scroll">
+          <table class="rds-edit-table">
+            <tr><th>Nav point</th><th>Location name</th><th id="rdsTableXYHead" hidden>X, Y</th><th></th></tr>
+            <tbody id="rdsTableBody"></tbody>
+          </table>
+        </div>
+        <div class="rds-edit-err" id="rdsTableErr"></div>
       </div>
     </div>
     <div class="shortcuts-popover" id="shortcutsPopover" hidden>
@@ -1188,7 +1400,7 @@ const state = {
   eraseRadius: 0.5,
   eraseShape: 'circle',
   eraseTargets: { scan:true, rssi:true, extra:true },
-  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true, areaDims:true, relations:true, patterns:true, footprint:false, colorizePaths:false, annotations:true },
+  typeVisibility: { scan:true, rssi:true, reflector:true, extra:true, nav:true, areas:true, areaDims:true, relations:true, patterns:true, footprint:false, colorizePaths:false, annotations:true, rdsLocations:true },
   showOrigin: false,
   uniformLayerColor: true,
   mouse: null,
@@ -1316,6 +1528,24 @@ function transformDeepClone(obj, layer){
         const [wx,wy] = layerToWorld(layer, node.x, node.y);
         node.x = round3(wx); node.y = round3(wy);
       }
+      // An RDS GeneralLocation's footprint ("points") is a JSON-stringified
+      // array of {x,y} corners -- opaque to the generic x/y walk above
+      // since it's a string, not a nested object, so without this it stays
+      // in layer-local units while the entry's own `pos` correctly becomes
+      // world-space, leaving the footprint square displaced by however much
+      // the layer itself is translated/rotated.
+      if(node.key==='points' && node.type==='json' && typeof node.stringValue==='string'){
+        try{
+          const pts = JSON.parse(node.stringValue);
+          if(Array.isArray(pts)){
+            node.stringValue = JSON.stringify(pts.map(p=>{
+              if(typeof (p&&p.x)!=='number' || typeof (p&&p.y)!=='number') return p;
+              const [wx,wy] = layerToWorld(layer, p.x, p.y);
+              return {x:round3(wx), y:round3(wy)};
+            }));
+          }
+        }catch(e){}
+      }
       for(const k of Object.keys(node)) walk(node[k]);
     }
   })(clone);
@@ -1368,6 +1598,7 @@ function buildLayer(json, fileName){
   };
   normalizeCurvePairs(layer);
   normalizeAreaRects(layer);
+  normalizeBinLocationsList(layer);
   return layer;
 }
 
@@ -1490,6 +1721,11 @@ function getEditableActiveLayer(){
   return (layer && layer.visible) ? layer : null;
 }
 
+// Assigned inside initRdsNamingModals() -- exposed here so the layers
+// panel (defined earlier in the file) can open a layer's RDS table
+// without needing that whole modal IIFE lifted above it.
+let openRdsTableModal = null;
+
 function deleteLayer(id){
   const layer = getLayer(id);
   if(!layer) return;
@@ -1604,6 +1840,17 @@ function renderLayersList(){
     delBtn.className='layer-mini-btn'; delBtn.textContent='✕'; delBtn.title='Delete layer';
     delBtn.addEventListener('click', e=>{ e.stopPropagation(); deleteLayer(layer.id); });
 
+    // RDS naming table is per-layer data (binLocationsList), so it's
+    // offered right on that layer's row rather than tied to whatever
+    // happens to be the active layer -- omitted for image layers, which
+    // carry no nav points/RDS data at all.
+    const rdsBtn = layer.kind!=='image' ? (()=>{
+      const btn = document.createElement('button');
+      btn.className='layer-mini-btn'; btn.textContent='▦'; btn.title='RDS naming table…';
+      btn.addEventListener('click', e=>{ e.stopPropagation(); openRdsTableModal(layer); });
+      return btn;
+    })() : null;
+
     // Only offered when there's actually something eligible below to merge
     // into — omitted rather than shown disabled, to keep this row from
     // getting any busier than it needs to be for the common case.
@@ -1615,7 +1862,7 @@ function renderLayersList(){
       return btn;
     })() : null;
 
-    row.append(vis, swatch, name, renameBtn, upBtn, downBtn, ...(mergeBtn ? [mergeBtn] : []), delBtn);
+    row.append(vis, swatch, name, renameBtn, upBtn, downBtn, ...(mergeBtn ? [mergeBtn] : []), ...(rdsBtn ? [rdsBtn] : []), delBtn);
     row.addEventListener('click', ()=>{ state.activeLayerId = layer.id; renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); requestDraw(); });
     layersListEl.appendChild(row);
   }
@@ -1932,6 +2179,12 @@ function renameNavPoint(layer, oldName, newName){
     if(grid.layerId!==layer.id) continue;
     if(grid.seedName===oldName) grid.seedName = newName;
     for(const key of Object.keys(grid.cells)){ if(grid.cells[key].name===oldName) grid.cells[key].name = newName; }
+  }
+  // An RDS GeneralLocation links back to its nav point by pointName only
+  // (see allBinLocationEntries) -- without this, renaming a point here
+  // silently orphans any RDS location attached to it.
+  for(const entry of allBinLocationEntries(layer)){
+    if(entry.pointName===oldName) entry.pointName = newName;
   }
   return true;
 }
@@ -3633,6 +3886,7 @@ document.getElementById('showPatterns').addEventListener('change', e=>{ state.ty
 document.getElementById('showAnnotations').addEventListener('change', e=>{ state.typeVisibility.annotations = e.target.checked; requestDraw(); });
 document.getElementById('showExtra').addEventListener('change', e=>{ state.typeVisibility.extra = e.target.checked; requestDraw(); });
 document.getElementById('showNav').addEventListener('change', e=>{ state.typeVisibility.nav = e.target.checked; requestDraw(); });
+document.getElementById('showRdsLocations').addEventListener('change', e=>{ state.typeVisibility.rdsLocations = e.target.checked; requestDraw(); });
 document.getElementById('showFootprint').addEventListener('change', e=>{ state.typeVisibility.footprint = e.target.checked; requestDraw(); });
 document.getElementById('showColorizePaths').addEventListener('change', e=>{ state.typeVisibility.colorizePaths = e.target.checked; requestDraw(); });
 const showOriginEl = document.getElementById('showOrigin');
@@ -3955,6 +4209,8 @@ const NAV_COLOR_CHARGE = '#16a34a';
 const NAV_COLOR_CHARGE_PRINT = '#0d7a34';
 const NAV_COLOR_ACTION = '#d97706';
 const NAV_COLOR_ACTION_PRINT = '#b45309';
+const RDS_LOCATION_COLOR = '#ffb347';
+const RDS_LOCATION_COLOR_PRINT = '#b4780f';
 const NAV_POINT_TYPES = ['LocationMark', 'ChargePoint', 'ActionPoint'];
 const NAV_POINT_TYPE_LABELS = { LocationMark:'Location Mark', ChargePoint:'Charge Point', ActionPoint:'Action Point' };
 
@@ -4263,6 +4519,42 @@ function drawNavPoints(layer, pal){
   }
 }
 
+// Pure visual overlay -- a small square plus the location's name, in a
+// color distinct from nav points. Not interactive: editing/deleting a name
+// happens through the Naming… modal or the RDS table, never by clicking a
+// marker here.
+//
+// Drawn BELOW the nav point rather than at the location's own stored pos
+// (entry.pos, which sits +0.3 above the point -- see setRdsName) -- that
+// stored offset is export data for SEER, not a viz placement, and drawing
+// there collided with the nav point's own label (also drawn above-right,
+// see drawNavPoints) whenever both were shown. The backend position is
+// untouched; this only changes where the marker is PAINTED.
+function drawRdsLocations(layer, pal){
+  const entries = allBinLocationEntries(layer);
+  if(!entries.length) return;
+  const color = state.printFriendly ? RDS_LOCATION_COLOR_PRINT : RDS_LOCATION_COLOR;
+  const half = 7;
+  ctx.font = 'bold 11px "IBM Plex Mono", ui-monospace, monospace';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  for(const entry of entries){
+    if(!entry) continue;
+    const pt = findNavPointByName(layer, entry.pointName);
+    const anchorPos = pt ? pt.pos : entry.pos;
+    if(!anchorPos) continue;
+    const [wx,wy] = layerToWorld(layer, anchorPos.x, anchorPos.y);
+    const [sx,navSy] = worldToScreen(wx,wy);
+    const sy = navSy + 22; // just below the nav point's own box, clear of its label above
+    ctx.fillStyle = color; ctx.globalAlpha = 0.22;
+    ctx.fillRect(sx-half, sy-half, half*2, half*2);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = color; ctx.lineWidth = 2;
+    ctx.strokeRect(sx-half, sy-half, half*2, half*2);
+    ctx.fillStyle = state.printFriendly ? '#111111' : '#ffffff';
+    ctx.fillText(entry.instanceName||'', sx+half+4, sy+half);
+  }
+  ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+}
 function drawManualLines(layer, pal){
   if(!layer.manualLines || !layer.manualLines.length) return;
   const isActiveLayer = layer.id===state.activeLayerId;
@@ -5336,6 +5628,55 @@ function drawPatBadge(sx, sy, glyph, color, ghost){
   ctx.globalAlpha = 1;
   ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
 }
+// Small on-canvas compass glyph (dashed 0° reference, swept arc, arrowhead,
+// numeric angle label) at a pattern's seed -- fixed SCREEN-pixel size so it
+// reads the same at any zoom. Shared by the Linear pattern (angle derived
+// from dx/dy) and the Grid pattern (angle is its own independent field,
+// rotating the whole dx/dy lattice around the seed), both of which are
+// otherwise not visually distinguishable from an axis-aligned pattern at a
+// glance, especially on a draft before any instances exist yet.
+function drawAngleGlyph(seedWorld, angleDeg, color){
+  const angleRad = angleDeg*Math.PI/180;
+  const [sx,sy] = worldToScreen(seedWorld[0], seedWorld[1]);
+  const r = 24, arcR = 13;
+  ctx.save();
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 1.3;
+  ctx.setLineDash([2,2]);
+  ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(sx+r,sy); ctx.stroke();
+  ctx.setLineDash([]);
+  // Canvas angles run clockwise from +x (screen Y grows down); our angleRad
+  // is the usual CCW-positive math convention, so the on-screen sweep is
+  // -angleRad, taken the short way (true/CCW in canvas terms) whenever the
+  // source angle was positive.
+  ctx.beginPath(); ctx.arc(sx, sy, arcR, 0, -angleRad, angleDeg>0); ctx.stroke();
+  const ax = sx + r*Math.cos(angleRad), ay = sy - r*Math.sin(angleRad);
+  ctx.beginPath(); ctx.moveTo(sx,sy); ctx.lineTo(ax,ay); ctx.stroke();
+  const dirx = ax-sx, diry = ay-sy, len = Math.hypot(dirx,diry)||1;
+  const ux = dirx/len, uy = diry/len, perpx = -uy, perpy = ux, headLen = 6;
+  ctx.beginPath();
+  ctx.moveTo(ax,ay);
+  ctx.lineTo(ax-headLen*ux+headLen*0.5*perpx, ay-headLen*uy+headLen*0.5*perpy);
+  ctx.lineTo(ax-headLen*ux-headLen*0.5*perpx, ay-headLen*uy-headLen*0.5*perpy);
+  ctx.closePath(); ctx.fill();
+  // The angle value itself, parked just outside the arc at its bisector --
+  // the usual physics-diagram spot for labeling a swept angle. Same
+  // halo-text technique as drawPatBadge, so it stays legible over whatever
+  // else is drawn underneath it.
+  const labelAngleRad = angleRad/2, labelR = arcR+11;
+  const lx = sx + labelR*Math.cos(labelAngleRad), ly = sy - labelR*Math.sin(labelAngleRad);
+  const haloColor = state.printFriendly ? '#ffffff' : '#000000';
+  ctx.font = 'bold 10px "IBM Plex Mono", ui-monospace, monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3; ctx.strokeStyle = haloColor;
+  ctx.strokeText(angleDeg.toFixed(1)+'°', lx, ly);
+  ctx.fillStyle = color;
+  ctx.fillText(angleDeg.toFixed(1)+'°', lx, ly);
+  ctx.restore();
+}
+function drawLinearAngleIndicator(seedWorld, dx, dy, color){
+  if(Math.abs(dx)<1e-9 && Math.abs(dy)<1e-9) return;
+  drawAngleGlyph(seedWorld, computeMissingLinearPatternField(dx, dy, 0, 'angle'), color);
+}
 function drawPatterns(){
   if(!(state.typeVisibility.patterns || state.tool==='pattern')) return;
   for(const pat of state.patterns){
@@ -5344,6 +5685,7 @@ function drawPatterns(){
     const seedPt = findNavPointByName(layer, pat.seedName);
     if(!seedPt) continue;
     const seedWorld = layerToWorld(layer, seedPt.pos.x, seedPt.pos.y);
+    if(pat.axis==='both') drawLinearAngleIndicator(seedWorld, pat.dx, pat.dy, PAT_COLOR);
     const positions = computePatternInstanceWorldPositions(pat);
     const isWall = pat.follow==='wall';
     if(isWall && state.selectedPattern===pat.id) drawPatternWallCurve(layer, pat.wall);
@@ -5378,6 +5720,14 @@ function drawPatterns(){
   if(state.patDraft && state.patDraft.follow==='wall' && state.patDraft.wall){
     const draftLayer = getLayer(state.patDraft.layerId);
     if(draftLayer) drawPatternWallCurve(draftLayer, state.patDraft.wall);
+  }
+  if(state.patDraft && state.patDraft.type==='linear' && state.patDraft.follow==='axis' && state.patDraft.axis==='both'){
+    const draftLayer = getLayer(state.patDraft.layerId);
+    const seedPt = draftLayer && findNavPointByName(draftLayer, state.patDraft.seedName);
+    if(seedPt){
+      const seedWorld = layerToWorld(draftLayer, seedPt.pos.x, seedPt.pos.y);
+      drawLinearAngleIndicator(seedWorld, state.patDraft.dx, state.patDraft.dy, PAT_COLOR);
+    }
   }
   drawWallPickInProgress();
 }
@@ -5416,6 +5766,7 @@ function drawGridPatterns(){
     const [ssx,ssy] = worldToScreen(seedWorld[0], seedWorld[1]);
     ctx.strokeStyle = PAT_COLOR; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(ssx,ssy,7,0,Math.PI*2); ctx.stroke();
+    if(grid.angleOn) drawAngleGlyph(seedWorld, grid.angle||0, PAT_COLOR);
     for(let row=0; row<grid.countY; row++){
       for(let col=0; col<grid.countX; col++){
         if(row===0 && col===0) continue;
@@ -5438,6 +5789,14 @@ function drawGridPatterns(){
       }
     }
   }
+  if(state.patDraft && state.patDraft.type==='grid' && state.patDraft.gridAngleOn){
+    const draftLayer = getLayer(state.patDraft.layerId);
+    const seedPt = draftLayer && findNavPointByName(draftLayer, state.patDraft.seedName);
+    if(seedPt){
+      const seedWorld = layerToWorld(draftLayer, seedPt.pos.x, seedPt.pos.y);
+      drawAngleGlyph(seedWorld, state.patDraft.gridAngle||0, PAT_COLOR);
+    }
+  }
 }
 
 function draw(){
@@ -5445,6 +5804,7 @@ function draw(){
   resolveAllRelations();
   resolveAllPatterns();
   resolveAllGridPatterns();
+  resolveRdsLocationPositions();
   resolveFixedPositions();
   resolvePairOffsets();
   resolvePickupOffsets();
@@ -5465,6 +5825,7 @@ function draw(){
     if(state.typeVisibility.extra) drawExtra(layer, pal);
     if(state.typeVisibility.extra) drawManualLines(layer, pal);
     if(state.typeVisibility.nav) drawNavPoints(layer, pal);
+    if(state.typeVisibility.rdsLocations) drawRdsLocations(layer, pal);
 
     if(state.typeVisibility.scan){
       const dotColor = state.uniformLayerColor ? pal.ink : (layer.color||PALETTE[0]);
@@ -5944,6 +6305,430 @@ function generateNavPointName(layer, prefix){
   }
   return prefix+(max+1);
 }
+// ---------------- RDS reference-name naming ----------------
+// Each nav point can optionally carry a human-facing "RDS reference name"
+// (e.g. "Dropoff-01-07"), for the Robokit Dispatch System. This is NOT a
+// property on the nav point itself -- SEER's own .smap format stores it in
+// a separate top-level `binLocationsList`: a flat array of ONE-ENTRY
+// wrapper objects, `[{binLocationList:[entry]}, {binLocationList:[entry]}, ...]`
+// -- one wrapper per GeneralLocation entry, each linked back to its nav
+// point by name only (see allBinLocationEntries below). buildLayer()
+// already round-trips any unrecognized top-level .smap key into
+// layer.extra wholesale, so layer.extra.binLocationsList just works for
+// load/export with no extra plumbing -- see Features/RDS Marker/reverse-eng.md.
+function defaultRdsRule(){
+  return {prefix:'Loc', sep:'-', majorPad:1, minorPad:1, majorStart:1, minorStart:1, pickupPrefix:'pre-'};
+}
+function getRdsRule(layer){
+  if(!layer.rdsRule) layer.rdsRule = defaultRdsRule();
+  // Lazily backfills pickupPrefix onto rules saved before this field existed.
+  if(layer.rdsRule.pickupPrefix==null) layer.rdsRule.pickupPrefix = defaultRdsRule().pickupPrefix;
+  return layer.rdsRule;
+}
+function fmtRdsName(rule, major, minor){
+  return rule.prefix + rule.sep + String(major).padStart(rule.majorPad,'0') + rule.sep + String(minor).padStart(rule.minorPad,'0');
+}
+// Grid patterns are the one spot that flips the field order to
+// Minor-then-Major (spec exception 4e); everything else (the generic
+// Select-tool apply, Linear patterns) uses fmtRdsName above.
+function fmtRdsNameGrid(rule, major, minor){
+  return rule.prefix + rule.sep + String(minor).padStart(rule.minorPad,'0') + rule.sep + String(major).padStart(rule.majorPad,'0');
+}
+// Parses a name against the GLOBAL (Major-then-Minor) format only -- used
+// for copy/paste's "does the source's name match the current rule" check
+// (spec 2), which is always against the generic format regardless of
+// whether the source point happened to be grid-named.
+function parseRdsName(rule, name){
+  if(!name) return null;
+  const esc = s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const re = new RegExp('^'+esc(rule.prefix)+esc(rule.sep)+'(\\d+)'+esc(rule.sep)+'(\\d+)$');
+  const m = name.match(re);
+  return m ? {major:parseInt(m[1],10), minor:parseInt(m[2],10)} : null;
+}
+// Same as parseRdsName but against the grid's flipped Minor-then-Major format
+// (fmtRdsNameGrid) -- used by the Grid naming modal's "Continue existing" so
+// it reads grid-named entries correctly instead of swapping major/minor.
+function parseRdsNameGrid(rule, name){
+  if(!name) return null;
+  const esc = s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const re = new RegExp('^'+esc(rule.prefix)+esc(rule.sep)+'(\\d+)'+esc(rule.sep)+'(\\d+)$');
+  const m = name.match(re);
+  return m ? {minor:parseInt(m[1],10), major:parseInt(m[2],10)} : null;
+}
+// "Continue existing" support: the highest (major, minor) pair -- major as
+// the primary key -- among this layer's current RDS names that parse against
+// `rule` via `parseFn`. Names from a different prefix/sep, or that don't
+// match the format at all (manual overrides), are simply skipped. Returns
+// null when nothing on the layer matches yet, so there's nothing to continue.
+function highestRdsPair(layer, rule, parseFn){
+  let best = null;
+  for(const name of allRdsNames(layer)){
+    const p = parseFn(rule, name);
+    if(!p) continue;
+    if(!best || p.major>best.major || (p.major===best.major && p.minor>best.minor)) best = p;
+  }
+  return best;
+}
+// SEER's own convention is ONE WRAPPER PER LOCATION -- binLocationsList is
+// a flat array of single-entry {binLocationList:[entry]} wrappers, not one
+// wrapper holding every entry. The original reverse-engineered example
+// (example.smap) only had one location, so both shapes looked identical
+// and this code wrongly assumed "one wrapper total"; a second, real
+// multi-location example proved SEER actually writes one wrapper per
+// entry, and that assuming otherwise is exactly why every location past
+// the first one showed up stacked on the first one's spot once loaded
+// into SEER -- its importer only reads one entry out of a multi-entry
+// wrapper. Every lookup below scans every wrapper instead of assuming
+// index 0 or a single shared list.
+function allBinLocationEntries(layer){
+  const wrappers = layer.extra && layer.extra.binLocationsList;
+  if(!Array.isArray(wrappers)) return [];
+  const out = [];
+  for(const w of wrappers){
+    if(w && Array.isArray(w.binLocationList)) out.push(...w.binLocationList);
+  }
+  return out;
+}
+// A loaded file whose binLocationsList has a wrapper holding more than one
+// entry (the old, incorrect shape this app itself produced before this
+// fix) gets split back into one wrapper per entry on load, matching
+// SEER's real convention.
+function normalizeBinLocationsList(layer){
+  if(!layer.extra) return;
+  const wrappers = layer.extra.binLocationsList;
+  if(!Array.isArray(wrappers)) return;
+  const needsSplit = wrappers.some(w=>w && Array.isArray(w.binLocationList) && w.binLocationList.length>1);
+  if(!needsSplit) return;
+  layer.extra.binLocationsList = allBinLocationEntries(layer).map(entry=>({binLocationList:[entry]}));
+}
+function findBinLocationByPointName(layer, pointName){
+  return allBinLocationEntries(layer).find(e=>e.pointName===pointName) || null;
+}
+function allRdsNames(layer){
+  return new Set(allBinLocationEntries(layer).map(e=>e.instanceName));
+}
+// A 0.3x0.3 footprint square centered on the location's own pos -- the
+// shape .smap always carries alongside a GeneralLocation entry (reverse-eng
+// finding); unrelated to naming, just reproduced so exported files look
+// like ones SEER itself would write.
+function rdsFootprintSquare(cx, cy){
+  const h = 0.15;
+  return [{x:cx-h,y:cy-h}, {x:cx+h,y:cy-h}, {x:cx+h,y:cy+h}, {x:cx-h,y:cy+h}];
+}
+// Finds (or creates) the GeneralLocation entry for `pt` and sets its RDS
+// name. pos is derived from the point's own position (+0.3 on y, matching
+// the reverse-engineered example) rather than stored/edited independently,
+// recomputed every time naming is (re)applied.
+function setRdsName(layer, pt, name){
+  if(!layer.extra) layer.extra = {};
+  if(!Array.isArray(layer.extra.binLocationsList)) layer.extra.binLocationsList = [];
+  let entry = findBinLocationByPointName(layer, pt.instanceName);
+  const pos = {x:round3(pt.pos.x), y:round3(pt.pos.y+0.3)};
+  if(!entry){
+    entry = {
+      className:'GeneralLocation', instanceName:name, pointName:pt.instanceName, pos,
+      property:[
+        {key:'points', type:'json', stringValue:JSON.stringify(rdsFootprintSquare(pos.x,pos.y))},
+        {key:'binTask', type:'json', stringValue:''},
+      ],
+    };
+    layer.extra.binLocationsList.push({binLocationList:[entry]});
+  } else {
+    entry.instanceName = name;
+    entry.pos = pos;
+  }
+  return entry;
+}
+// Removes pt's RDS location entirely, and the now-empty wrapper it alone
+// occupied, if any.
+function removeRdsName(layer, pt){
+  const wrappers = layer.extra && layer.extra.binLocationsList;
+  if(!Array.isArray(wrappers)) return false;
+  let removed = false;
+  layer.extra.binLocationsList = wrappers.filter(w=>{
+    if(!w || !Array.isArray(w.binLocationList)) return true;
+    const before = w.binLocationList.length;
+    w.binLocationList = w.binLocationList.filter(e=>e.pointName!==pt.instanceName);
+    if(w.binLocationList.length!==before) removed = true;
+    return w.binLocationList.length>0;
+  });
+  return removed;
+}
+// pos (and the footprint square centered on it) is NOT independent data --
+// per reverse-eng.md it's always the nav point's own pos +0.3 on y, derived
+// automatically rather than stored/edited separately. setRdsName above only
+// computes it at the moment naming is applied; this keeps it from going
+// stale afterward whenever the point itself moves, same as every other
+// resolveAll* pass in draw().
+function resolveRdsLocationPositions(){
+  for(const layer of state.layers){
+    const entries = allBinLocationEntries(layer);
+    for(const entry of entries){
+      const pt = findNavPointByName(layer, entry.pointName);
+      if(!pt) continue;
+      const nx = round3(pt.pos.x), ny = round3(pt.pos.y+0.3);
+      if(entry.pos && entry.pos.x===nx && entry.pos.y===ny) continue;
+      entry.pos = {x:nx, y:ny};
+      const pointsProp = Array.isArray(entry.property) && entry.property.find(p=>p.key==='points');
+      if(pointsProp) pointsProp.stringValue = JSON.stringify(rdsFootprintSquare(nx, ny));
+    }
+  }
+}
+// Shared editable-points table -- used by the per-pattern Naming… modals
+// (rdsModalBackdrop/rdsGridModalBackdrop, scoped to whatever buildPoints()
+// returns) and the global per-layer RDS table modal (rdsTableModalBackdrop,
+// opts.allowRename:true, always every point on the layer). pointsFn is a
+// function rather than a plain array so a full re-render after any edit
+// always reflects current layer state (new/renamed/cleared), not a stale
+// snapshot taken when the modal opened.
+function renderRdsEditTable(tbody, errEl, layer, pointsFn, opts){
+  opts = opts || {};
+  const points = pointsFn();
+  tbody.innerHTML = '';
+  if(errEl) errEl.textContent = '';
+  const rerender = ()=> renderRdsEditTable(tbody, errEl, layer, pointsFn, opts);
+  const showErr = (msg)=>{ if(errEl) errEl.textContent = msg; };
+
+  for(const pt of points){
+    const tr = document.createElement('tr');
+
+    const ptTd = document.createElement('td'); ptTd.className = 'pt';
+    if(opts.allowRename){
+      const ptInput = document.createElement('input');
+      ptInput.className = 'mono';
+      ptInput.value = pt.instanceName;
+      ptInput.addEventListener('change', ()=>{
+        const newName = ptInput.value.trim();
+        if(!newName || newName===pt.instanceName){ ptInput.value = pt.instanceName; return; }
+        if(!isValidNavPointName(newName)){
+          showErr('Point names must start with '+Object.values(NAV_POINT_TYPE_PREFIX).join('/')+' followed by a number (e.g. "LM3").');
+          ptInput.value = pt.instanceName;
+          return;
+        }
+        if(findNavPointByName(layer, newName)){
+          showErr('“'+newName+'” is already used by another point on this layer.');
+          ptInput.value = pt.instanceName;
+          return;
+        }
+        pushUndo(layer);
+        if(!renameNavPoint(layer, pt.instanceName, newName)){
+          state.undoStack.pop(); updateUndoButton();
+          showErr('Could not rename to “'+newName+'”.');
+          ptInput.value = pt.instanceName;
+          return;
+        }
+        showErr('');
+        scheduleAutosave(); requestDraw();
+        if(opts.onChange) opts.onChange();
+        rerender();
+      });
+      ptTd.appendChild(ptInput);
+    } else {
+      ptTd.textContent = pt.instanceName;
+    }
+    tr.appendChild(ptTd);
+
+    // A Pickup's near LM is never typed into directly -- its name is always
+    // "<rule.pickupPrefix>"+its AP's own name, kept in sync wherever the AP's
+    // name changes (see applyRdsNaming/syncPickupNearLmName and the AP-side
+    // handlers below).
+    const isPickupNear = isPickupNearLm(layer, pt);
+    const nameTd = document.createElement('td');
+    const current = findBinLocationByPointName(layer, pt.instanceName);
+    const ownCurrent = current ? current.instanceName : '';
+    let nameInput = null;
+    if(isPickupNear){
+      nameTd.className = 'mono';
+      nameTd.textContent = ownCurrent || '(auto)';
+    } else {
+      nameInput = document.createElement('input');
+      nameInput.value = ownCurrent;
+      nameInput.placeholder = '(none)';
+      nameTd.appendChild(nameInput);
+    }
+    tr.appendChild(nameTd);
+
+    if(opts.showXY){
+      const xyTd = document.createElement('td'); xyTd.className = 'xy-cell mono';
+      xyTd.textContent = pt.pos.x.toFixed(3)+', '+pt.pos.y.toFixed(3);
+      tr.appendChild(xyTd);
+    }
+
+    const delTd = document.createElement('td');
+    const delBtn = document.createElement('button');
+    delBtn.className = 'rds-edit-del-btn';
+    delBtn.innerHTML = '&#128465;';
+    delBtn.title = 'Clear this location';
+    delBtn.hidden = !current || isPickupNear;
+    delTd.appendChild(delBtn);
+    tr.appendChild(delTd);
+
+    if(nameInput){
+      function isDupe(){
+        const v = nameInput.value.trim();
+        return !!(v && v!==ownCurrent && allRdsNames(layer).has(v));
+      }
+      nameInput.addEventListener('input', ()=>{ nameInput.classList.toggle('collision', isDupe()); });
+      nameInput.addEventListener('change', ()=>{
+        const v = nameInput.value.trim();
+        if(v===ownCurrent) return;
+        if(isDupe()){
+          showErr('“'+v+'” is already used by another point on this layer.');
+          nameInput.value = ownCurrent;
+          nameInput.classList.remove('collision');
+          return;
+        }
+        showErr('');
+        pushUndo(layer);
+        if(!v) removeRdsName(layer, pt);
+        else setRdsName(layer, pt, v);
+        if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
+        scheduleAutosave(); requestDraw();
+        if(opts.onChange) opts.onChange();
+        rerender();
+      });
+    }
+    delBtn.addEventListener('click', ()=>{
+      pushUndo(layer);
+      removeRdsName(layer, pt);
+      if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
+      scheduleAutosave(); requestDraw();
+      if(opts.onChange) opts.onChange();
+      rerender();
+    });
+
+    tbody.appendChild(tr);
+  }
+}
+// Applies RDS names to an ordered list of {pt, major, minor} targets.
+// A manual override (an existing name that doesn't match this point's own
+// computed target) is left untouched -- its slot was already consumed by
+// virtue of major/minor being computed from POSITION, never from a running
+// counter, so nothing else needs to "skip past" it. A fresh name that
+// collides with one already in use is either blocked (stops the whole
+// apply right there, everything before it keeps its new name) or skipped
+// (left unnamed, keeps going), per `mode`.
+function applyRdsNaming(layer, targets, rule, fmtFn, mode){
+  const taken = allRdsNames(layer);
+  let appliedCount = 0, blockedAt = null;
+  for(let i=0;i<targets.length;i++){
+    const {pt, major, minor} = targets[i];
+    const targetName = fmtFn(rule, major, minor);
+    const existing = findBinLocationByPointName(layer, pt.instanceName);
+    if(!existing){
+      if(taken.has(targetName)){
+        if(mode==='block'){ blockedAt = i; break; }
+        continue;
+      }
+      setRdsName(layer, pt, targetName);
+      taken.add(targetName);
+      appliedCount++;
+    } // else already named -- correctly, or a manual override; either way, leave it
+    // A Pickup AP's near LM is never its own target (see rdsTargetsForList) --
+    // it's kept in sync here instead, whether pt was freshly named above or
+    // already had a name from an earlier apply.
+    if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
+  }
+  return {appliedCount, blockedAt};
+}
+// Generic ordered-list application (Group Select panel, and Linear
+// patterns): only Minor increments across the list, Major stays fixed at
+// the rule's own starting value. A Pickup's near LM is excluded -- its name
+// is fully derived from its AP (applyRdsNaming/syncPickupNearLmName), so it
+// must never consume a sequence slot of its own.
+function rdsTargetsForList(layer, pts, rule){
+  const seq = pts.filter(pt=>!isPickupNearLm(layer, pt));
+  return seq.map((pt,i)=>({pt, major:rule.majorStart, minor:rule.minorStart+i}));
+}
+// Linear pattern naming order: "From root" (direction 'ltr') walks the
+// pattern's own instance order -- seed first, then each instance in the
+// order it was generated, which is already distance-from-seed order
+// regardless of which way dx/dy run -- "To root" (direction 'rtl') is just
+// that reversed. This used to sort by actual layer-frame X position
+// instead, which only matched "root to far end" when the pattern happened
+// to run in the +X direction, and made no sense at all for a pattern
+// running along Y (axis:'y') or diagonally (axis:'both'). Skipped
+// instances have no materialized point and are simply absent.
+function linearPatternOrderedPoints(layer, pat, direction){
+  const pts = [];
+  const seedPt = findNavPointByName(layer, pat.seedName);
+  if(seedPt) pts.push(seedPt);
+  for(const inst of pat.instances){
+    if(inst.skipped) continue;
+    const pt = findNavPointByName(layer, inst.name);
+    if(pt) pts.push(pt);
+  }
+  if(direction==='rtl') pts.reverse();
+  return pts;
+}
+// row 0 / col 0 is always the seed -- but worldToScreen negates Y (so a
+// larger world Y draws higher on screen) while X is unflipped, so whether
+// row 0 is visually the TOP row depends on the sign of the grid's Y step,
+// while col 0 is visually the LEFT column whenever its X step is positive.
+// gridNamingMajorMinor's side/arrow picker means its corners visually (the
+// square-picker UI shows a literal top-left/top-right/etc. square), so it
+// needs the row/col indices measured from the visual edge, not the raw
+// seed-anchored index gridCellKey uses everywhere else.
+function gridRowIndexFromTop(grid, row){
+  const last = grid.countY-1;
+  if(last<=0) return 0;
+  const seedIsTop = rowOffsetY(grid,0) >= rowOffsetY(grid,last);
+  return seedIsTop ? row : last-row;
+}
+function gridColIndexFromLeft(grid, col){
+  const last = grid.countX-1;
+  if(last<=0) return 0;
+  const seedIsLeft = colOffsetX(grid,0) <= colOffsetX(grid,last);
+  return seedIsLeft ? col : last-col;
+}
+// Grid pattern naming position: mirrors the confirmed demo's
+// majorMinorFor() -- side+arrow together pick which corner is the naming
+// root and which axis is the "line" (major) vs "position within the line"
+// (minor). Raster order -- every line starts from the same end, never
+// snake/zigzag.
+function gridNamingMajorMinor(grid, row, col){
+  const side = grid.namingSide || 'left';
+  const arrow = (grid.namingArrow && grid.namingArrow[side]) || 'down';
+  const rowTop = gridRowIndexFromTop(grid, row);
+  const colLeft = gridColIndexFromLeft(grid, col);
+  let major, minor;
+  if(side==='left' || side==='right'){
+    major = side==='left' ? colLeft+1 : grid.countX-colLeft;
+    minor = arrow==='down' ? rowTop+1 : grid.countY-rowTop;
+  } else {
+    major = side==='top' ? rowTop+1 : grid.countY-rowTop;
+    minor = arrow==='right' ? colLeft+1 : grid.countX-colLeft;
+  }
+  return [major, minor];
+}
+// Every (row,col) in the grid gets a geometrically-computed major/minor
+// regardless of whether that cell is skipped or missing -- skipped/missing
+// cells just never produce a target (nothing to attach a name to), which is
+// what makes "skipped cells still consume their number" (spec 4c) true by
+// construction: a real cell past a skipped one keeps the number its
+// position says it should have.
+function gridRdsTargets(layer, grid, rule){
+  const seedPt = findNavPointByName(layer, grid.seedName);
+  const targets = [];
+  for(let row=0; row<grid.countY; row++){
+    for(let col=0; col<grid.countX; col++){
+      if(row===0 && col===0){
+        if(seedPt){
+          const [maj,min] = gridNamingMajorMinor(grid, row, col);
+          targets.push({pt:seedPt, major:rule.majorStart-1+maj, minor:rule.minorStart-1+min});
+        }
+        continue;
+      }
+      const cell = grid.cells[gridCellKey(row,col)];
+      if(!cell || cell.skipped) continue;
+      const pt = findNavPointByName(layer, cell.name);
+      if(!pt) continue;
+      const [maj,min] = gridNamingMajorMinor(grid, row, col);
+      targets.push({pt, major:rule.majorStart-1+maj, minor:rule.minorStart-1+min});
+    }
+  }
+  return targets;
+}
 function intProp(val){ let value=''; try{ value=btoa(String(val)); }catch(e){} return {type:'int', int32Value:val, value}; }
 function boolProp(key, val){ let value=''; try{ value=btoa(String(!!val)); }catch(e){} return {key, type:'bool', boolValue:!!val, value}; }
 function stringProp(key, str){ return {key, type:'string', stringValue:str, value:b64EncodeUtf8(str)}; }
@@ -6040,6 +6825,10 @@ function deleteNavPoint(layer, name){
       !(c.startPos && c.startPos.instanceName===name) && !(c.endPos && c.endPos.instanceName===name)
     );
   }
+  // An RDS location is linked to its nav point by pointName only (see
+  // allBinLocationEntries) -- without this it survives the point's
+  // deletion as an orphaned entry pointing at a name that no longer exists.
+  removeRdsName(layer, {instanceName:name});
   pruneInvalidRelations();
   for(const partnerName of partnerNames) deleteNavPoint(layer, partnerName);
 }
@@ -6914,9 +7703,12 @@ function renderLinearSolveForUI(prefix, target){
   dxOn.checked = solveFor!=='dx'; dxOn.disabled = solveFor==='dx';
   dyOn.checked = solveFor!=='dy'; dyOn.disabled = solveFor==='dy';
   angleOn.checked = solveFor!=='angle'; angleOn.disabled = solveFor==='angle';
-  dxEl.disabled = solveFor==='dx';
-  dyEl.disabled = solveFor==='dy';
-  angleEl.disabled = solveFor==='angle';
+  // readOnly rather than disabled: a disabled input swallows clicks
+  // entirely (no bubbling), which would make the computed field unclickable
+  // for the row-click reassignment below -- see wireLinearSolveForRowClick.
+  dxEl.readOnly = solveFor==='dx'; dxEl.classList.toggle('solve-computed', solveFor==='dx');
+  dyEl.readOnly = solveFor==='dy'; dyEl.classList.toggle('solve-computed', solveFor==='dy');
+  angleEl.readOnly = solveFor==='angle'; angleEl.classList.toggle('solve-computed', solveFor==='angle');
   if(document.activeElement!==angleEl) angleEl.value = round3(computeMissingLinearPatternField(target.dx, target.dy, 0, 'angle'));
 }
 // Wires one field's "editable" checkbox: unchecking it (the only meaningful
@@ -6926,6 +7718,23 @@ function wireLinearSolveForCheckbox(prefix, field, getTarget, onChange){
   document.getElementById(prefix+(field==='dx'?'DxOn':field==='dy'?'DyOn':'AngleOn')).addEventListener('change', e=>{
     const target = getTarget(); if(!target) return;
     if(!e.target.checked) target.__patSolveFor = field;
+    onChange(target);
+  });
+}
+// Disabled form controls don't dispatch click/mousedown at all (a browser
+// quirk, not something a listener on the input itself can work around), so
+// clicking a grayed-out dx/dy/angle field is handled on its whole ROW
+// instead -- the row isn't disabled, so it still receives the click
+// wherever on it you clicked, including visually over the disabled input.
+// Only acts when this row's own field is the current computed one; a click
+// on either of the other two (already-editable) rows is a no-op here.
+const LINEAR_SOLVE_FALLBACK_ORDER = ['angle','dy','dx'];
+function wireLinearSolveForRowClick(prefix, field, getTarget, onChange){
+  const rowId = prefix+(field==='dx'?'DxRow':field==='dy'?'DyRow':'AngleRow');
+  document.getElementById(rowId).addEventListener('click', ()=>{
+    const target = getTarget(); if(!target) return;
+    if((target.__patSolveFor||'angle')!==field) return;
+    target.__patSolveFor = LINEAR_SOLVE_FALLBACK_ORDER.find(f=>f!==field);
     onChange(target);
   });
 }
@@ -7788,9 +8597,10 @@ function prunePatterns(){
 // ---------------- grid patterns (nav points only, a different object from
 // linear patterns) ----------------
 // state.gridPatterns is a flat list of {id, layerId, seedName, dx, dy,
-// countX, countY, cells, colOverride0, rowOverride0, colSteps, rowSteps}.
-// cells is a sparse map keyed by "row,col" (row 0..countY-1, col 0..countX-1);
-// (0,0) is always the seed itself and never has a cells entry.
+// countX, countY, cells, colOverride0, rowOverride0, colSteps, rowSteps,
+// angleOn, angle}. cells is a sparse map keyed by "row,col" (row 0..countY-1,
+// col 0..countX-1); (0,0) is always the seed itself and never has a cells
+// entry.
 //
 // Column 0 and row 0 are special: they can't participate in a cascade
 // (nothing precedes them), so colOverride0/rowOverride0 are independent
@@ -7801,6 +8611,13 @@ function prunePatterns(){
 // spacing. Critically, this cascade is always anchored to the seed's TRUE
 // position, ignoring wherever colOverride0/rowOverride0 put column 0 / row 0
 // — dragging row 0 never moves row 1+, and vice versa.
+//
+// dx/dy/colSteps/rowSteps/the overrides are all expressed in the grid's own
+// LOCAL frame (colOffsetX/rowOffsetY below return a local (lx,ly) offset
+// from the seed). angleOn/angle then rotate that whole local frame around
+// the seed before it's placed in the world — the seed sits at local (0,0),
+// so it's the rotation's pivot for free, and nothing about dx/dy/the step
+// overrides needs to change when the grid is rotated.
 function gridCellKey(row, col){ return row+','+col; }
 function colOffsetX(grid, col){
   if(col===0) return grid.colOverride0!=null ? grid.colOverride0 : 0;
@@ -7814,8 +8631,24 @@ function rowOffsetY(grid, row){
   for(let r=1; r<=row; r++) sum += (grid.rowSteps[r]!=null ? grid.rowSteps[r] : grid.dy);
   return sum;
 }
+// Local (grid-frame) offset -> world point, rotating around the seed.
+function gridLocalToWorld(grid, seedWorld, lx, ly){
+  if(!grid.angleOn || !grid.angle) return [seedWorld[0]+lx, seedWorld[1]+ly];
+  const rad = grid.angle*Math.PI/180;
+  const wx = lx*Math.cos(rad) - ly*Math.sin(rad), wy = lx*Math.sin(rad) + ly*Math.cos(rad);
+  return [seedWorld[0]+wx, seedWorld[1]+wy];
+}
+// World point -> local (grid-frame) offset from the seed -- the inverse of
+// gridLocalToWorld, needed to turn a drag's world-space mouse position back
+// into the grid's own frame before computing a step/override from it.
+function worldToGridLocal(grid, seedWorld, wx, wy){
+  const dx = wx-seedWorld[0], dy = wy-seedWorld[1];
+  if(!grid.angleOn || !grid.angle) return [dx, dy];
+  const rad = -grid.angle*Math.PI/180;
+  return [dx*Math.cos(rad) - dy*Math.sin(rad), dx*Math.sin(rad) + dy*Math.cos(rad)];
+}
 function gridCellWorldTarget(grid, seedWorld, row, col){
-  return [seedWorld[0] + colOffsetX(grid, col), seedWorld[1] + rowOffsetY(grid, row)];
+  return gridLocalToWorld(grid, seedWorld, colOffsetX(grid, col), rowOffsetY(grid, row));
 }
 function appendGridCell(grid, layer, row, col){
   const name = createInstancePointFromSeed(layer, grid.seedName);
@@ -7826,7 +8659,8 @@ function appendGridCell(grid, layer, row, col){
 let gridIdCounter = 1;
 function createGridPattern(layer, seedName, dx, dy, countX, countY){
   const grid = {id:'grid'+(gridIdCounter++), layerId:layer.id, seedName, dx, dy, countX:0, countY:0, cells:{},
-    colOverride0:null, rowOverride0:null, colSteps:{}, rowSteps:{}};
+    colOverride0:null, rowOverride0:null, colSteps:{}, rowSteps:{}, angleOn:false, angle:0,
+    namingSide:'left', namingArrow:{left:'down', right:'down', top:'right', bottom:'right'}};
   state.gridPatterns.push(grid);
   setGridPatternSize(grid, countX, countY, layer);
   return grid;
@@ -8436,6 +9270,32 @@ function pickupApForPoint(layer, pt){
     if(ap && isPickupAp(ap)) return ap;
   }
   return null;
+}
+// The Station's near LM, specifically when its AP is a Pickup (not a plain
+// Station) -- this is the point RDS naming auto-derives as
+// rule.pickupPrefix+apName, so it must never consume its own Major/Minor
+// sequence slot and is never independently typed into in the RDS tables.
+function isPickupNearLm(layer, pt){
+  if(!layer || !pt || !isStationFollower(pt)) return false;
+  const ap = findNavPointByName(layer, pt.__pairedAP);
+  return !!(ap && isPickupAp(ap));
+}
+// Keeps a Pickup AP's near LM's RDS name mirroring rule.pickupPrefix+the
+// AP's own RDS name -- called anywhere the AP's own RDS name may have just
+// changed (naming-rule apply, manual table edit, manual clear). Returns
+// whether the near LM's RDS state actually changed.
+function syncPickupNearLmName(layer, apPt){
+  if(!isPickupAp(apPt)) return false;
+  const nearLm = getStationPartner(layer, apPt);
+  if(!nearLm) return false;
+  const apEntry = findBinLocationByPointName(layer, apPt.instanceName);
+  if(!apEntry) return removeRdsName(layer, nearLm);
+  const rule = getRdsRule(layer);
+  const derived = (rule.pickupPrefix || 'pre-') + apEntry.instanceName;
+  const current = findBinLocationByPointName(layer, nearLm.instanceName);
+  if(current && current.instanceName===derived) return false;
+  setRdsName(layer, nearLm, derived);
+  return true;
 }
 // Whether a point's position is currently derived (Station's near LM always
 // is; a Pickup's far LM is too, unless its "Position via Dimension tool"
@@ -9331,6 +10191,10 @@ function renderPatternPanel(){
     if(document.activeElement!==gdyEl) gdyEl.value = draft.gridDy;
     if(document.activeElement!==cxEl) cxEl.value = draft.countX;
     if(document.activeElement!==cyEl) cyEl.value = draft.countY;
+    document.getElementById('patDraftGridAngleOn').checked = !!draft.gridAngleOn;
+    document.getElementById('patDraftGridAngleRow').hidden = !draft.gridAngleOn;
+    const gAngleEl = document.getElementById('patDraftGridAngle');
+    if(document.activeElement!==gAngleEl) gAngleEl.value = draft.gridAngle||0;
     if(draft.type==='linear') renderWallFieldsUI('patDraft', 'btnPatDraft', draft, true);
   }
   if(pat){
@@ -9363,6 +10227,10 @@ function renderPatternPanel(){
     if(document.activeElement!==gdyEl) gdyEl.value = grid.dy;
     if(document.activeElement!==cxEl) cxEl.value = grid.countX;
     if(document.activeElement!==cyEl) cyEl.value = grid.countY;
+    document.getElementById('gridSelAngleOn').checked = !!grid.angleOn;
+    document.getElementById('gridSelAngleRow').hidden = !grid.angleOn;
+    const gridAngleEl = document.getElementById('gridSelAngle');
+    if(document.activeElement!==gridAngleEl) gridAngleEl.value = grid.angle||0;
     const total = grid.countX*grid.countY - 1;
     const skippedCount = Object.values(grid.cells).filter(c=>c.skipped).length;
     document.getElementById('gridSelSkipCount').textContent = skippedCount+' / '+total;
@@ -9415,12 +10283,14 @@ function patDraftLinearFieldsChanged(){
   const angle = parseFloat(document.getElementById('patDraftAngle').value)||0;
   applyLinearPatternFieldEdit(state.patDraft, dx, dy, angle);
   renderPatternPanel();
+  requestDraw();
 }
 document.getElementById('patDraftDx').addEventListener('input', patDraftLinearFieldsChanged);
 document.getElementById('patDraftDy').addEventListener('input', patDraftLinearFieldsChanged);
 document.getElementById('patDraftAngle').addEventListener('input', patDraftLinearFieldsChanged);
 ['dx','dy','angle'].forEach(field=>{
-  wireLinearSolveForCheckbox('patDraft', field, ()=>state.patDraft, ()=>renderPatternPanel());
+  wireLinearSolveForCheckbox('patDraft', field, ()=>state.patDraft, ()=>{ renderPatternPanel(); requestDraw(); });
+  wireLinearSolveForRowClick('patDraft', field, ()=>state.patDraft, ()=>{ renderPatternPanel(); requestDraw(); });
 });
 document.getElementById('patDraftCount').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.count = Math.max(1, parseInt(e.target.value)||1); });
 document.getElementById('patDraftConnected').addEventListener('change', e=>{ if(state.patDraft){ state.patDraft.connected = e.target.checked; renderPatternPanel(); } });
@@ -9429,12 +10299,24 @@ document.getElementById('patDraftGridDx').addEventListener('input', e=>{ if(stat
 document.getElementById('patDraftGridDy').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.gridDy = parseFloat(e.target.value)||0; });
 document.getElementById('patDraftCountX').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.countX = Math.max(1, parseInt(e.target.value)||1); });
 document.getElementById('patDraftCountY').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.countY = Math.max(1, parseInt(e.target.value)||1); });
+document.getElementById('patDraftGridAngleOn').addEventListener('change', e=>{
+  if(!state.patDraft) return;
+  state.patDraft.gridAngleOn = e.target.checked;
+  renderPatternPanel(); requestDraw();
+});
+document.getElementById('patDraftGridAngle').addEventListener('input', e=>{
+  if(!state.patDraft) return;
+  state.patDraft.gridAngle = parseFloat(e.target.value)||0;
+  requestDraw();
+});
 document.getElementById('btnPatDraftCreate').addEventListener('click', ()=>{
   const draft = state.patDraft; if(!draft) return;
   const layer = getLayer(draft.layerId); if(!layer) return;
   pushUndo(layer);
   if(draft.type==='grid'){
     const grid = createGridPattern(layer, draft.seedName, draft.gridDx, draft.gridDy, draft.countX, draft.countY);
+    grid.angleOn = !!draft.gridAngleOn;
+    grid.angle = draft.gridAngle||0;
     state.patDraft = null;
     state.selectedGridPattern = grid.id;
     state.selectedPattern = null;
@@ -9500,7 +10382,8 @@ let patFieldsUndoPushed = false;
   });
 });
 ['dx','dy','angle'].forEach(field=>{
-  wireLinearSolveForCheckbox('patSel', field, ()=>state.patterns.find(p=>p.id===state.selectedPattern), ()=>renderPatternPanel());
+  wireLinearSolveForCheckbox('patSel', field, ()=>state.patterns.find(p=>p.id===state.selectedPattern), ()=>{ renderPatternPanel(); requestDraw(); });
+  wireLinearSolveForRowClick('patSel', field, ()=>state.patterns.find(p=>p.id===state.selectedPattern), ()=>{ renderPatternPanel(); requestDraw(); });
 });
 document.getElementById('patSelCount').addEventListener('change', ()=>{
   const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
@@ -9637,6 +10520,20 @@ let gridFieldsUndoPushed = false;
     grid.dy = parseFloat(document.getElementById('gridSelDy').value)||0;
     resolveAllGridPatterns(); scheduleAutosave(); requestDraw();
   });
+});
+document.getElementById('gridSelAngleOn').addEventListener('change', e=>{
+  const grid = state.gridPatterns.find(g=>g.id===state.selectedGridPattern); if(!grid) return;
+  const layer = getLayer(grid.layerId); if(layer) pushUndo(layer);
+  grid.angleOn = e.target.checked;
+  resolveAllGridPatterns(); renderPatternPanel(); scheduleAutosave(); requestDraw();
+});
+document.getElementById('gridSelAngle').addEventListener('focus', ()=>{ gridFieldsUndoPushed = false; });
+document.getElementById('gridSelAngle').addEventListener('input', e=>{
+  const grid = state.gridPatterns.find(g=>g.id===state.selectedGridPattern); if(!grid) return;
+  const layer = getLayer(grid.layerId);
+  if(layer && !gridFieldsUndoPushed){ pushUndo(layer); gridFieldsUndoPushed = true; }
+  grid.angle = parseFloat(e.target.value)||0;
+  resolveAllGridPatterns(); scheduleAutosave(); requestDraw();
 });
 [document.getElementById('gridSelCountX'), document.getElementById('gridSelCountY')].forEach(el=>{
   el.addEventListener('change', ()=>{
@@ -10789,7 +11686,8 @@ function buildSelectionClipboard(refs){
     const pt = findNavPointByName(layer, name);
     if(!pt) return;
     seenPoints.add(key);
-    entries.push({kind:'navPoint', layerId:layer.id, data:stripInternalFields(pt)});
+    const loc = findBinLocationByPointName(layer, name);
+    entries.push({kind:'navPoint', layerId:layer.id, data:stripInternalFields(pt), rdsName: loc ? loc.instanceName : null});
   };
   for(const ref of refs){
     const layer = getLayer(ref.layerId);
@@ -10841,6 +11739,15 @@ function pasteSelectionClipboard(){
     if(!Array.isArray(layer.extra.advancedPointList)) layer.extra.advancedPointList = [];
     layer.extra.advancedPointList.push(clone);
     newRefs.push({kind:'navPoint', layerId:layer.id, instanceName:name});
+    // RDS naming (spec 2): increment Minor from the source's own name,
+    // Major unchanged -- but only when the source's name actually matches
+    // the current rule. No name, or a name that doesn't parse against the
+    // rule (manual override), pastes unnamed.
+    if(entry.rdsName){
+      const rule = getRdsRule(layer);
+      const parsed = parseRdsName(rule, entry.rdsName);
+      if(parsed) setRdsName(layer, clone, fmtRdsName(rule, parsed.major, parsed.minor+1));
+    }
   }
   for(const entry of selectionClipboard){
     if(entry.kind==='reflector'){
@@ -12019,7 +12926,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
           dragging = true;
         }
       } else {
-        state.patDraft = {layerId:layer.id, seedName:hit.instanceName, type:'linear', follow:'axis', axis:'x', dx:1, dy:0, count:3, connected:false, connectDirection:'both', gridDx:1, gridDy:1, countX:3, countY:3, wall:null};
+        state.patDraft = {layerId:layer.id, seedName:hit.instanceName, type:'linear', follow:'axis', axis:'x', dx:1, dy:0, count:3, connected:false, connectDirection:'both', gridDx:1, gridDy:1, countX:3, countY:3, gridAngleOn:false, gridAngle:0, wall:null};
         state.selectedPattern = null;
         state.selectedGridPattern = null;
       }
@@ -12330,17 +13237,21 @@ canvasEl.addEventListener('pointermove', (e)=>{
     const seedPt = grid && findNavPointByName(layer, grid.seedName);
     if(grid && seedPt){
       const seedWorld = layerToWorld(layer, seedPt.pos.x, seedPt.pos.y);
-      // Locks to whichever axis has moved more (cumulatively, from where the
-      // drag started) rather than letting the cell move freely — re-evaluated
-      // every move, so a drag that bends partway through can still flip once,
-      // but a roughly-straight drag stays on one axis the whole time.
-      const totalDx = wx - startWorld[0], totalDy = wy - startWorld[1];
+      // dx/dy/the step overrides are all stored in the grid's own LOCAL
+      // frame, so the drag's world-space mouse position has to come back
+      // through the inverse rotation before any of this math applies --
+      // same conversion for both the current point and the drag's start,
+      // so the axis-lock decision below is also made in the grid's own
+      // frame (locks to whichever of ITS axes moved more), not the world's.
+      const [lx, ly] = worldToGridLocal(grid, seedWorld, wx, wy);
+      const [lx0, ly0] = worldToGridLocal(grid, seedWorld, startWorld[0], startWorld[1]);
+      const totalDx = lx - lx0, totalDy = ly - ly0;
       if(Math.abs(totalDx) >= Math.abs(totalDy)){
-        if(col===0) grid.colOverride0 = round3(wx - seedWorld[0]);
-        else grid.colSteps[col] = round3(wx - (seedWorld[0] + colOffsetX(grid, col-1)));
+        if(col===0) grid.colOverride0 = round3(lx);
+        else grid.colSteps[col] = round3(lx - colOffsetX(grid, col-1));
       } else {
-        if(row===0) grid.rowOverride0 = round3(wy - seedWorld[1]);
-        else grid.rowSteps[row] = round3(wy - (seedWorld[1] + rowOffsetY(grid, row-1)));
+        if(row===0) grid.rowOverride0 = round3(ly);
+        else grid.rowSteps[row] = round3(ly - rowOffsetY(grid, row-1));
       }
       resolveAllGridPatterns();
       renderPatternPanel();
@@ -13179,6 +14090,7 @@ function buildSmapFromLayers(layers, mapName){
   resolveAllRelations();
   resolveAllPatterns();
   resolveAllGridPatterns();
+  resolveRdsLocationPositions();
   const normalPosList = [], rssiPosList = [], reflectorPosList = [];
   const mergedExtra = {};
   const mergedPointNames = new Set();
@@ -13253,6 +14165,10 @@ function buildSmapFromLayers(layers, mapName){
       }
     }
   }
+  // binLocationsList is SEER's own one-wrapper-per-location shape (see
+  // allBinLocationEntries above), so the generic array-merge just above
+  // -- concatenating each layer's own wrapper array -- already produces
+  // the right combined shape with no extra collapsing needed here.
   if(!isFinite(minX)){ minX=-1; maxX=1; minY=-1; maxY=1; }
 
   return {
@@ -13319,7 +14235,7 @@ function serializeProject(){
     layers: state.layers.filter(l=>l.kind!=='image').map(l=>({
       id:l.id, name:l.name, fileName:l.fileName, color:l.color, visible:l.visible,
       header:l.header, points:l.points, rssi:l.rssi, reflectors:l.reflectors, extra:l.extra,
-      manualLines:l.manualLines, annotations:l.annotations||[], localBBox:l.localBBox, pivot:l.pivot, transform:l.transform,
+      manualLines:l.manualLines, annotations:l.annotations||[], localBBox:l.localBBox, pivot:l.pivot, transform:l.transform, rdsRule:l.rdsRule,
     })),
     nextId: state.nextId, colorIdx: state.colorIdx,
     view: state.view, fitted: state.fitted,
@@ -13364,13 +14280,17 @@ function loadProjectData(data){
     if(g.rowOverride0===undefined) g.rowOverride0 = null;
     if(!g.colSteps) g.colSteps = {};
     if(!g.rowSteps) g.rowSteps = {};
+    if(g.angleOn===undefined) g.angleOn = false;
+    if(g.angle===undefined) g.angle = 0;
+    if(!g.namingSide) g.namingSide = 'left';
+    if(!g.namingArrow) g.namingArrow = {left:'down', right:'down', top:'right', bottom:'right'};
   }
   state.selectedGridPattern = null;
   gridIdCounter = Math.max(gridIdCounter, resyncIdsAndDedupe(state.gridPatterns, 'grid'));
   state.pathPatterns = Array.isArray(data.pathPatterns) ? data.pathPatterns : [];
   state.pathPatternArm = null;
   if(data.robotFootprint) state.robotFootprint = data.robotFootprint;
-  for(const layer of state.layers){ normalizeCurvePairs(layer); normalizeAreaRects(layer); }
+  for(const layer of state.layers){ normalizeCurvePairs(layer); normalizeAreaRects(layer); normalizeBinLocationsList(layer); }
   pruneInvalidRelations();
   prunePatterns();
   pruneGridPatterns();
@@ -13712,6 +14632,517 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
   backdrop.addEventListener('pointerdown', e=>{ if(e.target===backdrop) closeModal(); });
   document.addEventListener('keydown', e=>{ if(e.key==='Escape' && !backdrop.hidden) closeModal(); });
   [wInput,hInput,flInput,fbInput].forEach(el=>{ el.addEventListener('input', applyFields); });
+})();
+
+// ---------------- RDS naming popups ----------------
+// Two modals sharing one layer-global rule (layer.rdsRule, see
+// defaultRdsRule/getRdsRule): a simple one (rule fields + collision mode,
+// optionally a direction toggle) used by the Group Select panel and the
+// Linear pattern panel, and a fuller one (same fields + the side/arrow
+// naming-root square) used by the Grid pattern panel. Trigger buttons for
+// all three live in their own panels elsewhere in the HTML/JS, but are
+// wired here so all the naming-popup logic stays in one place.
+(function initRdsNamingModals(){
+  const simpleBackdrop = document.getElementById('rdsModalBackdrop');
+  const gridBackdrop = document.getElementById('rdsGridModalBackdrop');
+  let rdsCtx = null; // {layerId, hint, showDirection, initialDirection, buildPoints(direction), onDirectionChange(direction)}
+  let rdsDirection = 'ltr';
+  let rdsCollisionMode = 'block';
+  let rdsGridTarget = null; // the grid pattern the grid modal is currently editing
+  let rdsGCollisionMode = 'block';
+  let rdsShowXY = false; // shared across all three RDS tables -- a session display preference, not project data
+  function setRdsShowXY(v){
+    rdsShowXY = v;
+    ['rdsShowXY','rdsGShowXY','rdsTableShowXY'].forEach(id=>{ const el = document.getElementById(id); if(el) el.checked = v; });
+    ['rdsXYHead','rdsGXYHead','rdsTableXYHead'].forEach(id=>{ const el = document.getElementById(id); if(el) el.hidden = !v; });
+  }
+  let rdsContinueMode = false; // shared between the two naming-rule modals -- a session preference, not project data
+  function setRdsContinueMode(v){
+    rdsContinueMode = v;
+    ['rdsContinueMode','rdsGContinueMode'].forEach(id=>{ const el = document.getElementById(id); if(el) el.checked = v; });
+    ['rdsMajorStart','rdsMinorStart','rdsGMajorStart','rdsGMinorStart'].forEach(id=>{ const el = document.getElementById(id); if(el) el.disabled = v; });
+  }
+
+  function updateRdsDirButtons(){
+    document.getElementById('rdsDirLtr').classList.toggle('active', rdsDirection==='ltr');
+    document.getElementById('rdsDirRtl').classList.toggle('active', rdsDirection==='rtl');
+  }
+  function updateRdsCollButtons(){
+    document.getElementById('rdsCollBlock').classList.toggle('active', rdsCollisionMode==='block');
+    document.getElementById('rdsCollSkip').classList.toggle('active', rdsCollisionMode==='skip');
+  }
+  function renderRdsPreview(){
+    if(!rdsCtx) return;
+    const layer = getLayer(rdsCtx.layerId); if(!layer) return;
+    const rule = getRdsRule(layer);
+    let minor = rule.minorStart;
+    // In Continue mode, rule.minorStart is index-compensated (see
+    // applyRdsContinuation) so it isn't the literal name of the first new
+    // point -- show the name that point will actually get instead.
+    if(rdsContinueMode){
+      const pts = rdsCtx.buildPoints(rdsDirection).filter(pt=>!isPickupNearLm(layer, pt));
+      const firstUnnamedIdx = pts.findIndex(pt=>!findBinLocationByPointName(layer, pt.instanceName));
+      if(firstUnnamedIdx>=0) minor = rule.minorStart+firstUnnamedIdx;
+    }
+    document.getElementById('rdsPreview').textContent = fmtRdsName(rule, rule.majorStart, minor);
+  }
+  // Recomputes majorStart/minorStart from the layer's existing RDS names
+  // (see highestRdsPair) and writes them into the rule + the (disabled)
+  // starts-at fields. No-op unless "Continue existing" is actually on.
+  function applyRdsContinuation(){
+    if(!rdsContinueMode || !rdsCtx) return;
+    const layer = getLayer(rdsCtx.layerId); if(!layer) return;
+    const rule = getRdsRule(layer);
+    const best = highestRdsPair(layer, rule, parseRdsName);
+    const dflt = defaultRdsRule();
+    rule.majorStart = best ? best.major : dflt.majorStart;
+    const nextMinor = best ? best.minor+1 : dflt.minorStart;
+    // rdsTargetsForList assigns minor sequentially across the WHOLE list
+    // (rule.minorStart+i) -- an already-named point earlier in the list
+    // still consumes an index even though it's left untouched on apply, so
+    // minorStart has to be backed off by the first not-yet-named point's own
+    // index, or every new name would land further out than "next available"
+    // by however many already-named points precede it.
+    const pts = rdsCtx.buildPoints(rdsDirection).filter(pt=>!isPickupNearLm(layer, pt));
+    const firstUnnamedIdx = pts.findIndex(pt=>!findBinLocationByPointName(layer, pt.instanceName));
+    rule.minorStart = Math.max(0, firstUnnamedIdx>=0 ? nextMinor-firstUnnamedIdx : nextMinor);
+    document.getElementById('rdsMajorStart').value = rule.majorStart;
+    document.getElementById('rdsMinorStart').value = rule.minorStart;
+    renderRdsPreview();
+  }
+  function openRdsModal(ctx){
+    rdsCtx = ctx;
+    const layer = getLayer(ctx.layerId); if(!layer) return;
+    const rule = getRdsRule(layer);
+    document.getElementById('rdsModalHint').textContent = ctx.hint || '';
+    document.getElementById('rdsPrefix').value = rule.prefix;
+    document.getElementById('rdsSep').value = rule.sep;
+    document.getElementById('rdsMajorPad').value = rule.majorPad;
+    document.getElementById('rdsMinorPad').value = rule.minorPad;
+    document.getElementById('rdsMajorStart').value = rule.majorStart;
+    document.getElementById('rdsMinorStart').value = rule.minorStart;
+    document.getElementById('rdsPickupPrefix').value = rule.pickupPrefix;
+    document.getElementById('rdsDirRow').hidden = !ctx.showDirection;
+    rdsDirection = ctx.initialDirection || 'ltr';
+    updateRdsDirButtons();
+    rdsCollisionMode = 'block';
+    updateRdsCollButtons();
+    document.getElementById('rdsResultNote').hidden = true;
+    setRdsShowXY(rdsShowXY);
+    setRdsContinueMode(rdsContinueMode);
+    applyRdsContinuation();
+    renderRdsPreview();
+    renderRdsModalTable();
+    simpleBackdrop.hidden = false;
+  }
+  function renderRdsModalTable(){
+    if(!rdsCtx) return;
+    const layer = getLayer(rdsCtx.layerId); if(!layer) return;
+    renderRdsEditTable(
+      document.getElementById('rdsPointsTableBody'),
+      document.getElementById('rdsPointsTableErr'),
+      layer,
+      ()=> rdsCtx.buildPoints(rdsDirection),
+      {allowRename:false, showXY:rdsShowXY, onChange: applyRdsContinuation}
+    );
+  }
+  document.getElementById('rdsShowXY').addEventListener('change', e=>{ setRdsShowXY(e.target.checked); renderRdsModalTable(); });
+  document.getElementById('rdsContinueMode').addEventListener('change', e=>{ setRdsContinueMode(e.target.checked); applyRdsContinuation(); });
+  function closeRdsModal(){ simpleBackdrop.hidden = true; rdsCtx = null; }
+  ['rdsPrefix','rdsSep','rdsMajorPad','rdsMinorPad','rdsMajorStart','rdsMinorStart','rdsPickupPrefix'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', ()=>{
+      if(!rdsCtx) return;
+      const layer = getLayer(rdsCtx.layerId); if(!layer) return;
+      const rule = getRdsRule(layer);
+      rule.prefix = document.getElementById('rdsPrefix').value || 'Prefix';
+      rule.sep = document.getElementById('rdsSep').value || '-';
+      rule.majorPad = Math.max(1, parseInt(document.getElementById('rdsMajorPad').value)||1);
+      rule.minorPad = Math.max(1, parseInt(document.getElementById('rdsMinorPad').value)||1);
+      rule.majorStart = Math.max(0, parseInt(document.getElementById('rdsMajorStart').value)||0);
+      rule.minorStart = Math.max(0, parseInt(document.getElementById('rdsMinorStart').value)||0);
+      rule.pickupPrefix = document.getElementById('rdsPickupPrefix').value || 'pre-';
+      renderRdsPreview();
+    });
+  });
+  document.getElementById('rdsDirLtr').addEventListener('click', ()=>{ rdsDirection='ltr'; updateRdsDirButtons(); });
+  document.getElementById('rdsDirRtl').addEventListener('click', ()=>{ rdsDirection='rtl'; updateRdsDirButtons(); });
+  document.getElementById('rdsCollBlock').addEventListener('click', ()=>{ rdsCollisionMode='block'; updateRdsCollButtons(); });
+  document.getElementById('rdsCollSkip').addEventListener('click', ()=>{ rdsCollisionMode='skip'; updateRdsCollButtons(); });
+  document.getElementById('rdsApplyBtn').addEventListener('click', ()=>{
+    if(!rdsCtx) return;
+    const layer = getLayer(rdsCtx.layerId); if(!layer) return;
+    applyRdsContinuation();
+    const rule = getRdsRule(layer);
+    const pts = rdsCtx.buildPoints(rdsDirection);
+    const note = document.getElementById('rdsResultNote');
+    note.hidden = false;
+    if(!pts.length){ note.textContent = 'Nothing to name.'; return; }
+    pushUndo(layer);
+    const targets = rdsTargetsForList(layer, pts, rule);
+    const {appliedCount, blockedAt} = applyRdsNaming(layer, targets, rule, fmtRdsName, rdsCollisionMode);
+    if(appliedCount===0 && blockedAt==null){ state.undoStack.pop(); updateUndoButton(); }
+    note.textContent = blockedAt!=null
+      ? 'Named '+appliedCount+' point(s); stopped at a collision (point '+(blockedAt+1)+' of '+pts.length+').'
+      : 'Named '+appliedCount+' point(s) ('+(pts.length-appliedCount)+' already named or overridden).';
+    if(rdsCtx.showDirection && rdsCtx.onDirectionChange) rdsCtx.onDirectionChange(rdsDirection);
+    scheduleAutosave();
+    requestDraw();
+    renderRdsModalTable();
+  });
+  document.getElementById('btnRdsClearAll').addEventListener('click', ()=>{
+    if(!rdsCtx) return;
+    const layer = getLayer(rdsCtx.layerId); if(!layer) return;
+    const pts = rdsCtx.buildPoints(rdsDirection);
+    if(!pts.length) return;
+    pushUndo(layer);
+    let cleared = 0;
+    for(const pt of pts){
+      if(removeRdsName(layer, pt)) cleared++;
+      if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
+    }
+    if(!cleared){ state.undoStack.pop(); updateUndoButton(); return; }
+    scheduleAutosave(); requestDraw();
+    renderRdsModalTable();
+  });
+  document.getElementById('btnRdsClose').addEventListener('click', closeRdsModal);
+  simpleBackdrop.addEventListener('pointerdown', e=>{ if(e.target===simpleBackdrop) closeRdsModal(); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && !simpleBackdrop.hidden) closeRdsModal(); });
+
+  // ---- grid naming square ----
+  function gridRootCorner(grid){
+    const side = grid.namingSide, dir = grid.namingArrow[side];
+    if(side==='left') return dir==='down' ? 'tl' : 'bl';
+    if(side==='right') return dir==='down' ? 'tr' : 'br';
+    if(side==='top') return dir==='right' ? 'tl' : 'tr';
+    return dir==='right' ? 'bl' : 'br';
+  }
+  function updateRdsGridSquareUI(grid){
+    const squareEl = document.getElementById('rdsNamingSquare');
+    squareEl.querySelectorAll('.rds-naming-sidebar').forEach(b=>b.classList.toggle('active', b.dataset.side===grid.namingSide));
+    const corner = gridRootCorner(grid);
+    const pos = {tl:[0,0], tr:[160,0], bl:[0,160], br:[160,160]}[corner];
+    const root = document.getElementById('rdsNamingRootDot');
+    root.style.left = pos[0]+'px'; root.style.top = pos[1]+'px';
+    const arrowEl = document.getElementById('rdsNamingArrow');
+    const side = grid.namingSide, dir = grid.namingArrow[side];
+    const glyphs = {down:'↓', up:'↑', left:'←', right:'→'};
+    arrowEl.textContent = glyphs[dir];
+    const mid = 72;
+    if(side==='left'){ arrowEl.style.left='-16px'; arrowEl.style.top=mid+'px'; }
+    if(side==='right'){ arrowEl.style.left='176px'; arrowEl.style.top=mid+'px'; }
+    if(side==='top'){ arrowEl.style.left=mid+'px'; arrowEl.style.top='-16px'; }
+    if(side==='bottom'){ arrowEl.style.left=mid+'px'; arrowEl.style.top='176px'; }
+    const sideLabel = {left:'left side', right:'right side', top:'top side', bottom:'bottom side'}[side];
+    const dirLabel = (side==='left'||side==='right')
+      ? (dir==='down' ? 'top → bottom within each column' : 'bottom → top within each column')
+      : (dir==='right' ? 'left → right within each row' : 'right → left within each row');
+    document.getElementById('rdsNamingCaption').textContent = 'Root: '+({tl:'top-left',tr:'top-right',bl:'bottom-left',br:'bottom-right'}[corner])+' · '+sideLabel+', filling '+dirLabel+'.';
+  }
+  document.getElementById('rdsNamingSquare').querySelectorAll('.rds-naming-sidezone').forEach(zone=>{
+    zone.addEventListener('click', ()=>{
+      if(!rdsGridTarget) return;
+      const side = zone.dataset.side;
+      if(rdsGridTarget.namingSide === side){
+        const opp = {down:'up', up:'down', right:'left', left:'right'};
+        rdsGridTarget.namingArrow[side] = opp[rdsGridTarget.namingArrow[side]];
+      } else {
+        rdsGridTarget.namingSide = side;
+      }
+      updateRdsGridSquareUI(rdsGridTarget);
+    });
+  });
+  function updateRdsGCollButtons(){
+    document.getElementById('rdsGCollBlock').classList.toggle('active', rdsGCollisionMode==='block');
+    document.getElementById('rdsGCollSkip').classList.toggle('active', rdsGCollisionMode==='skip');
+  }
+  // Grid counterpart of applyRdsContinuation -- parses against the grid's
+  // flipped Minor-then-Major format (parseRdsNameGrid) instead.
+  function applyRdsGContinuation(){
+    if(!rdsContinueMode || !rdsGridTarget) return;
+    const layer = getLayer(rdsGridTarget.layerId); if(!layer) return;
+    const rule = getRdsRule(layer);
+    const best = highestRdsPair(layer, rule, parseRdsNameGrid);
+    const dflt = defaultRdsRule();
+    rule.majorStart = best ? best.major : dflt.majorStart;
+    rule.minorStart = best ? best.minor+1 : dflt.minorStart;
+    document.getElementById('rdsGMajorStart').value = rule.majorStart;
+    document.getElementById('rdsGMinorStart').value = rule.minorStart;
+  }
+  function openRdsGridModal(grid){
+    rdsGridTarget = grid;
+    const layer = getLayer(grid.layerId); if(!layer) return;
+    const rule = getRdsRule(layer);
+    document.getElementById('rdsGPrefix').value = rule.prefix;
+    document.getElementById('rdsGSep').value = rule.sep;
+    document.getElementById('rdsGMajorPad').value = rule.majorPad;
+    document.getElementById('rdsGMinorPad').value = rule.minorPad;
+    document.getElementById('rdsGMajorStart').value = rule.majorStart;
+    document.getElementById('rdsGMinorStart').value = rule.minorStart;
+    document.getElementById('rdsGPickupPrefix').value = rule.pickupPrefix;
+    rdsGCollisionMode = 'block';
+    updateRdsGCollButtons();
+    document.getElementById('rdsGResultNote').hidden = true;
+    setRdsShowXY(rdsShowXY);
+    setRdsContinueMode(rdsContinueMode);
+    applyRdsGContinuation();
+    updateRdsGridSquareUI(grid);
+    renderRdsGridModalTable();
+    gridBackdrop.hidden = false;
+  }
+  function renderRdsGridModalTable(){
+    if(!rdsGridTarget) return;
+    const layer = getLayer(rdsGridTarget.layerId); if(!layer) return;
+    renderRdsEditTable(
+      document.getElementById('rdsGPointsTableBody'),
+      document.getElementById('rdsGPointsTableErr'),
+      layer,
+      ()=> gridRdsTargets(layer, rdsGridTarget, getRdsRule(layer)).map(t=>t.pt),
+      {allowRename:false, showXY:rdsShowXY, onChange: applyRdsGContinuation}
+    );
+  }
+  document.getElementById('rdsGShowXY').addEventListener('change', e=>{ setRdsShowXY(e.target.checked); renderRdsGridModalTable(); });
+  document.getElementById('rdsGContinueMode').addEventListener('change', e=>{ setRdsContinueMode(e.target.checked); applyRdsGContinuation(); });
+  function closeRdsGridModal(){ gridBackdrop.hidden = true; rdsGridTarget = null; }
+  ['rdsGPrefix','rdsGSep','rdsGMajorPad','rdsGMinorPad','rdsGMajorStart','rdsGMinorStart','rdsGPickupPrefix'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', ()=>{
+      if(!rdsGridTarget) return;
+      const layer = getLayer(rdsGridTarget.layerId); if(!layer) return;
+      const rule = getRdsRule(layer);
+      rule.prefix = document.getElementById('rdsGPrefix').value || 'Prefix';
+      rule.sep = document.getElementById('rdsGSep').value || '-';
+      rule.majorPad = Math.max(1, parseInt(document.getElementById('rdsGMajorPad').value)||1);
+      rule.minorPad = Math.max(1, parseInt(document.getElementById('rdsGMinorPad').value)||1);
+      rule.majorStart = Math.max(0, parseInt(document.getElementById('rdsGMajorStart').value)||0);
+      rule.minorStart = Math.max(0, parseInt(document.getElementById('rdsGMinorStart').value)||0);
+      rule.pickupPrefix = document.getElementById('rdsGPickupPrefix').value || 'pre-';
+    });
+  });
+  document.getElementById('rdsGCollBlock').addEventListener('click', ()=>{ rdsGCollisionMode='block'; updateRdsGCollButtons(); });
+  document.getElementById('rdsGCollSkip').addEventListener('click', ()=>{ rdsGCollisionMode='skip'; updateRdsGCollButtons(); });
+  document.getElementById('rdsGApplyBtn').addEventListener('click', ()=>{
+    if(!rdsGridTarget) return;
+    const layer = getLayer(rdsGridTarget.layerId); if(!layer) return;
+    applyRdsGContinuation();
+    const rule = getRdsRule(layer);
+    pushUndo(layer);
+    const targets = gridRdsTargets(layer, rdsGridTarget, rule);
+    const {appliedCount, blockedAt} = applyRdsNaming(layer, targets, rule, fmtRdsNameGrid, rdsGCollisionMode);
+    if(appliedCount===0 && blockedAt==null){ state.undoStack.pop(); updateUndoButton(); }
+    const note = document.getElementById('rdsGResultNote');
+    note.hidden = false;
+    note.textContent = blockedAt!=null
+      ? 'Named '+appliedCount+' cell(s); stopped at a collision.'
+      : 'Named '+appliedCount+' cell(s) ('+(targets.length-appliedCount)+' already named, overridden, or skipped).';
+    scheduleAutosave();
+    requestDraw();
+    renderRdsGridModalTable();
+  });
+  document.getElementById('btnRdsGClearAll').addEventListener('click', ()=>{
+    if(!rdsGridTarget) return;
+    const layer = getLayer(rdsGridTarget.layerId); if(!layer) return;
+    const pts = gridRdsTargets(layer, rdsGridTarget, getRdsRule(layer)).map(t=>t.pt);
+    if(!pts.length) return;
+    pushUndo(layer);
+    let cleared = 0;
+    for(const pt of pts){
+      if(removeRdsName(layer, pt)) cleared++;
+      if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
+    }
+    if(!cleared){ state.undoStack.pop(); updateUndoButton(); return; }
+    scheduleAutosave(); requestDraw();
+    renderRdsGridModalTable();
+  });
+  document.getElementById('btnRdsGridClose').addEventListener('click', closeRdsGridModal);
+  gridBackdrop.addEventListener('pointerdown', e=>{ if(e.target===gridBackdrop) closeRdsGridModal(); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && !gridBackdrop.hidden) closeRdsGridModal(); });
+
+  // ---- global per-layer RDS table (every point on the active layer,
+  // unconditional on selection/pattern -- distinct from the modal above,
+  // which only ever shows whatever ctx.buildPoints() currently resolves to) ----
+  const tableBackdrop = document.getElementById('rdsTableModalBackdrop');
+  let rdsTableLayerId = null;
+  function renderRdsTableModal(){
+    const layer = getLayer(rdsTableLayerId); if(!layer) return;
+    document.getElementById('rdsTableLayerName').textContent = layer.name || layer.fileName || 'Layer';
+    const refreshStat = ()=>{
+      const pts = (layer.extra && layer.extra.advancedPointList) || [];
+      document.getElementById('rdsTableStat').textContent = pts.length+' point(s), '+allBinLocationEntries(layer).length+' named';
+    };
+    refreshStat();
+    renderRdsEditTable(
+      document.getElementById('rdsTableBody'),
+      document.getElementById('rdsTableErr'),
+      layer,
+      ()=> (layer.extra && layer.extra.advancedPointList) || [],
+      {allowRename:true, onChange: refreshStat, showXY:rdsShowXY}
+    );
+  }
+  document.getElementById('rdsTableShowXY').addEventListener('change', e=>{ setRdsShowXY(e.target.checked); renderRdsTableModal(); });
+  openRdsTableModal = function(layer){
+    rdsTableLayerId = layer.id;
+    setRdsShowXY(rdsShowXY);
+    renderRdsTableModal();
+    tableBackdrop.hidden = false;
+  }
+  function closeRdsTableModal(){ tableBackdrop.hidden = true; rdsTableLayerId = null; }
+  document.getElementById('btnRdsTableClose').addEventListener('click', closeRdsTableModal);
+  tableBackdrop.addEventListener('pointerdown', e=>{ if(e.target===tableBackdrop) closeRdsTableModal(); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && !tableBackdrop.hidden) closeRdsTableModal(); });
+  document.getElementById('btnRdsTableClearAll').addEventListener('click', ()=>{
+    const layer = getLayer(rdsTableLayerId); if(!layer) return;
+    const pts = (layer.extra && layer.extra.advancedPointList) || [];
+    if(!pts.length) return;
+    pushUndo(layer);
+    let cleared = 0;
+    for(const pt of pts){ if(removeRdsName(layer, pt)) cleared++; }
+    if(!cleared){ state.undoStack.pop(); updateUndoButton(); return; }
+    scheduleAutosave(); requestDraw();
+    renderRdsTableModal();
+  });
+
+  // ---- CSV export/import -- Location Name plus X/Y. Renaming a nav point
+  // via CSV is deliberately not supported: matching an imported row back to
+  // "which point is this" is unambiguous only by the point's own current
+  // name, so a CSV can retarget a location or reposition a point but never
+  // rename the point that carries it -- use the table's own Nav point cell
+  // for that. X/Y columns are optional on import, for backward compatibility
+  // with CSVs exported before this feature existed.
+  function csvEscape(v){
+    v = String(v==null ? '' : v);
+    return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+  }
+  function csvParseLine(line){
+    const out = []; let cur = ''; let inQ = false;
+    for(let i=0;i<line.length;i++){
+      const c = line[i];
+      if(inQ){
+        if(c==='"'){ if(line[i+1]==='"'){ cur+='"'; i++; } else inQ=false; }
+        else cur += c;
+      } else if(c==='"'){ inQ = true; }
+      else if(c===','){ out.push(cur); cur=''; }
+      else cur += c;
+    }
+    out.push(cur);
+    return out;
+  }
+  document.getElementById('btnRdsTableExport').addEventListener('click', ()=>{
+    const layer = getLayer(rdsTableLayerId); if(!layer) return;
+    const pts = (layer.extra && layer.extra.advancedPointList) || [];
+    const rows = [['Nav Point','Location Name','X','Y']];
+    for(const pt of pts) rows.push([pt.instanceName, (findBinLocationByPointName(layer, pt.instanceName)||{}).instanceName || '', pt.pos.x, pt.pos.y]);
+    const csv = rows.map(r=>r.map(csvEscape).join(',')).join('\r\n');
+    downloadBlob(new Blob([csv], {type:'text/csv'}), (layer.name||'layer').replace(/[^\w.-]+/g,'_')+'-rds-locations.csv');
+  });
+  document.getElementById('btnRdsTableImport').addEventListener('click', ()=>{
+    document.getElementById('rdsTableImportInput').click();
+  });
+  document.getElementById('rdsTableImportInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    e.target.value = '';
+    if(!file) return;
+    const layer = getLayer(rdsTableLayerId); if(!layer) return;
+    const errEl = document.getElementById('rdsTableErr');
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const text = String(reader.result||'');
+      const lines = text.split(/\r\n|\n|\r/).filter(l=>l.length);
+      errEl.textContent = '';
+      if(!lines.length){ errEl.textContent = 'Empty CSV.'; return; }
+      let rows = lines.map(csvParseLine);
+      if(rows[0][0] && rows[0][0].trim().toLowerCase()==='nav point') rows = rows.slice(1);
+
+      const pts = (layer.extra && layer.extra.advancedPointList) || [];
+      const finalNames = new Map();
+      for(const pt of pts){
+        const entry = findBinLocationByPointName(layer, pt.instanceName);
+        finalNames.set(pt.instanceName, entry ? entry.instanceName : null);
+      }
+      const finalPos = new Map(); // ptName -> {x,y}, only for rows that gave valid numbers
+      const notFound = [];
+      const badPos = [];
+      for(const row of rows){
+        const ptName = (row[0]||'').trim();
+        if(!ptName) continue;
+        if(!finalNames.has(ptName)){ notFound.push(ptName); continue; }
+        finalNames.set(ptName, (row[1]||'').trim() || null);
+        const xRaw = row[2], yRaw = row[3];
+        if(xRaw!=null && xRaw!=='' && yRaw!=null && yRaw!==''){
+          const nx = parseFloat(xRaw), ny = parseFloat(yRaw);
+          if(isFinite(nx) && isFinite(ny)) finalPos.set(ptName, {x:round3(nx), y:round3(ny)});
+          else badPos.push(ptName);
+        }
+      }
+      // Validated as one atomic batch, same "Block" philosophy as naming-
+      // rule apply -- the whole import is refused on any collision rather
+      // than silently applying a partial, confusing result.
+      const seen = new Map();
+      for(const [ptName, name] of finalNames){
+        if(!name) continue;
+        if(seen.has(name)){
+          errEl.textContent = 'Import aborted: “'+name+'” would be used by both '+seen.get(name)+' and '+ptName+'.';
+          return;
+        }
+        seen.set(name, ptName);
+      }
+      pushUndo(layer);
+      let changed = 0;
+      for(const pt of pts){
+        let rowChanged = false;
+        const next = finalNames.get(pt.instanceName);
+        const current = findBinLocationByPointName(layer, pt.instanceName);
+        const currentName = current ? current.instanceName : null;
+        if(next!==currentName){
+          if(next) setRdsName(layer, pt, next); else removeRdsName(layer, pt);
+          rowChanged = true;
+        }
+        const pos = finalPos.get(pt.instanceName);
+        if(pos && (pos.x!==pt.pos.x || pos.y!==pt.pos.y)){
+          const oldLX = pt.pos.x, oldLY = pt.pos.y;
+          pt.pos.x = pos.x; pt.pos.y = pos.y;
+          syncCurvesForPoint(layer, pt.instanceName, oldLX, oldLY);
+          rowChanged = true;
+        }
+        if(rowChanged) changed++;
+      }
+      if(!changed){ state.undoStack.pop(); updateUndoButton(); }
+      else { scheduleAutosave(); requestDraw(); }
+      renderRdsTableModal();
+      const notes = [changed ? 'Imported '+changed+' change(s).' : 'No changes.'];
+      if(notFound.length) notes.push('Skipped '+notFound.length+' row(s) naming a point not on this layer: '+notFound.join(', ')+'.');
+      if(badPos.length) notes.push('Skipped invalid X/Y for '+badPos.length+' row(s): '+badPos.join(', ')+'.');
+      errEl.textContent = notes.join(' ');
+    };
+    reader.readAsText(file);
+  });
+  // ---- trigger buttons (their own HTML lives in each feature's own panel) ----
+  document.getElementById('btnGroupNaming').addEventListener('click', ()=>{
+    const navRefs = state.groupSelection.filter(r=>r.kind==='navPoint');
+    const layer = navRefs.length ? getLayer(navRefs[0].layerId) : getEditableActiveLayer();
+    if(!layer) return;
+    const selPts = navRefs.map(r=>findNavPointByName(layer, r.instanceName)).filter(Boolean);
+    openRdsModal({
+      layerId: layer.id,
+      hint: selPts.length ? ('Applies to the '+selPts.length+' selected nav point(s), in selection order.') : 'No nav points selected — applies to every nav point on this layer.',
+      showDirection: false,
+      buildPoints: ()=> selPts.length ? selPts : ((layer.extra && layer.extra.advancedPointList) || []).slice(),
+    });
+  });
+  document.getElementById('btnPatSelNaming').addEventListener('click', ()=>{
+    const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
+    const layer = getLayer(pat.layerId); if(!layer) return;
+    openRdsModal({
+      layerId: layer.id,
+      hint: 'Applies to this pattern’s seed + instances, ordered by actual layer-frame position.',
+      showDirection: true,
+      initialDirection: pat.namingDirection || 'ltr',
+      buildPoints: (direction)=> linearPatternOrderedPoints(layer, pat, direction),
+      onDirectionChange: (direction)=>{ pat.namingDirection = direction; },
+    });
+  });
+  document.getElementById('btnGridSelNaming').addEventListener('click', ()=>{
+    const grid = state.gridPatterns.find(g=>g.id===state.selectedGridPattern); if(!grid) return;
+    openRdsGridModal(grid);
+  });
 })();
 
 (function initTheme(){
