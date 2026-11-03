@@ -642,6 +642,7 @@
         <div class="tool-hint" id="patternHint" style="margin-top:0;">Click a nav point to start a new pattern from it, or click an existing pattern's seed/instance to select it. Click a path to pattern it onto other paths. Drag a linear instance to override its own step. Right-click an instance/cell (including a faded skipped one) to skip/un-skip it.</div>
         <div id="patDraftBox" hidden>
           <div class="stat-line" style="margin-top:8px;"><span>Seed</span><b id="patDraftSeed" class="mono"></b></div>
+          <div class="stat-line" id="patDraftGroupStat" hidden title="This point is part of a Rigid Group -- every instance will also get a copy of the rest of the group, moved together as a unit"><span>Group</span><b id="patDraftGroupCount" class="mono"></b></div>
           <div class="row" style="gap:8px; margin-top:6px;">
             <span style="width:52px;">Type</span>
             <div class="shape-toggle">
@@ -723,6 +724,7 @@
         </div>
         <div id="patSelBox" hidden>
           <div class="stat-line" style="margin-top:8px;"><span>Seed</span><b id="patSelSeed" class="mono"></b></div>
+          <div class="stat-line" id="patSelGroupStat" hidden title="This pattern's seed is part of a Rigid Group -- every instance also carries a copy of the rest of the group"><span>Group</span><b id="patSelGroupCount" class="mono"></b></div>
           <div class="row" style="gap:8px; margin-top:6px;">
             <span style="width:52px;">Follow</span>
             <div class="shape-toggle">
@@ -791,6 +793,7 @@
         </div>
         <div id="gridSelBox" hidden>
           <div class="stat-line" style="margin-top:8px;"><span>Seed</span><b id="gridSelSeed" class="mono"></b></div>
+          <div class="stat-line" id="gridSelGroupStat" hidden title="This grid's seed is part of a Rigid Group -- every cell also carries a copy of the rest of the group"><span>Group</span><b id="gridSelGroupCount" class="mono"></b></div>
           <div class="field-row"><label for="gridSelDx">dx</label><input type="number" id="gridSelDx" step="0.01"></div>
           <div class="field-row"><label for="gridSelDy">dy</label><input type="number" id="gridSelDy" step="0.01"></div>
           <div class="field-row"><label for="gridSelCountX">Columns</label><input type="number" id="gridSelCountX" step="1" min="1"></div>
@@ -8358,11 +8361,15 @@ function resolveAllPatterns(){
     const layer = getLayer(pat.layerId);
     if(!layer) continue;
     const positions = computePatternInstanceWorldPositions(pat);
+    const hasGroup = pat.groupOtherSeedNames && pat.groupOtherSeedNames.length;
+    const seedPt = hasGroup ? findNavPointByName(layer, pat.seedName) : null;
+    const seedWorld = seedPt ? layerToWorld(layer, seedPt.pos.x, seedPt.pos.y) : null;
     for(let i=0;i<pat.instances.length;i++){
       const inst = pat.instances[i];
       const pt = findNavPointByName(layer, inst.name);
       if(!pt) continue;
       const [wx,wy] = positions[i];
+      if(seedWorld && !inst.skipped) resolveGroupOtherMembers(layer, pat.groupOtherSeedNames, seedWorld, [wx,wy], inst.otherNames);
       const [lx,ly] = worldToLayer(layer, wx, wy);
       const nlx = round3(lx), nly = round3(ly);
       if(nlx!==pt.pos.x || nly!==pt.pos.y){
@@ -8376,7 +8383,11 @@ function resolveAllPatterns(){
 function appendPatternInstance(pat, layer){
   const name = createInstancePointFromSeed(layer, pat.seedName);
   if(!name) return null;
-  pat.instances.push({name, overrideDx:null, overrideDy:null, skipped:false});
+  const inst = {name, overrideDx:null, overrideDy:null, skipped:false};
+  if(pat.groupOtherSeedNames && pat.groupOtherSeedNames.length){
+    inst.otherNames = cloneGroupOtherMembers(layer, pat.groupOtherSeedNames, pat.groupCurvePairs, pat.seedName, name);
+  }
+  pat.instances.push(inst);
   pat.count = pat.instances.length;
   return name;
 }
@@ -8464,8 +8475,9 @@ function resyncIdsAndDedupe(list, prefix){
   }
   return nextN;
 }
-function createPattern(layer, seedName, axis, dx, dy, count, connected, connectDirection){
+function createPattern(layer, seedName, axis, dx, dy, count, connected, connectDirection, groupOther){
   const pat = {id:'pat'+(patIdCounter++), layerId:layer.id, seedName, follow:'axis', axis, dx, dy, count:0, instances:[], connected:!!connected, connectDirection:connectDirection||'both'};
+  if(groupOther && groupOther.names.length){ pat.groupOtherSeedNames = groupOther.names; pat.groupCurvePairs = groupOther.curvePairs; }
   state.patterns.push(pat);
   for(let i=0;i<count;i++) appendPatternInstance(pat, layer);
   resolveAllPatterns();
@@ -8476,8 +8488,9 @@ function createPattern(layer, seedName, axis, dx, dy, count, connected, connectD
 // rather than adding wall params to createPattern's signature, since the
 // two shapes (axis params vs. a whole wall config object) don't share
 // much beyond seedName/count/connected.
-function createWallPattern(layer, seedName, wallConfig, count, connected, connectDirection){
+function createWallPattern(layer, seedName, wallConfig, count, connected, connectDirection, groupOther){
   const pat = {id:'pat'+(patIdCounter++), layerId:layer.id, seedName, follow:'wall', wall:wallConfig, count:0, instances:[], connected:!!connected, connectDirection:connectDirection||'both'};
+  if(groupOther && groupOther.names.length){ pat.groupOtherSeedNames = groupOther.names; pat.groupCurvePairs = groupOther.curvePairs; }
   state.patterns.push(pat);
   for(let i=0;i<count;i++) appendPatternInstance(pat, layer);
   resolveAllPatterns();
@@ -8490,7 +8503,7 @@ function setPatternCount(pat, newCount, layer){
   newCount = Math.max(0, newCount);
   while(pat.instances.length > newCount){
     const removed = pat.instances.pop();
-    if(!removed.skipped) deleteNavPoint(layer, removed.name);
+    if(!removed.skipped) deleteGroupInstancePoints(layer, removed);
   }
   while(pat.instances.length < newCount){
     appendPatternInstance(pat, layer);
@@ -8558,9 +8571,12 @@ function togglePatternInstanceSkip(pat, index){
     const name = createInstancePointFromSeed(layer, pat.seedName);
     if(!name) return;
     inst.name = name;
+    if(pat.groupOtherSeedNames && pat.groupOtherSeedNames.length){
+      inst.otherNames = cloneGroupOtherMembers(layer, pat.groupOtherSeedNames, pat.groupCurvePairs, pat.seedName, name);
+    }
     inst.skipped = false;
   } else {
-    deleteNavPoint(layer, inst.name);
+    deleteGroupInstancePoints(layer, inst);
     inst.skipped = true;
   }
   renumberPatternInstances(pat, layer);
@@ -8582,7 +8598,7 @@ function setPatternConnectDirection(pat, direction){
 function deletePattern(pat){
   const layer = getLayer(pat.layerId);
   if(layer){
-    for(const inst of pat.instances.slice()){ if(!inst.skipped) deleteNavPoint(layer, inst.name); }
+    for(const inst of pat.instances.slice()){ if(!inst.skipped) deleteGroupInstancePoints(layer, inst); }
   }
   state.patterns = state.patterns.filter(p=>p!==pat);
 }
@@ -8590,7 +8606,7 @@ function findPatternByPointName(layer, name){
   for(const pat of state.patterns){
     if(pat.layerId!==layer.id) continue;
     if(pat.seedName===name) return {pat, role:'seed', index:-1};
-    const idx = pat.instances.findIndex(i=>i.name===name);
+    const idx = pat.instances.findIndex(i=>i.name===name || (i.otherNames && i.otherNames.includes(name)));
     if(idx>=0) return {pat, role:'instance', index:idx};
   }
   return null;
@@ -8657,7 +8673,7 @@ function prunePatterns(){
     if(!layer || !findNavPointByName(layer, pat.seedName)){
       if(layer){
         for(const inst of pat.instances){
-          if(!inst.skipped && findNavPointByName(layer, inst.name)) deleteNavPoint(layer, inst.name);
+          if(!inst.skipped && findNavPointByName(layer, inst.name)) deleteGroupInstancePoints(layer, inst);
         }
       }
       state.patterns = state.patterns.filter(p=>p!==pat);
@@ -8665,7 +8681,10 @@ function prunePatterns(){
     }
     let anyNewlySkipped = false;
     for(const inst of pat.instances){
-      if(!inst.skipped && !findNavPointByName(layer, inst.name)){ inst.skipped = true; anyNewlySkipped = true; }
+      if(!inst.skipped && !findNavPointByName(layer, inst.name)){
+        if(inst.otherNames) for(const n of inst.otherNames) if(n) deleteNavPoint(layer, n);
+        inst.skipped = true; anyNewlySkipped = true;
+      }
     }
     pat.count = pat.instances.length;
     if(anyNewlySkipped) syncPatternPaths(pat, layer);
@@ -8824,15 +8843,20 @@ function gridCellWorldTarget(grid, seedWorld, row, col){
 function appendGridCell(grid, layer, row, col){
   const name = createInstancePointFromSeed(layer, grid.seedName);
   if(!name) return null;
-  grid.cells[gridCellKey(row,col)] = {name, skipped:false};
+  const cell = {name, skipped:false};
+  if(grid.groupOtherSeedNames && grid.groupOtherSeedNames.length){
+    cell.otherNames = cloneGroupOtherMembers(layer, grid.groupOtherSeedNames, grid.groupCurvePairs, grid.seedName, name);
+  }
+  grid.cells[gridCellKey(row,col)] = cell;
   return name;
 }
 let gridIdCounter = 1;
-function createGridPattern(layer, seedName, dx, dy, countX, countY){
+function createGridPattern(layer, seedName, dx, dy, countX, countY, groupOther){
   const grid = {id:'grid'+(gridIdCounter++), layerId:layer.id, seedName, dx, dy, countX:0, countY:0, cells:{},
     colOverride0:null, rowOverride0:null, colSteps:{}, rowSteps:{}, angleOn:false, angle:0,
     namingSide:'left', namingArrow:{left:'down', right:'down', top:'right', bottom:'right'},
     connected:false, connectAxis:'x', connectDirection:'both', connectFwdDir:0, connectBwdDir:0};
+  if(groupOther && groupOther.names.length){ grid.groupOtherSeedNames = groupOther.names; grid.groupCurvePairs = groupOther.curvePairs; }
   state.gridPatterns.push(grid);
   setGridPatternSize(grid, countX, countY, layer);
   return grid;
@@ -8851,6 +8875,9 @@ function resolveAllGridPatterns(){
       if(!pt) continue;
       const [row,col] = key.split(',').map(Number);
       const [wx,wy] = gridCellWorldTarget(grid, seedWorld, row, col);
+      if(grid.groupOtherSeedNames && grid.groupOtherSeedNames.length){
+        resolveGroupOtherMembers(layer, grid.groupOtherSeedNames, seedWorld, [wx,wy], cell.otherNames);
+      }
       const [lx,ly] = worldToLayer(layer, wx, wy);
       const nlx = round3(lx), nly = round3(ly);
       if(nlx!==pt.pos.x || nly!==pt.pos.y){
@@ -8963,7 +8990,7 @@ function setGridPatternSize(grid, newCountX, newCountY, layer){
     const [row,col] = key.split(',').map(Number);
     if(row>=newCountY || col>=newCountX){
       const cell = grid.cells[key];
-      if(!cell.skipped) deleteNavPoint(layer, cell.name);
+      if(!cell.skipped) deleteGroupInstancePoints(layer, cell);
       delete grid.cells[key];
     }
   }
@@ -9008,9 +9035,12 @@ function toggleGridCellSkip(grid, row, col){
     const name = createInstancePointFromSeed(layer, grid.seedName);
     if(!name) return;
     cell.name = name;
+    if(grid.groupOtherSeedNames && grid.groupOtherSeedNames.length){
+      cell.otherNames = cloneGroupOtherMembers(layer, grid.groupOtherSeedNames, grid.groupCurvePairs, grid.seedName, name);
+    }
     cell.skipped = false;
   } else {
-    deleteNavPoint(layer, cell.name);
+    deleteGroupInstancePoints(layer, cell);
     cell.skipped = true;
   }
   renumberGridCells(grid, layer);
@@ -9022,7 +9052,7 @@ function deleteGridPattern(grid){
   if(layer){
     for(const key of Object.keys(grid.cells)){
       const cell = grid.cells[key];
-      if(!cell.skipped) deleteNavPoint(layer, cell.name);
+      if(!cell.skipped) deleteGroupInstancePoints(layer, cell);
     }
   }
   state.gridPatterns = state.gridPatterns.filter(g=>g!==grid);
@@ -9032,7 +9062,8 @@ function findGridPatternByPointName(layer, name){
     if(grid.layerId!==layer.id) continue;
     if(grid.seedName===name) return {grid, role:'seed', row:0, col:0};
     for(const key of Object.keys(grid.cells)){
-      if(grid.cells[key].name===name){
+      const cell = grid.cells[key];
+      if(cell.name===name || (cell.otherNames && cell.otherNames.includes(name))){
         const [row,col] = key.split(',').map(Number);
         return {grid, role:'cell', row, col};
       }
@@ -9047,7 +9078,7 @@ function pruneGridPatterns(){
       if(layer){
         for(const key of Object.keys(grid.cells)){
           const cell = grid.cells[key];
-          if(!cell.skipped && findNavPointByName(layer, cell.name)) deleteNavPoint(layer, cell.name);
+          if(!cell.skipped && findNavPointByName(layer, cell.name)) deleteGroupInstancePoints(layer, cell);
         }
       }
       state.gridPatterns = state.gridPatterns.filter(g=>g!==grid);
@@ -9055,7 +9086,10 @@ function pruneGridPatterns(){
     }
     for(const key of Object.keys(grid.cells)){
       const cell = grid.cells[key];
-      if(!cell.skipped && !findNavPointByName(layer, cell.name)) cell.skipped = true;
+      if(!cell.skipped && !findNavPointByName(layer, cell.name)){
+        if(cell.otherNames) for(const n of cell.otherNames) if(n) deleteNavPoint(layer, n);
+        cell.skipped = true;
+      }
     }
   }
 }
@@ -9444,6 +9478,132 @@ function pickupApForPoint(layer, pt){
     if(ap && isPickupAp(ap)) return ap;
   }
   return null;
+}
+// ---- Group patterns: when a Linear/Grid pattern's seed point (the one the
+// Pattern tool was clicked on) belongs to a Rigid Group, every instance also
+// gets a fresh copy of the rest of that group's members plus the curves
+// directly between them, rigidly translated by whatever delta the seed
+// point itself underwent for that instance. The seed point stays exactly
+// what it already is -- pat.seedName/grid.seedName, the one thing Naming,
+// Connect-with-paths, Continue-existing, Wall-follow etc. all key off of --
+// so none of that machinery needs to know its instances have siblings; only
+// the four functions below (and their call sites in append*/resolve*/
+// delete*/skip*) know groups exist at all.
+//
+// A Station/Pickup follower whose driver is ALSO in the group is excluded
+// from the explicit "other members" list: createInstancePointFromSeed
+// already recreates a driver's follower(s) itself (see promoteToStation/
+// promoteToPickup below), so cloning the follower a second time here would
+// double it. The curve directly between such a driver/follower pair is
+// skipped for the same reason. Known limitation: if the CONNECTOR itself is
+// a follower whose driver is also grouped, the driver's clone still creates
+// its own fresh follower, and the connector's own clone becomes a stray
+// unpaired extra point alongside it -- clicking the driver (not the
+// follower) to start the pattern avoids this.
+function isDirectStationPickupPair(layer, nameA, nameB){
+  const ptA = findNavPointByName(layer, nameA), ptB = findNavPointByName(layer, nameB);
+  if(!ptA || !ptB) return false;
+  if(isStationDriver(ptA) && ptA.__pairedLM && ptA.__pairedLM.name===nameB) return true;
+  if(isStationDriver(ptB) && ptB.__pairedLM && ptB.__pairedLM.name===nameA) return true;
+  if(isPickupAp(ptA) && ptA.__pickupFar && ptA.__pickupFar.name===nameB) return true;
+  if(isPickupAp(ptB) && ptB.__pickupFar && ptB.__pickupFar.name===nameA) return true;
+  return false;
+}
+function captureGroupOtherMembers(layer, rigidGroupId, connectorName){
+  if(!rigidGroupId) return {names:[], curvePairs:[]};
+  const pts = (layer.extra && layer.extra.advancedPointList) || [];
+  const groupNames = new Set(pts.filter(p=>p.__rigidGroup===rigidGroupId).map(p=>p.instanceName));
+  const names = [];
+  for(const name of groupNames){
+    if(name===connectorName) continue;
+    const pt = findNavPointByName(layer, name);
+    if(!pt) continue;
+    if(isStationFollower(pt) && groupNames.has(pt.__pairedAP)) continue;
+    if(isPickupFollower(pt)){
+      const nearLm = findNavPointByName(layer, pt.__pickupNear);
+      if(nearLm && groupNames.has(nearLm.instanceName)) continue;
+    }
+    names.push(name);
+  }
+  const allMembers = new Set([connectorName, ...names]);
+  const curves = (layer.extra && layer.extra.advancedCurveList) || [];
+  const seenPairs = new Set();
+  const curvePairs = [];
+  for(const c of curves){
+    const a = c.startPos && c.startPos.instanceName, b = c.endPos && c.endPos.instanceName;
+    if(!a || !b || !allMembers.has(a) || !allMembers.has(b)) continue;
+    const key = [a,b].sort().join('\u0000');
+    if(seenPairs.has(key)) continue;
+    seenPairs.add(key);
+    if(isDirectStationPickupPair(layer, a, b)) continue;
+    const fwdCurve = findCurveByEndpoints(layer, a, b), bwdCurve = findCurveByEndpoints(layer, b, a);
+    if(!fwdCurve && !bwdCurve) continue;
+    curvePairs.push({a, b,
+      fwd: !!fwdCurve, fwdDir: fwdCurve?getIntProperty(fwdCurve,'direction',0):0, fwdMs: fwdCurve?getIntProperty(fwdCurve,'movestyle',0):0,
+      bwd: !!bwdCurve, bwdDir: bwdCurve?getIntProperty(bwdCurve,'direction',0):0, bwdMs: bwdCurve?getIntProperty(bwdCurve,'movestyle',0):0});
+  }
+  return {names, curvePairs};
+}
+// Clones one instance's share of the group: a fresh copy of each "other"
+// seed member (auto-named, exactly like the connector always gets) plus the
+// captured curves between them, re-pointed to this instance's own names.
+// Returns the new names, parallel to groupOtherSeedNames.
+function cloneGroupOtherMembers(layer, groupOtherSeedNames, groupCurvePairs, connectorSeedName, connectorInstName){
+  if(!groupOtherSeedNames || !groupOtherSeedNames.length) return [];
+  const nameMap = {[connectorSeedName]: connectorInstName};
+  const otherNames = [];
+  for(const seedName of groupOtherSeedNames){
+    const name = createInstancePointFromSeed(layer, seedName);
+    if(name) nameMap[seedName] = name;
+    otherNames.push(name);
+  }
+  for(const pair of (groupCurvePairs||[])){
+    const a = nameMap[pair.a], b = nameMap[pair.b];
+    if(!a || !b) continue;
+    if(pair.fwd && pair.bwd){
+      const fwd = createBidirPath(layer, a, b);
+      if(fwd){
+        setIntProperty(fwd, 'direction', pair.fwdDir); setIntProperty(fwd, 'movestyle', pair.fwdMs);
+        const bwd = findCurveByEndpoints(layer, b, a);
+        if(bwd){ setIntProperty(bwd, 'direction', pair.bwdDir); setIntProperty(bwd, 'movestyle', pair.bwdMs); }
+      }
+    } else {
+      if(pair.fwd){ const c = createOneWayPath(layer, a, b); if(c){ setIntProperty(c,'direction',pair.fwdDir); setIntProperty(c,'movestyle',pair.fwdMs); } }
+      if(pair.bwd){ const c = createOneWayPath(layer, b, a); if(c){ setIntProperty(c,'direction',pair.bwdDir); setIntProperty(c,'movestyle',pair.bwdMs); } }
+    }
+  }
+  return otherNames;
+}
+// Repositions one instance's "other" members by the same world-space delta
+// the connector itself just moved by -- a rigid translation, not a replay of
+// whatever geometric formula placed the connector (wall-follow curvature,
+// Grid rotation), so the group's own internal layout never bends or rotates,
+// only the connector's own anchor point tracks the pattern's real path.
+function resolveGroupOtherMembers(layer, groupOtherSeedNames, connectorSeedWorld, connectorInstWorld, otherInstNames){
+  if(!groupOtherSeedNames || !groupOtherSeedNames.length || !otherInstNames) return;
+  const ddx = connectorInstWorld[0]-connectorSeedWorld[0], ddy = connectorInstWorld[1]-connectorSeedWorld[1];
+  for(let j=0;j<groupOtherSeedNames.length;j++){
+    const seedPt = findNavPointByName(layer, groupOtherSeedNames[j]);
+    const instName = otherInstNames[j];
+    if(!seedPt || !instName) continue;
+    const pt = findNavPointByName(layer, instName);
+    if(!pt) continue;
+    const [swx,swy] = layerToWorld(layer, seedPt.pos.x, seedPt.pos.y);
+    const [lx,ly] = worldToLayer(layer, swx+ddx, swy+ddy);
+    const nlx = round3(lx), nly = round3(ly);
+    if(nlx!==pt.pos.x || nly!==pt.pos.y){
+      const oldLX = pt.pos.x, oldLY = pt.pos.y;
+      pt.pos = {x:nlx, y:nly};
+      syncCurvesForPoint(layer, pt.instanceName, oldLX, oldLY);
+    }
+  }
+}
+// Deletes every point this pattern instance owns -- the connector plus any
+// "other" group members -- used wherever a plain `deleteNavPoint(inst.name)`
+// used to be the whole story (shrink, skip, delete-pattern).
+function deleteGroupInstancePoints(layer, inst){
+  deleteNavPoint(layer, inst.name);
+  if(inst.otherNames) for(const n of inst.otherNames) if(n) deleteNavPoint(layer, n);
 }
 // The Station's near LM, specifically when its AP is a Pickup (not a plain
 // Station) -- this is the point RDS naming auto-derives as
@@ -10341,6 +10501,9 @@ function renderPatternPanel(){
   gridSelBox.hidden = !grid;
   if(draft){
     document.getElementById('patDraftSeed').textContent = draft.seedName;
+    const draftGroupN = draft.groupOtherSeedNames ? draft.groupOtherSeedNames.length : 0;
+    document.getElementById('patDraftGroupStat').hidden = !draftGroupN;
+    if(draftGroupN) document.getElementById('patDraftGroupCount').textContent = (draftGroupN+1)+' points';
     document.getElementById('patDraftTypeLinear').classList.toggle('active', draft.type==='linear');
     document.getElementById('patDraftTypeGrid').classList.toggle('active', draft.type==='grid');
     document.getElementById('patDraftLinearFields').hidden = draft.type!=='linear';
@@ -10373,6 +10536,9 @@ function renderPatternPanel(){
   }
   if(pat){
     document.getElementById('patSelSeed').textContent = pat.seedName;
+    const patGroupN = pat.groupOtherSeedNames ? pat.groupOtherSeedNames.length : 0;
+    document.getElementById('patSelGroupStat').hidden = !patGroupN;
+    if(patGroupN) document.getElementById('patSelGroupCount').textContent = (patGroupN+1)+' points';
     renderWallFieldsUI('patSel', 'btnPatSel', pat, false);
     document.getElementById('patSelAxisX').classList.toggle('active', pat.axis==='x');
     document.getElementById('patSelAxisY').classList.toggle('active', pat.axis==='y');
@@ -10395,6 +10561,9 @@ function renderPatternPanel(){
   }
   if(grid){
     document.getElementById('gridSelSeed').textContent = grid.seedName;
+    const gridGroupN = grid.groupOtherSeedNames ? grid.groupOtherSeedNames.length : 0;
+    document.getElementById('gridSelGroupStat').hidden = !gridGroupN;
+    if(gridGroupN) document.getElementById('gridSelGroupCount').textContent = (gridGroupN+1)+' points';
     const gdxEl = document.getElementById('gridSelDx'), gdyEl = document.getElementById('gridSelDy');
     const cxEl = document.getElementById('gridSelCountX'), cyEl = document.getElementById('gridSelCountY');
     if(document.activeElement!==gdxEl) gdxEl.value = grid.dx;
@@ -10487,8 +10656,9 @@ document.getElementById('btnPatDraftCreate').addEventListener('click', ()=>{
   const draft = state.patDraft; if(!draft) return;
   const layer = getLayer(draft.layerId); if(!layer) return;
   pushUndo(layer);
+  const groupOther = draft.groupOtherSeedNames ? {names:draft.groupOtherSeedNames, curvePairs:draft.groupCurvePairs} : null;
   if(draft.type==='grid'){
-    const grid = createGridPattern(layer, draft.seedName, draft.gridDx, draft.gridDy, draft.countX, draft.countY);
+    const grid = createGridPattern(layer, draft.seedName, draft.gridDx, draft.gridDy, draft.countX, draft.countY, groupOther);
     grid.angleOn = !!draft.gridAngleOn;
     grid.angle = draft.gridAngle||0;
     state.patDraft = null;
@@ -10501,12 +10671,12 @@ document.getElementById('btnPatDraftCreate').addEventListener('click', ()=>{
       alert('Pick a wall first.');
       return;
     }
-    const pat = createWallPattern(layer, draft.seedName, draft.wall, draft.count, draft.connected, draft.connectDirection);
+    const pat = createWallPattern(layer, draft.seedName, draft.wall, draft.count, draft.connected, draft.connectDirection, groupOther);
     state.patDraft = null;
     state.selectedPattern = pat.id;
     state.selectedGridPattern = null;
   } else {
-    const pat = createPattern(layer, draft.seedName, draft.axis, draft.dx, draft.dy, draft.count, draft.connected, draft.connectDirection);
+    const pat = createPattern(layer, draft.seedName, draft.axis, draft.dx, draft.dy, draft.count, draft.connected, draft.connectDirection, groupOther);
     state.patDraft = null;
     state.selectedPattern = pat.id;
     state.selectedGridPattern = null;
@@ -13246,7 +13416,10 @@ canvasEl.addEventListener('pointerdown', (e)=>{
         state.selectedPattern = foundLin.pat.id;
         state.selectedGridPattern = null;
         state.patDraft = null;
-        if(foundLin.role==='instance'){
+        // Dragging only makes sense from the connector itself -- an "other"
+        // group member's position is fully derived from it (resolveAllPatterns/
+        // resolveGroupOtherMembers), so grabbing one just selects the pattern.
+        if(foundLin.role==='instance' && foundLin.pat.instances[foundLin.index].name===hit.instanceName){
           pushUndo(layer);
           state.draggingPatternInstance = {patId:foundLin.pat.id, index:foundLin.index};
           dragging = true;
@@ -13255,14 +13428,17 @@ canvasEl.addEventListener('pointerdown', (e)=>{
         state.selectedGridPattern = foundGrid.grid.id;
         state.selectedPattern = null;
         state.patDraft = null;
-        if(foundGrid.role==='cell'){
+        const cell = foundGrid.role==='cell' ? foundGrid.grid.cells[gridCellKey(foundGrid.row,foundGrid.col)] : null;
+        if(foundGrid.role==='cell' && cell && cell.name===hit.instanceName){
           pushUndo(layer);
           const [wx0, wy0] = screenToWorld(sx, sy);
           state.draggingGridCell = {gridId:foundGrid.grid.id, row:foundGrid.row, col:foundGrid.col, startWorld:[wx0,wy0]};
           dragging = true;
         }
       } else {
-        state.patDraft = {layerId:layer.id, seedName:hit.instanceName, type:'linear', follow:'axis', axis:'x', dx:1, dy:0, count:3, connected:false, connectDirection:'both', gridDx:1, gridDy:1, countX:3, countY:3, gridAngleOn:false, gridAngle:0, wall:null};
+        const groupOther = hit.__rigidGroup ? captureGroupOtherMembers(layer, hit.__rigidGroup, hit.instanceName) : null;
+        state.patDraft = {layerId:layer.id, seedName:hit.instanceName, type:'linear', follow:'axis', axis:'x', dx:1, dy:0, count:3, connected:false, connectDirection:'both', gridDx:1, gridDy:1, countX:3, countY:3, gridAngleOn:false, gridAngle:0, wall:null,
+          groupOtherSeedNames: groupOther ? groupOther.names : null, groupCurvePairs: groupOther ? groupOther.curvePairs : null};
         state.selectedPattern = null;
         state.selectedGridPattern = null;
       }
