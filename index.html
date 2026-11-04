@@ -3146,6 +3146,17 @@ btnPathPatternDetach.addEventListener('click', ()=>{
 // (positive dot product) rather than roughly opposite it — this only
 // cares about actual geometry, so it's unaffected by whatever the
 // direction property happens to hold.
+//
+// That flip is only safe when BOTH directions actually exist as real curve
+// objects (a bidirectional pair) -- it's just picking which of the two to
+// call "forward". For a one-way curve there's only one real object; if its
+// chord happens to point opposite the source's, flipping the stored names
+// points resolvePathPatterns() at an endpoint order with no matching curve
+// at all, and it silently never syncs that target. So the flip is gated on
+// the reversed curve existing -- otherwise keep the target's own real
+// orientation, even though that means its chord may run opposite the
+// source's (whoever reads the copied shape/direction back may see it
+// mirrored; getting the sync to happen at all comes first).
 function alignTargetOrderToSource(layer, sourceNameA, sourceNameB, nameA, nameB){
   const srcCurve = findCurveByEndpoints(layer, sourceNameA, sourceNameB);
   const tgtCurve = findCurveByEndpoints(layer, nameA, nameB);
@@ -3155,7 +3166,8 @@ function alignTargetOrderToSource(layer, sourceNameA, sourceNameB, nameA, nameB)
   const tp1 = tgtCurve && tgtCurve.endPos && tgtCurve.endPos.pos;
   if(!sp0 || !sp1 || !tp0 || !tp1) return {nameA, nameB};
   const dot = (sp1.x-sp0.x)*(tp1.x-tp0.x) + (sp1.y-sp0.y)*(tp1.y-tp0.y);
-  return dot>=0 ? {nameA, nameB} : {nameA:nameB, nameB:nameA};
+  if(dot>=0) return {nameA, nameB};
+  return findCurveByEndpoints(layer, nameB, nameA) ? {nameA:nameB, nameB:nameA} : {nameA, nameB};
 }
 // While a pattern source is armed, clicking any OTHER existing path (from
 // either the Nav Pts or Path tool's own curve-click handling) adds it as a
@@ -9082,6 +9094,25 @@ function resolvePathPatterns(){
         setIntProperty(tgtBwd, 'movestyle', getIntProperty(srcBwd, 'movestyle', 0));
         copyCurveShapeLeg(srcBwd, tgtBwd, '__cpAnchor1', 'controlPos1', t.nameB);
         copyCurveShapeLeg(srcBwd, tgtBwd, '__cpAnchor2', 'controlPos2', t.nameA);
+      }
+      // Neither leg matched -- a one-way source and a one-way target whose
+      // stored name order doesn't match either curve's real orientation
+      // (e.g. a target recorded by an older build that flipped names onto
+      // a direction with no matching curve at all -- see
+      // alignTargetOrderToSource). Rather than silently never syncing this
+      // target, copy directly between whichever single curve actually
+      // exists on each side, re-pointing anchors at the target's own real
+      // endpoint names instead of the possibly-swapped t.nameA/t.nameB.
+      // The shape may come out mirrored if the two really do run opposite
+      // ways -- getting it to sync at all comes first.
+      if(!(srcFwd && tgtFwd) && !(srcBwd && tgtBwd)){
+        const src = srcFwd || srcBwd, tgt = tgtFwd || tgtBwd;
+        if(src && tgt){
+          setIntProperty(tgt, 'direction', getIntProperty(src, 'direction', 0));
+          setIntProperty(tgt, 'movestyle', getIntProperty(src, 'movestyle', 0));
+          copyCurveShapeLeg(src, tgt, '__cpAnchor1', 'controlPos1', tgt.startPos.instanceName);
+          copyCurveShapeLeg(src, tgt, '__cpAnchor2', 'controlPos2', tgt.endPos.instanceName);
+        }
       }
     }
   }
