@@ -701,15 +701,6 @@
               <div class="tool-hint" id="patDraftWallWarning" hidden style="margin-top:6px; color:var(--danger);">Some instances extend beyond the fitted wall and are extrapolated (shown in red).</div>
             </div>
             <div class="field-row"><label for="patDraftCount">Count</label><input type="number" id="patDraftCount" step="1" min="1" value="3"></div>
-            <label class="check-inline" style="margin-top:4px;"><input type="checkbox" id="patDraftConnected"> Connect nav points with paths</label>
-            <div class="field-row" id="patDraftConnectDirRow" hidden>
-              <label for="patDraftConnectDir">Direction</label>
-              <select id="patDraftConnectDir" style="flex:1; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
-                <option value="both">Bidirectional</option>
-                <option value="forward">Forward only</option>
-                <option value="backward">Backward only</option>
-              </select>
-            </div>
           </div>
           <div id="patDraftGridFields" hidden>
             <div class="field-row"><label for="patDraftGridDx">dx</label><input type="number" id="patDraftGridDx" step="0.01" value="1"></div>
@@ -775,20 +766,12 @@
             <div class="tool-hint" id="patSelWallWarning" hidden style="margin-top:6px; color:var(--danger);">Some instances extend beyond the fitted wall and are extrapolated (shown in red).</div>
           </div>
           <div class="field-row"><label for="patSelCount">Count</label><input type="number" id="patSelCount" step="1" min="0"></div>
-          <label class="check-inline" style="margin-top:4px;"><input type="checkbox" id="patSelConnected"> Connect nav points with paths</label>
-          <div class="field-row" id="patSelConnectDirRow" hidden>
-            <label for="patSelConnectDir">Direction</label>
-            <select id="patSelConnectDir" style="flex:1; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
-              <option value="both">Bidirectional</option>
-              <option value="forward">Forward only</option>
-              <option value="backward">Backward only</option>
-            </select>
-          </div>
           <div class="stat-line"><span>Overridden instances</span><b id="patSelOverrideCount" class="mono"></b></div>
           <div class="stat-line"><span>Skipped instances</span><b id="patSelSkipCount" class="mono"></b></div>
           <button class="btn" id="btnPatSelResetOverrides" style="width:100%; margin-top:8px;">Reset all instance overrides</button>
           <button class="btn" id="btnPatSelUnskipAll" style="width:100%; margin-top:6px;">Un-skip all instances</button>
           <button class="btn" id="btnPatSelNaming" style="width:100%; margin-top:6px;">Naming…</button>
+          <button class="btn" id="btnPatSelConnect" style="width:100%; margin-top:6px;">Connect…</button>
           <button class="btn danger" id="btnPatSelDelete" style="width:100%; margin-top:6px;">Delete pattern</button>
         </div>
         <div id="gridSelBox" hidden>
@@ -1357,6 +1340,49 @@
             <div class="tool-hint" id="gcGridHint" style="margin-top:4px; text-align:center;">Applies to every adjacent pair along the chosen axis</div>
             <div style="max-width:320px; max-height:260px; overflow:auto;">
               <svg id="gcGridSvg"></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="footprint-modal-backdrop" id="linConnectModalBackdrop" hidden>
+      <div class="footprint-modal" style="width:640px;">
+        <div class="footprint-modal-head">
+          <div style="font-weight:600; font-size:14px;">Connect…</div>
+          <button class="layer-mini-btn" id="btnLinConnectClose" title="Close" style="font-size:16px;">✕</button>
+        </div>
+        <div class="footprint-modal-body">
+          <div style="flex:0 0 230px; display:flex; flex-direction:column; gap:2px;">
+            <label class="check-inline" style="margin-bottom:8px;"><input type="checkbox" id="lcConnected"> Connect nav points with paths</label>
+            <div id="lcFields">
+              <div class="field-row"><label>Path</label>
+                <div class="shape-toggle">
+                  <button type="button" class="shape-btn active" id="lcPathBoth" title="Bidirectional">Bi</button>
+                  <button type="button" class="shape-btn" id="lcPathFwd" title="Forward only">Fwd</button>
+                  <button type="button" class="shape-btn" id="lcPathBwd" title="Backward only">Bwd</button>
+                </div>
+              </div>
+              <div class="label-sub" style="margin-top:8px;">Robot direction</div>
+              <div class="field-row" id="lcFwdRow"><label for="lcFwdDir" id="lcFwdLabel">Root → Next</label>
+                <select id="lcFwdDir" style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
+                  <option value="0">0 — Forward</option>
+                  <option value="1">1 — Backward</option>
+                </select>
+              </div>
+              <div class="field-row" id="lcBwdRow"><label for="lcBwdDir" id="lcBwdLabel">Next → Root</label>
+                <select id="lcBwdDir" style="flex:1; min-width:0; padding:5px 7px; border-radius:5px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:13px;">
+                  <option value="0">0 — Forward</option>
+                  <option value="1">1 — Backward</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div style="flex:1 1 320px; display:flex; flex-direction:column; align-items:center; gap:6px;">
+            <div class="tool-hint" style="margin-top:0;">Preview</div>
+            <svg id="lcPairSvg" width="260" height="100"></svg>
+            <div class="tool-hint" style="margin-top:4px; text-align:center;">This pattern's actual chain — one row per Rigid Group member if its seed is grouped</div>
+            <div style="max-width:320px; max-height:260px; overflow:auto;">
+              <svg id="lcChainSvg"></svg>
             </div>
           </div>
         </div>
@@ -8391,13 +8417,26 @@ function appendPatternInstance(pat, layer){
   pat.count = pat.instances.length;
   return name;
 }
-// Ordered names of everything in the chain that currently has a real point —
-// the seed plus every non-skipped instance, in order. This is what "connect
-// the nav points" walks when laying down paths.
-function patternMaterializedChain(pat){
-  const chain = [pat.seedName];
-  for(const inst of pat.instances){ if(!inst.skipped) chain.push(inst.name); }
-  return chain;
+// Ordered name chains that currently have a real point -- one chain per
+// "role" in the pattern: the connector's own chain (role 0, pat.seedName +
+// each instance's inst.name) plus, for a group pattern, one chain per other
+// group member (role 1..N, walking inst.otherNames[r-1] in lockstep with
+// the same instance order). A plain (non-group) pattern just returns the
+// single connector chain. This is what "connect the nav points" walks when
+// laying down paths -- every member of the group gets its own parallel
+// line of connections across instances, not just the point that was
+// clicked to start the pattern.
+function patternMaterializedChains(pat){
+  const roleSeedNames = [pat.seedName, ...(pat.groupOtherSeedNames||[])];
+  return roleSeedNames.map((seedName, r)=>{
+    const chain = [seedName];
+    for(const inst of pat.instances){
+      if(inst.skipped) continue;
+      const name = r===0 ? inst.name : (inst.otherNames && inst.otherNames[r-1]);
+      if(name) chain.push(name);
+    }
+    return chain;
+  });
 }
 // Keeps a connected pattern's auto-generated paths in sync with its current
 // chain and direction (count/skip changes can add, remove, or re-neighbor
@@ -8412,13 +8451,15 @@ function patternMaterializedChain(pat){
 function syncPatternPaths(pat, layer){
   layer = layer || getLayer(pat.layerId);
   if(!layer) return;
-  const chain = pat.connected ? patternMaterializedChain(pat) : [];
+  const chains = pat.connected ? patternMaterializedChains(pat) : [];
   const dir = pat.connectDirection || 'both';
   const wantedKeys = new Set();
-  for(let i=1;i<chain.length;i++){
-    const a = chain[i-1], b = chain[i];
-    if(dir!=='backward') wantedKeys.add(a+'\u0000'+b);
-    if(dir!=='forward') wantedKeys.add(b+'\u0000'+a);
+  for(const chain of chains){
+    for(let i=1;i<chain.length;i++){
+      const a = chain[i-1], b = chain[i];
+      if(dir!=='backward') wantedKeys.add(a+'\u0000'+b);
+      if(dir!=='forward') wantedKeys.add(b+'\u0000'+a);
+    }
   }
   const curves = layer.extra && layer.extra.advancedCurveList;
   if(Array.isArray(curves)){
@@ -8428,21 +8469,26 @@ function syncPatternPaths(pat, layer){
       return wantedKeys.has(a+'\u0000'+b);
     });
   }
+  const fwdDir = pat.connectFwdDir||0, bwdDir = pat.connectBwdDir||0;
+  for(const chain of chains){
   for(let i=1;i<chain.length;i++){
     const a = chain[i-1], b = chain[i];
     const wantFwd = wantedKeys.has(a+'\u0000'+b), wantBwd = wantedKeys.has(b+'\u0000'+a);
-    const hasFwd = !!findCurveByEndpoints(layer,a,b), hasBwd = !!findCurveByEndpoints(layer,b,a);
-    if(wantFwd && wantBwd && !hasFwd && !hasBwd){
-      const forward = createBidirPath(layer, a, b);
-      if(forward){
-        forward.__patternPathId = pat.id;
-        const backward = findCurveByEndpoints(layer, b, a);
-        if(backward) backward.__patternPathId = pat.id;
+    let fwdCurve = findCurveByEndpoints(layer,a,b), bwdCurve = findCurveByEndpoints(layer,b,a);
+    if(wantFwd && wantBwd && !fwdCurve && !bwdCurve){
+      fwdCurve = createBidirPath(layer, a, b);
+      if(fwdCurve){
+        fwdCurve.__patternPathId = pat.id;
+        bwdCurve = findCurveByEndpoints(layer, b, a);
+        if(bwdCurve) bwdCurve.__patternPathId = pat.id;
       }
     } else {
-      if(wantFwd && !hasFwd){ const c = createOneWayPath(layer, a, b); if(c) c.__patternPathId = pat.id; }
-      if(wantBwd && !hasBwd){ const c = createOneWayPath(layer, b, a); if(c) c.__patternPathId = pat.id; }
+      if(wantFwd && !fwdCurve){ fwdCurve = createOneWayPath(layer, a, b); if(fwdCurve) fwdCurve.__patternPathId = pat.id; }
+      if(wantBwd && !bwdCurve){ bwdCurve = createOneWayPath(layer, b, a); if(bwdCurve) bwdCurve.__patternPathId = pat.id; }
     }
+    if(wantFwd && fwdCurve && fwdCurve.__patternPathId===pat.id) setIntProperty(fwdCurve, 'direction', fwdDir);
+    if(wantBwd && bwdCurve && bwdCurve.__patternPathId===pat.id) setIntProperty(bwdCurve, 'direction', bwdDir);
+  }
   }
 }
 let patIdCounter = 1;
@@ -8476,7 +8522,7 @@ function resyncIdsAndDedupe(list, prefix){
   return nextN;
 }
 function createPattern(layer, seedName, axis, dx, dy, count, connected, connectDirection, groupOther){
-  const pat = {id:'pat'+(patIdCounter++), layerId:layer.id, seedName, follow:'axis', axis, dx, dy, count:0, instances:[], connected:!!connected, connectDirection:connectDirection||'both'};
+  const pat = {id:'pat'+(patIdCounter++), layerId:layer.id, seedName, follow:'axis', axis, dx, dy, count:0, instances:[], connected:!!connected, connectDirection:connectDirection||'both', connectFwdDir:0, connectBwdDir:0};
   if(groupOther && groupOther.names.length){ pat.groupOtherSeedNames = groupOther.names; pat.groupCurvePairs = groupOther.curvePairs; }
   state.patterns.push(pat);
   for(let i=0;i<count;i++) appendPatternInstance(pat, layer);
@@ -8489,7 +8535,7 @@ function createPattern(layer, seedName, axis, dx, dy, count, connected, connectD
 // two shapes (axis params vs. a whole wall config object) don't share
 // much beyond seedName/count/connected.
 function createWallPattern(layer, seedName, wallConfig, count, connected, connectDirection, groupOther){
-  const pat = {id:'pat'+(patIdCounter++), layerId:layer.id, seedName, follow:'wall', wall:wallConfig, count:0, instances:[], connected:!!connected, connectDirection:connectDirection||'both'};
+  const pat = {id:'pat'+(patIdCounter++), layerId:layer.id, seedName, follow:'wall', wall:wallConfig, count:0, instances:[], connected:!!connected, connectDirection:connectDirection||'both', connectFwdDir:0, connectBwdDir:0};
   if(groupOther && groupOther.names.length){ pat.groupOtherSeedNames = groupOther.names; pat.groupCurvePairs = groupOther.curvePairs; }
   state.patterns.push(pat);
   for(let i=0;i<count;i++) appendPatternInstance(pat, layer);
@@ -8593,6 +8639,12 @@ function setPatternConnectDirection(pat, direction){
   const layer = getLayer(pat.layerId);
   if(!layer) return;
   pat.connectDirection = direction;
+  syncPatternPaths(pat, layer);
+}
+function setPatternConnectLegDirs(pat, fwdDir, bwdDir, layer){
+  layer = layer || getLayer(pat.layerId); if(!layer) return;
+  pat.connectFwdDir = fwdDir;
+  pat.connectBwdDir = bwdDir;
   syncPatternPaths(pat, layer);
 }
 function deletePattern(pat){
@@ -8717,23 +8769,30 @@ function prunePatterns(){
 // overrides needs to change when the grid is rotated.
 function gridCellKey(row, col){ return row+','+col; }
 // Ordered name chains along one axis of a grid pattern -- one chain per row
-// (connectAxis 'x') or per column ('y'); a skipped cell is simply absent
-// from its chain (its neighbors on either side connect straight across the
-// gap), same semantics as Linear patterns' patternMaterializedChain.
+// (connectAxis 'x') or per column ('y'), per "role" in the pattern (the
+// connector plus, for a group grid pattern, one chain per other group
+// member -- see patternMaterializedChains, same idea, applied per line
+// instead of just once). A skipped cell is simply absent from its chain
+// (its neighbors on either side connect straight across the gap).
 function gridConnectionChains(grid){
   const chains = [];
   const alongY = grid.connectAxis==='y';
   const outer = alongY ? grid.countX : grid.countY;
   const inner = alongY ? grid.countY : grid.countX;
-  for(let o=0; o<outer; o++){
-    const chain = [];
-    for(let i=0; i<inner; i++){
-      const row = alongY ? i : o, col = alongY ? o : i;
-      if(row===0 && col===0){ chain.push(grid.seedName); continue; }
-      const cell = grid.cells[gridCellKey(row,col)];
-      if(cell && !cell.skipped) chain.push(cell.name);
+  const roleSeedNames = [grid.seedName, ...(grid.groupOtherSeedNames||[])];
+  for(let r=0; r<roleSeedNames.length; r++){
+    for(let o=0; o<outer; o++){
+      const chain = [];
+      for(let i=0; i<inner; i++){
+        const row = alongY ? i : o, col = alongY ? o : i;
+        if(row===0 && col===0){ chain.push(roleSeedNames[r]); continue; }
+        const cell = grid.cells[gridCellKey(row,col)];
+        if(!cell || cell.skipped) continue;
+        const name = r===0 ? cell.name : (cell.otherNames && cell.otherNames[r-1]);
+        if(name) chain.push(name);
+      }
+      chains.push(chain);
     }
-    chains.push(chain);
   }
   return chains;
 }
@@ -10519,9 +10578,6 @@ function renderPatternPanel(){
     if(document.activeElement!==dxEl) dxEl.value = draft.dx;
     if(document.activeElement!==dyEl) dyEl.value = draft.dy;
     if(document.activeElement!==cntEl) cntEl.value = draft.count;
-    document.getElementById('patDraftConnected').checked = !!draft.connected;
-    document.getElementById('patDraftConnectDirRow').hidden = !draft.connected;
-    document.getElementById('patDraftConnectDir').value = draft.connectDirection || 'both';
     const gdxEl = document.getElementById('patDraftGridDx'), gdyEl = document.getElementById('patDraftGridDy');
     const cxEl = document.getElementById('patDraftCountX'), cyEl = document.getElementById('patDraftCountY');
     if(document.activeElement!==gdxEl) gdxEl.value = draft.gridDx;
@@ -10551,9 +10607,6 @@ function renderPatternPanel(){
     if(document.activeElement!==dxEl) dxEl.value = pat.dx;
     if(document.activeElement!==dyEl) dyEl.value = pat.dy;
     if(document.activeElement!==cntEl) cntEl.value = pat.count;
-    document.getElementById('patSelConnected').checked = !!pat.connected;
-    document.getElementById('patSelConnectDirRow').hidden = !pat.connected;
-    document.getElementById('patSelConnectDir').value = pat.connectDirection || 'both';
     const overriddenCount = pat.instances.filter(i=>i.overrideDx!=null || i.overrideDy!=null).length;
     document.getElementById('patSelOverrideCount').textContent = overriddenCount+' / '+pat.instances.length;
     const skippedCount = pat.instances.filter(i=>i.skipped).length;
@@ -10636,8 +10689,6 @@ document.getElementById('patDraftAngle').addEventListener('input', patDraftLinea
   wireLinearSolveForRowClick('patDraft', field, ()=>state.patDraft, ()=>{ renderPatternPanel(); requestDraw(); });
 });
 document.getElementById('patDraftCount').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.count = Math.max(1, parseInt(e.target.value)||1); });
-document.getElementById('patDraftConnected').addEventListener('change', e=>{ if(state.patDraft){ state.patDraft.connected = e.target.checked; renderPatternPanel(); } });
-document.getElementById('patDraftConnectDir').addEventListener('change', e=>{ if(state.patDraft) state.patDraft.connectDirection = e.target.value; });
 document.getElementById('patDraftGridDx').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.gridDx = parseFloat(e.target.value)||0; });
 document.getElementById('patDraftGridDy').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.gridDy = parseFloat(e.target.value)||0; });
 document.getElementById('patDraftCountX').addEventListener('input', e=>{ if(state.patDraft) state.patDraft.countX = Math.max(1, parseInt(e.target.value)||1); });
@@ -10671,12 +10722,12 @@ document.getElementById('btnPatDraftCreate').addEventListener('click', ()=>{
       alert('Pick a wall first.');
       return;
     }
-    const pat = createWallPattern(layer, draft.seedName, draft.wall, draft.count, draft.connected, draft.connectDirection, groupOther);
+    const pat = createWallPattern(layer, draft.seedName, draft.wall, draft.count, false, 'both', groupOther);
     state.patDraft = null;
     state.selectedPattern = pat.id;
     state.selectedGridPattern = null;
   } else {
-    const pat = createPattern(layer, draft.seedName, draft.axis, draft.dx, draft.dy, draft.count, draft.connected, draft.connectDirection, groupOther);
+    const pat = createPattern(layer, draft.seedName, draft.axis, draft.dx, draft.dy, draft.count, false, 'both', groupOther);
     state.patDraft = null;
     state.selectedPattern = pat.id;
     state.selectedGridPattern = null;
@@ -10698,18 +10749,6 @@ function setSelPatAxis(axis){
 document.getElementById('patSelAxisX').addEventListener('click', ()=>setSelPatAxis('x'));
 document.getElementById('patSelAxisY').addEventListener('click', ()=>setSelPatAxis('y'));
 document.getElementById('patSelAxisBoth').addEventListener('click', ()=>setSelPatAxis('both'));
-document.getElementById('patSelConnected').addEventListener('change', e=>{
-  const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
-  const layer = getLayer(pat.layerId); if(layer) pushUndo(layer);
-  setPatternConnected(pat, e.target.checked);
-  renderPatternPanel(); renderNavPointPanel(); renderPathPanel(); scheduleAutosave(); requestDraw();
-});
-document.getElementById('patSelConnectDir').addEventListener('change', e=>{
-  const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
-  const layer = getLayer(pat.layerId); if(layer) pushUndo(layer);
-  setPatternConnectDirection(pat, e.target.value);
-  renderNavPointPanel(); renderPathPanel(); scheduleAutosave(); requestDraw();
-});
 let patFieldsUndoPushed = false;
 ['patSelDx', 'patSelDy', 'patSelAngle'].forEach(id=>{
   const el = document.getElementById(id);
@@ -11072,6 +11111,122 @@ document.getElementById('btnGridSelDelete').addEventListener('click', ()=>{
   document.getElementById('btnGridSelConnect').addEventListener('click', ()=>{
     const grid = state.gridPatterns.find(g=>g.id===state.selectedGridPattern); if(!grid) return;
     openGridConnectModal(grid);
+  });
+})();
+
+// ---- Linear pattern "Connect…" popup: same idea as the Grid one above,
+// minus an Axis picker (a Linear pattern only ever has the one chain
+// direction, its own seed->instance1->instance2... order). The preview's
+// "actual chain" panel draws one row per patternMaterializedChains() role
+// -- the connector's own chain plus, for a group pattern, one row per other
+// group member -- so toggling Connect here visibly links every member of
+// the group, not just the point that was clicked to start the pattern.
+(function initLinConnectModal(){
+  const backdrop = document.getElementById('linConnectModalBackdrop');
+  let lcPat = null;
+
+  function lcArrowMarker(id, color){
+    return '<marker id="'+id+'" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="'+color+'"/></marker>';
+  }
+  function renderLinConnectPreview(pat){
+    const mode = pat.connectDirection||'both';
+    const wantFwd = pat.connected && (mode==='forward' || mode==='both');
+    const wantBwd = pat.connected && (mode==='backward' || mode==='both');
+    const chains = patternMaterializedChains(pat);
+    const mainChain = chains[0] || [pat.seedName];
+
+    // ---- single representative pair: root -> the connector's own next ----
+    let svg = '<defs>'+lcArrowMarker('lcAF','#5a6fcf')+lcArrowMarker('lcAB','#cf5a7b')+'</defs>';
+    svg += '<rect x="20" y="40" width="26" height="26" rx="3" fill="#caa15a" stroke="#8a6a2f"/>';
+    svg += '<rect x="214" y="40" width="26" height="26" rx="3" fill="#5a6fcf" stroke="#33408a"/>';
+    const bothOn = wantFwd && wantBwd;
+    const fwdY = bothOn ? 50 : 55, bwdY = bothOn ? 60 : 55;
+    if(wantFwd) svg += '<path d="M48,'+fwdY+' L212,'+fwdY+'" stroke="#5a6fcf" stroke-width="2" fill="none" marker-end="url(#lcAF)"/>';
+    if(wantBwd) svg += '<path d="M212,'+bwdY+' L48,'+bwdY+'" stroke="#cf5a7b" stroke-width="2" fill="none" marker-end="url(#lcAB)"/>';
+    const rootName = pat.seedName, nextName = mainChain[1] || '(no instances)';
+    svg += '<text x="22" y="30" font-size="10" fill="#6b756f">Root — <tspan font-weight="600" fill="#44493f">'+rootName+'</tspan></text>';
+    svg += '<text x="186" y="30" font-size="10" fill="#6b756f">Next — <tspan font-weight="600" fill="#44493f">'+nextName+'</tspan></text>';
+    if(wantFwd) svg += '<text x="100" y="'+(fwdY-6)+'" font-size="9" fill="#5a6fcf">'+((pat.connectFwdDir||0)===1?'1 — Bwd':'0 — Fwd')+'</text>';
+    if(wantBwd) svg += '<text x="100" y="'+(bwdY+14)+'" font-size="9" fill="#cf5a7b">'+((pat.connectBwdDir||0)===1?'1 — Bwd':'0 — Fwd')+'</text>';
+    if(!pat.connected) svg += '<text x="60" y="90" font-size="10" fill="#b0b6b1">(connections off)</text>';
+    document.getElementById('lcPairSvg').innerHTML = svg;
+
+    // ---- actual chain preview: one row per group role, real point names,
+    // fixed step size (never squeezed) so it just scrolls for a long chain.
+    const stepX = 70, rowH = 50, x0 = 24, y0 = 18;
+    const maxLen = Math.max(1, ...chains.map(c=>c.length));
+    const chainSvgEl = document.getElementById('lcChainSvg');
+    chainSvgEl.setAttribute('width', x0*2 + (maxLen-1)*stepX);
+    chainSvgEl.setAttribute('height', y0 + chains.length*rowH);
+    let csvg = '<defs>'+lcArrowMarker('lcGF','#5a6fcf')+lcArrowMarker('lcGB','#cf5a7b')+'</defs>';
+    chains.forEach((chain, ri)=>{
+      const y = y0 + ri*rowH;
+      for(let i=1;i<chain.length;i++){
+        const x1 = x0+(i-1)*stepX+7, x2 = x0+i*stepX-7;
+        if(wantFwd) csvg += '<path d="M'+x1+','+(y-3)+' L'+x2+','+(y-3)+'" stroke="#5a6fcf" stroke-width="1.6" fill="none" marker-end="url(#lcGF)"/>';
+        if(wantBwd) csvg += '<path d="M'+x2+','+(y+3)+' L'+x1+','+(y+3)+'" stroke="#cf5a7b" stroke-width="1.6" fill="none" marker-end="url(#lcGB)"/>';
+      }
+      chain.forEach((name, i)=>{
+        const x = x0+i*stepX;
+        const isRoot = ri===0 && i===0;
+        csvg += '<rect x="'+(x-7)+'" y="'+(y-7)+'" width="14" height="14" rx="2.5" fill="'+(isRoot?'#caa15a':'#5a6fcf')+'" stroke="'+(isRoot?'#8a6a2f':'#33408a')+'"/>';
+        csvg += '<text x="'+x+'" y="'+(y+22)+'" font-size="8.5" fill="#44493f" text-anchor="middle">'+name+'</text>';
+      });
+    });
+    chainSvgEl.innerHTML = csvg;
+  }
+
+  function renderLinConnectModal(){
+    if(!lcPat) return;
+    const pat = lcPat;
+    document.getElementById('lcConnected').checked = !!pat.connected;
+    document.getElementById('lcFields').classList.toggle('fields-disabled', !pat.connected);
+    const mode = pat.connectDirection||'both';
+    document.getElementById('lcPathBoth').classList.toggle('active', mode==='both');
+    document.getElementById('lcPathFwd').classList.toggle('active', mode==='forward');
+    document.getElementById('lcPathBwd').classList.toggle('active', mode==='backward');
+    document.getElementById('lcFwdRow').style.display = (mode==='forward'||mode==='both') ? 'flex' : 'none';
+    document.getElementById('lcBwdRow').style.display = (mode==='backward'||mode==='both') ? 'flex' : 'none';
+    document.getElementById('lcFwdLabel').textContent = mode==='both' ? 'Root → Next' : 'Direction';
+    document.getElementById('lcBwdLabel').textContent = mode==='both' ? 'Next → Root' : 'Direction';
+    document.getElementById('lcFwdDir').value = String(pat.connectFwdDir||0);
+    document.getElementById('lcBwdDir').value = String(pat.connectBwdDir||0);
+    renderLinConnectPreview(pat);
+  }
+
+  function openLinConnectModal(pat){
+    lcPat = pat;
+    renderLinConnectModal();
+    backdrop.hidden = false;
+  }
+  function closeLinConnectModal(){ backdrop.hidden = true; lcPat = null; }
+  document.getElementById('btnLinConnectClose').addEventListener('click', closeLinConnectModal);
+  backdrop.addEventListener('pointerdown', e=>{ if(e.target===backdrop) closeLinConnectModal(); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && !backdrop.hidden) closeLinConnectModal(); });
+
+  function withLcPat(mutate){
+    if(!lcPat) return;
+    const layer = getLayer(lcPat.layerId); if(!layer) return;
+    pushUndo(layer);
+    mutate(layer);
+    renderLinConnectModal();
+    scheduleAutosave(); requestDraw();
+  }
+  document.getElementById('lcConnected').addEventListener('change', e=>withLcPat(()=>setPatternConnected(lcPat, e.target.checked)));
+  document.getElementById('lcPathBoth').addEventListener('click', ()=>withLcPat(()=>setPatternConnectDirection(lcPat, 'both')));
+  document.getElementById('lcPathFwd').addEventListener('click', ()=>withLcPat(()=>setPatternConnectDirection(lcPat, 'forward')));
+  document.getElementById('lcPathBwd').addEventListener('click', ()=>withLcPat(()=>setPatternConnectDirection(lcPat, 'backward')));
+  function applyLcLegDirs(layer){
+    const fwdDir = parseInt(document.getElementById('lcFwdDir').value,10)||0;
+    const bwdDir = parseInt(document.getElementById('lcBwdDir').value,10)||0;
+    setPatternConnectLegDirs(lcPat, fwdDir, bwdDir, layer);
+  }
+  document.getElementById('lcFwdDir').addEventListener('change', ()=>withLcPat(applyLcLegDirs));
+  document.getElementById('lcBwdDir').addEventListener('change', ()=>withLcPat(applyLcLegDirs));
+
+  document.getElementById('btnPatSelConnect').addEventListener('click', ()=>{
+    const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
+    openLinConnectModal(pat);
   });
 })();
 
@@ -13437,7 +13592,7 @@ canvasEl.addEventListener('pointerdown', (e)=>{
         }
       } else {
         const groupOther = hit.__rigidGroup ? captureGroupOtherMembers(layer, hit.__rigidGroup, hit.instanceName) : null;
-        state.patDraft = {layerId:layer.id, seedName:hit.instanceName, type:'linear', follow:'axis', axis:'x', dx:1, dy:0, count:3, connected:false, connectDirection:'both', gridDx:1, gridDy:1, countX:3, countY:3, gridAngleOn:false, gridAngle:0, wall:null,
+        state.patDraft = {layerId:layer.id, seedName:hit.instanceName, type:'linear', follow:'axis', axis:'x', dx:1, dy:0, count:3, gridDx:1, gridDy:1, countX:3, countY:3, gridAngleOn:false, gridAngle:0, wall:null,
           groupOtherSeedNames: groupOther ? groupOther.names : null, groupCurvePairs: groupOther ? groupOther.curvePairs : null};
         state.selectedPattern = null;
         state.selectedGridPattern = null;
