@@ -798,8 +798,10 @@
           <div class="stat-line" id="pathPatternTargetCountStat" hidden><span>Targets</span><b id="pathPatternTargetCount" class="mono"></b></div>
           <div class="stat-line" id="pathPatternSourceStat" hidden><span>Patterned from</span><b id="pathPatternSourceLabel" class="mono"></b></div>
           <div class="tool-hint" id="pathPatternArmedHint" hidden style="margin-top:4px;">Click other paths to add them as targets. Click empty space or press Done to finish.</div>
+          <label class="check-inline" id="pathPatternBoxSelectRow" hidden style="margin-top:6px;"><input type="checkbox" id="pathPatternBoxSelect" title="While on, dragging on empty canvas draws a box instead of clicking one path at a time -- every path it touches is added as a target"> Box select</label>
           <button class="btn" id="btnPathPatternDone" style="width:100%; margin-top:4px;" hidden>Done adding targets</button>
-          <button class="btn danger" id="btnPathPatternClear" style="width:100%; margin-top:4px;" hidden>Clear pattern (un-link all targets)</button>
+          <button class="btn danger" id="btnPathPatternClear" style="width:100%; margin-top:4px;" hidden title="Every target keeps its current shape as its own independent path -- stops copying the source, but nothing is removed">Unlink pattern</button>
+          <button class="btn danger" id="btnPathPatternDelete" style="width:100%; margin-top:4px;" hidden title="Removes every target path entirely. The source path itself is untouched">Delete pattern</button>
           <button class="btn danger" id="btnPathPatternDetach" style="width:100%; margin-top:4px;" hidden>Un-pattern this path</button>
         </div>
       </div>
@@ -1478,6 +1480,8 @@ const state = {
   groupSelection: [],
   pathPatterns: [],
   pathPatternArm: null,
+  pathPatternBoxSelect: false, // session preference, not saved with the project
+  patternBoxRect: null,
   patWallPickArmed: null,
   isolatedPath: null,
   isolateMenuFor: null,
@@ -2915,6 +2919,7 @@ const pathPatternTargetCount = document.getElementById('pathPatternTargetCount')
 const pathPatternArmedHint = document.getElementById('pathPatternArmedHint');
 const btnPathPatternDone = document.getElementById('btnPathPatternDone');
 const btnPathPatternClear = document.getElementById('btnPathPatternClear');
+const btnPathPatternDelete = document.getElementById('btnPathPatternDelete');
 const btnPathPatternDetach = document.getElementById('btnPathPatternDetach');
 // Read-only — these stay in the Path tool's "Selected path" panel, just for
 // reference; building/editing a pattern happens in the Pattern tool now.
@@ -3076,6 +3081,13 @@ btnPathPatternDone.addEventListener('click', ()=>{
   renderPatternPanel(); renderPathPanel();
   requestDraw();
 });
+document.getElementById('pathPatternBoxSelect').addEventListener('change', e=>{
+  state.pathPatternBoxSelect = e.target.checked;
+});
+// Unlink just drops the tracking record -- every target keeps whatever
+// shape/direction/movestyle it currently has, as its own independent path;
+// nothing on the map is removed. Delete (below) is the destructive sibling:
+// same tracking removal, but every target PATH is deleted too.
 btnPathPatternClear.addEventListener('click', ()=>{
   const sel = state.selectedPath;
   if(!sel) return;
@@ -3085,6 +3097,25 @@ btnPathPatternClear.addEventListener('click', ()=>{
   if(!pat) return;
   pushUndo(layer);
   state.pathPatterns = state.pathPatterns.filter(p=>p!==pat);
+  if(state.pathPatternArm && pathPatternKeyMatches(state.pathPatternArm, sel.nameA, sel.nameB)) state.pathPatternArm = null;
+  renderPatternPanel(); renderPathPanel();
+  scheduleAutosave(); requestDraw();
+});
+btnPathPatternDelete.addEventListener('click', ()=>{
+  const sel = state.selectedPath;
+  if(!sel) return;
+  const layer = getLayer(sel.layerId);
+  if(!layer) return;
+  const pat = findPathPatternBySource(layer, sel.nameA, sel.nameB);
+  if(!pat) return;
+  pushUndo(layer);
+  for(const t of pat.targets){
+    const fwd = findCurveByEndpoints(layer, t.nameA, t.nameB);
+    const bwd = findCurveByEndpoints(layer, t.nameB, t.nameA);
+    if(fwd || bwd) layer.extra.advancedCurveList = layer.extra.advancedCurveList.filter(c=>c!==fwd && c!==bwd);
+  }
+  state.pathPatterns = state.pathPatterns.filter(p=>p!==pat);
+  if(state.pathPatternArm && pathPatternKeyMatches(state.pathPatternArm, sel.nameA, sel.nameB)) state.pathPatternArm = null;
   renderPatternPanel(); renderPathPanel();
   scheduleAutosave(); requestDraw();
 });
@@ -3722,7 +3753,7 @@ function setTool(tool){
   if(tool!=='area' && tool!=='dist' && tool!=='pan'){ state.dimDrag = null; state.selectedDimension = null; }
   if(tool!=='constraints' && tool!=='pan'){ state.relSelection = []; }
   if(tool!=='constraints' && tool!=='pan'){ closeRelToolbar(); }
-  if(tool!=='pattern' && tool!=='pan'){ state.patDraft = null; state.selectedPattern = null; state.selectedGridPattern = null; }
+  if(tool!=='pattern' && tool!=='pan'){ state.patDraft = null; state.selectedPattern = null; state.selectedGridPattern = null; state.patternBoxRect = null; }
   if(tool!=='boxsplit' && tool!=='pan'){ state.splitQuad = null; state.splitDraftRect = null; state.draggingSplitCorner = null; }
   if(tool!=='annotate' && tool!=='pan'){ state.selectedAnnotation = null; state.annoAction = null; state.annoDraft = null; }
   if(tool!=='select' && tool!=='pan'){ state.selectBoxRect = null; state.draggingSelection = null; }
@@ -6052,6 +6083,20 @@ function draw(){
   if(state.selectBoxRect){
     const [sx1,sy1] = worldToScreen(state.selectBoxRect.x1, state.selectBoxRect.y1);
     const [sx2,sy2] = worldToScreen(state.selectBoxRect.x2, state.selectBoxRect.y2);
+    const rx = Math.min(sx1,sx2), ry = Math.min(sy1,sy2);
+    const rw = Math.abs(sx2-sx1), rh = Math.abs(sy2-sy1);
+    ctx.fillStyle = 'rgba(0,194,255,0.14)';
+    ctx.strokeStyle = '#00c2ff';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6,4]);
+    ctx.fillRect(rx,ry,rw,rh);
+    ctx.strokeRect(rx,ry,rw,rh);
+    ctx.setLineDash([]);
+  }
+
+  if(state.patternBoxRect){
+    const [sx1,sy1] = worldToScreen(state.patternBoxRect.x1, state.patternBoxRect.y1);
+    const [sx2,sy2] = worldToScreen(state.patternBoxRect.x2, state.patternBoxRect.y2);
     const rx = Math.min(sx1,sx2), ry = Math.min(sy1,sy2);
     const rw = Math.abs(sx2-sx1), rh = Math.abs(sy2-sy1);
     ctx.fillStyle = 'rgba(0,194,255,0.14)';
@@ -10663,8 +10708,11 @@ function renderPathPatternToolPanel(){
     pathPatternTargetCount.textContent = asSource.targets.length;
   }
   pathPatternArmedHint.hidden = !globalArmed;
+  document.getElementById('pathPatternBoxSelectRow').hidden = !globalArmed;
+  document.getElementById('pathPatternBoxSelect').checked = state.pathPatternBoxSelect;
   btnPathPatternDone.hidden = !globalArmed;
-  btnPathPatternClear.hidden = !(asSource && asSource.targets.length && !globalArmed);
+  btnPathPatternClear.hidden = !(asSource && asSource.targets.length);
+  btnPathPatternDelete.hidden = !(asSource && asSource.targets.length);
   btnPathPatternDetach.hidden = !(asTarget && !globalArmed);
 }
 document.getElementById('patDraftTypeLinear').addEventListener('click', ()=>{ if(state.patDraft){ state.patDraft.type='linear'; renderPatternPanel(); requestDraw(); } });
@@ -12122,6 +12170,32 @@ function collectBoxSelectMatches(layer, rect){
       const [wx2,wy2] = layerToWorld(layer, l.x2, l.y2);
       if(inRect(wx1,wy1) || inRect(wx2,wy2)) out.push({kind:'line', layerId:layer.id, index:i});
     });
+  }
+  return out;
+}
+// Curves-only counterpart to collectBoxSelectMatches, for the Path
+// pattern's "Box select" toggle -- no type-filter checkboxes to honor
+// (only curves are ever a path-pattern target), just "either endpoint
+// inside the box", same test collectBoxSelectMatches uses for curves.
+function collectCurvesInRect(layer, rect){
+  const minX = Math.min(rect.x1, rect.x2), maxX = Math.max(rect.x1, rect.x2);
+  const minY = Math.min(rect.y1, rect.y2), maxY = Math.max(rect.y1, rect.y2);
+  const out = [];
+  if(maxX-minX < 0.02 || maxY-minY < 0.02) return out;
+  const inRect = (wx,wy) => wx>=minX && wx<=maxX && wy>=minY && wy<=maxY;
+  const curves = layer.extra && layer.extra.advancedCurveList;
+  if(!Array.isArray(curves)) return out;
+  const seen = new Set();
+  for(const c of curves){
+    const sp = c.startPos && c.startPos.pos, ep = c.endPos && c.endPos.pos;
+    if(!sp || !ep) continue;
+    const [wx1,wy1] = layerToWorld(layer, sp.x, sp.y);
+    const [wx2,wy2] = layerToWorld(layer, ep.x, ep.y);
+    if(!inRect(wx1,wy1) && !inRect(wx2,wy2)) continue;
+    const key = [c.startPos.instanceName, c.endPos.instanceName].sort().join('|');
+    if(seen.has(key)) continue;
+    seen.add(key);
+    out.push({nameA:c.startPos.instanceName, nameB:c.endPos.instanceName});
   }
   return out;
 }
@@ -13627,6 +13701,13 @@ canvasEl.addEventListener('pointerdown', (e)=>{
           state.selectedPattern = null;
           state.selectedGridPattern = null;
           state.patDraft = null;
+        } else if(state.pathPatternArm && state.pathPatternBoxSelect){
+          // Box select is on and this missed everything -- drag a box
+          // instead of treating the miss as a no-op; every path it touches
+          // gets added as a target on release (see the mouseup handler).
+          const [wx0,wy0] = screenToWorld(sx,sy);
+          state.patternBoxRect = {x1:wx0, y1:wy0, x2:wx0, y2:wy0};
+          dragging = true;
         } else {
           // A miss here (neither a path nor a nav point) does NOT cancel an
           // armed pattern. The LM/AP point clusters this tool is normally
@@ -13775,6 +13856,9 @@ canvasEl.addEventListener('pointermove', (e)=>{
     }
   } else if(state.tool==='select' && state.selectBoxRect){
     state.selectBoxRect.x2 = wx; state.selectBoxRect.y2 = wy;
+    requestDraw();
+  } else if(state.tool==='pattern' && state.patternBoxRect){
+    state.patternBoxRect.x2 = wx; state.patternBoxRect.y2 = wy;
     requestDraw();
   } else if(state.tool==='pan'){
     const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
@@ -14057,6 +14141,17 @@ function endPointer(e){
       }
     }
     renderSelectPanel(); renderGroupSelectResult(); requestDraw();
+  }
+
+  if(state.tool==='pattern' && dragging && state.patternBoxRect){
+    const rect = state.patternBoxRect;
+    state.patternBoxRect = null;
+    const layer = getEditableActiveLayer();
+    if(layer && state.pathPatternArm){
+      const matches = collectCurvesInRect(layer, rect);
+      for(const m of matches) tryAddArmedPathPatternTarget(layer, m.nameA, m.nameB);
+    }
+    renderPatternPanel(); renderPathPanel(); requestDraw();
   }
 
   if(state.tool==='boxsplit' && dragging && state.splitDraftRect){
