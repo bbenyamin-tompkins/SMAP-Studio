@@ -852,9 +852,9 @@
         <div class="row" style="gap:8px; margin-top:8px;">
           <span style="width:70px;">New path</span>
           <div class="shape-toggle">
-            <button type="button" class="shape-btn active" id="newPathDirBoth" title="Bidirectional">Bi</button>
-            <button type="button" class="shape-btn" id="newPathDirFwd" title="Forward only">Fwd</button>
-            <button type="button" class="shape-btn" id="newPathDirBwd" title="Backward only">Bwd</button>
+            <button type="button" class="shape-btn active" id="newPathDirBoth" title="Both curve objects exist, A→B and B→A">Two way</button>
+            <button type="button" class="shape-btn" id="newPathDirFwd" title="Only A→B exists">One way</button>
+            <button type="button" class="shape-btn" id="newPathDirBwd" title="Only B→A exists">One way (rev)</button>
           </div>
         </div>
         <div class="field-row"><label for="newPathMovestyle">Movestyle</label>
@@ -915,6 +915,13 @@
     <div class="section" id="pathSection" hidden>
       <div class="section-title" data-key="path"><span>Selected path</span><span class="chev">▾</span></div>
       <div class="stat-line"><span>Name</span><b id="pathName" class="mono"></b></div>
+      <div class="field-row"><label>Connection</label>
+        <div class="shape-toggle">
+          <button type="button" class="shape-btn" id="pathConnBoth" title="Both curve objects exist, A→B and B→A">Two way</button>
+          <button type="button" class="shape-btn" id="pathConnFwd" title="Only A→B exists">One way</button>
+          <button type="button" class="shape-btn" id="pathConnBwd" title="Only B→A exists">One way (rev)</button>
+        </div>
+      </div>
       <div class="field-card">
       <div class="label-sub" style="color:var(--accent);"><span id="pathFwdLabel" class="mono"></span></div>
       <div class="field-row"><label for="pathFwdDirection">Direction</label>
@@ -1172,15 +1179,16 @@
           <div style="flex:0 0 260px; display:flex; flex-direction:column; gap:2px;">
             <div class="field-row"><label for="rdsPrefix">Prefix</label><input type="text" id="rdsPrefix" class="mono"></div>
             <div class="field-row"><label for="rdsSep">Separator</label><input type="text" id="rdsSep" class="mono" style="width:60px;"></div>
-            <div class="field-row"><label for="rdsMajorPad">Major padding</label><input type="number" id="rdsMajorPad" class="mono" min="1" max="6"></div>
+            <div class="field-row" title="Off: names are a single number (Loc-05) instead of Major-Minor (Loc-01-05)."><label for="rdsNoMajor">Single number</label><input type="checkbox" id="rdsNoMajor"></div>
+            <div class="field-row" id="rdsMajorPadRow"><label for="rdsMajorPad">Major padding</label><input type="number" id="rdsMajorPad" class="mono" min="1" max="6"></div>
             <div class="field-row"><label for="rdsMinorPad">Minor padding</label><input type="number" id="rdsMinorPad" class="mono" min="1" max="6"></div>
-            <div class="field-row"><label for="rdsMajorStart">Major starts at</label><input type="number" id="rdsMajorStart" class="mono" min="0"></div>
+            <div class="field-row" id="rdsMajorStartRow"><label for="rdsMajorStart">Major starts at</label><input type="number" id="rdsMajorStart" class="mono" min="0"></div>
             <div class="field-row"><label for="rdsMinorStart">Minor starts at</label><input type="number" id="rdsMinorStart" class="mono" min="0"></div>
             <div class="field-row"><label for="rdsContinueMode" title="Picks up right after the highest existing name under this prefix">Continue existing</label><input type="checkbox" id="rdsContinueMode"></div>
             <div class="field-row" title="Root gets the highest Minor in the batch, counting down outward. Off: root gets the lowest Minor, counting up.">
               <label for="rdsDescending">Descending</label><input type="checkbox" id="rdsDescending">
             </div>
-            <div class="field-row" title="A Pickup's near LM (its Station partner) is auto-named this prefix + the Pickup's own name, and can't be typed into directly"><label for="rdsPickupPrefix">Pickup near-LM prefix</label><input type="text" id="rdsPickupPrefix" class="mono"></div>
+            <div class="field-row" id="rdsPickupPrefixRow" title="A Pickup's near LM (its Station partner) is auto-named this prefix + the Pickup's own name, and can't be typed into directly"><label for="rdsPickupPrefix">Pickup near-LM prefix</label><input type="text" id="rdsPickupPrefix" class="mono"></div>
             <div class="field-row" id="rdsDirRow" hidden>
               <label>Direction</label>
               <div class="shape-toggle">
@@ -1316,9 +1324,9 @@
               </div>
               <div class="field-row"><label>Path</label>
                 <div class="shape-toggle">
-                  <button type="button" class="shape-btn active" id="gcPathBoth" title="Bidirectional">Bi</button>
-                  <button type="button" class="shape-btn" id="gcPathFwd" title="Forward only">Fwd</button>
-                  <button type="button" class="shape-btn" id="gcPathBwd" title="Backward only">Bwd</button>
+                  <button type="button" class="shape-btn active" id="gcPathBoth" title="Both curve objects exist, A→B and B→A">Two way</button>
+                  <button type="button" class="shape-btn" id="gcPathFwd" title="Only A→B exists">One way</button>
+                  <button type="button" class="shape-btn" id="gcPathBwd" title="Only B→A exists">One way (rev)</button>
                 </div>
               </div>
               <div class="label-sub" style="margin-top:8px;">Robot direction</div>
@@ -1359,9 +1367,9 @@
             <div id="lcFields">
               <div class="field-row"><label>Path</label>
                 <div class="shape-toggle">
-                  <button type="button" class="shape-btn active" id="lcPathBoth" title="Bidirectional">Bi</button>
-                  <button type="button" class="shape-btn" id="lcPathFwd" title="Forward only">Fwd</button>
-                  <button type="button" class="shape-btn" id="lcPathBwd" title="Backward only">Bwd</button>
+                  <button type="button" class="shape-btn active" id="lcPathBoth" title="Both curve objects exist, A→B and B→A">Two way</button>
+                  <button type="button" class="shape-btn" id="lcPathFwd" title="Only A→B exists">One way</button>
+                  <button type="button" class="shape-btn" id="lcPathBwd" title="Only B→A exists">One way (rev)</button>
                 </div>
               </div>
               <div class="label-sub" style="margin-top:8px;">Robot direction</div>
@@ -1689,6 +1697,7 @@ function buildLayer(json, fileName){
   normalizeCurvePairs(layer);
   normalizeAreaRects(layer);
   normalizeBinLocationsList(layer);
+  migrateStationPickupLegs(layer);
   return layer;
 }
 
@@ -2899,6 +2908,9 @@ function setIntProperty(item, key, val){
 
 const pathSection = document.getElementById('pathSection');
 const pathNameEl = document.getElementById('pathName');
+const pathConnBoth = document.getElementById('pathConnBoth');
+const pathConnFwd = document.getElementById('pathConnFwd');
+const pathConnBwd = document.getElementById('pathConnBwd');
 const pathFwdLabel = document.getElementById('pathFwdLabel');
 const pathFwdDirection = document.getElementById('pathFwdDirection');
 const pathFwdMovestyle = document.getElementById('pathFwdMovestyle');
@@ -2972,6 +2984,10 @@ function renderPathPanel(){
   if(!visible) return;
   const {layer, forward, backward, linked} = sel;
   const disabled = !layer.visible;
+  pathConnBoth.classList.toggle('active', !!(forward && backward));
+  pathConnFwd.classList.toggle('active', !!(forward && !backward));
+  pathConnBwd.classList.toggle('active', !!(backward && !forward));
+  pathConnBoth.disabled = pathConnFwd.disabled = pathConnBwd.disabled = disabled;
   if(forward && backward){
     pathNameEl.textContent = forward.startPos.instanceName+' ⇄ '+forward.endPos.instanceName+(linked?'':' (split)');
   } else if(forward){
@@ -3041,6 +3057,38 @@ pathBwdMovestyle.addEventListener('change', ()=>{
   setIntProperty(sel.backward, 'movestyle', parseInt(pathBwdMovestyle.value,10)||0);
   scheduleAutosave(); requestDraw();
 });
+function pathConnectionModeOf(sel){
+  if(sel.forward && sel.backward) return 'both';
+  return sel.forward ? 'forward' : 'backward';
+}
+// Switches which curve object(s) exist for the selected path -- Two way
+// (both A→B and B→A), One way (A→B only) or One way (rev) (B→A only).
+// Creating a leg mirrors whichever leg already exists (createMirroredPath)
+// so the drawn shape carries over instead of resetting to a straight line.
+function setSelectedPathConnection(mode){
+  const sel = getSelectedPath();
+  if(!sel || !sel.layer.visible) return;
+  const current = pathConnectionModeOf(sel);
+  if(current===mode) return;
+  const {layer, forward, backward} = sel;
+  pushUndo(layer);
+  if(mode==='both'){
+    const source = forward || backward;
+    const mirrored = createMirroredPath(layer, source);
+    source.__unsplit = true; mirrored.__unsplit = true;
+  } else if(mode==='forward'){
+    if(current==='backward') createMirroredPath(layer, backward);
+    if(backward) layer.extra.advancedCurveList = layer.extra.advancedCurveList.filter(c=>c!==backward);
+  } else {
+    if(current==='forward') createMirroredPath(layer, forward);
+    if(forward) layer.extra.advancedCurveList = layer.extra.advancedCurveList.filter(c=>c!==forward);
+  }
+  renderPathPanel();
+  scheduleAutosave(); requestDraw();
+}
+pathConnBoth.addEventListener('click', ()=>setSelectedPathConnection('both'));
+pathConnFwd.addEventListener('click', ()=>setSelectedPathConnection('forward'));
+pathConnBwd.addEventListener('click', ()=>setSelectedPathConnection('backward'));
 btnSplitPath.addEventListener('click', ()=>{
   const sel = getSelectedPath();
   if(!sel || !sel.layer.visible || !sel.forward || !sel.backward) return;
@@ -3053,10 +3101,11 @@ btnSplitPath.addEventListener('click', ()=>{
 btnDeletePath.addEventListener('click', ()=>{
   const sel = getSelectedPath();
   if(!sel || !sel.layer.visible) return;
+  const {nameA, nameB} = state.selectedPath;
   pushUndo(sel.layer);
-  sel.layer.extra.advancedCurveList = sel.layer.extra.advancedCurveList.filter(c=>c!==sel.forward && c!==sel.backward);
+  deletePathBetween(sel.layer, nameA, nameB);
   state.selectedPath = null;
-  renderPathPanel();
+  renderPatternPanel(); renderPathPanel();
   scheduleAutosave(); requestDraw();
 });
 btnDeletePathFwd.addEventListener('click', ()=>{
@@ -3064,7 +3113,8 @@ btnDeletePathFwd.addEventListener('click', ()=>{
   if(!sel || !sel.layer.visible || !sel.forward) return;
   pushUndo(sel.layer);
   sel.layer.extra.advancedCurveList = sel.layer.extra.advancedCurveList.filter(c=>c!==sel.forward);
-  renderPathPanel();
+  prunePathPatterns();
+  renderPatternPanel(); renderPathPanel();
   scheduleAutosave(); requestDraw();
 });
 btnDeletePathBwd.addEventListener('click', ()=>{
@@ -3072,7 +3122,8 @@ btnDeletePathBwd.addEventListener('click', ()=>{
   if(!sel || !sel.layer.visible || !sel.backward) return;
   pushUndo(sel.layer);
   sel.layer.extra.advancedCurveList = sel.layer.extra.advancedCurveList.filter(c=>c!==sel.backward);
-  renderPathPanel();
+  prunePathPatterns();
+  renderPatternPanel(); renderPathPanel();
   scheduleAutosave(); requestDraw();
 });
 
@@ -3169,23 +3220,100 @@ function alignTargetOrderToSource(layer, sourceNameA, sourceNameB, nameA, nameB)
   if(dot>=0) return {nameA, nameB};
   return findCurveByEndpoints(layer, nameB, nameA) ? {nameA:nameB, nameB:nameA} : {nameA, nameB};
 }
+// Captures just the fields resolvePathPatterns/syncGridPaths-style syncing
+// ever overwrites on a target curve (see copyCurveShapeLeg) -- used so
+// click-to-remove (below) can put a target back exactly how it looked
+// before it was ever synced, instead of leaving it at its last-synced shape.
+function snapshotCurveShape(curve){
+  if(!curve) return null;
+  return {
+    controlPos1: {x:curve.controlPos1.x, y:curve.controlPos1.y},
+    controlPos2: {x:curve.controlPos2.x, y:curve.controlPos2.y},
+    cpAnchor1: curve.__cpAnchor1 ? {...curve.__cpAnchor1} : null,
+    cpAnchor2: curve.__cpAnchor2 ? {...curve.__cpAnchor2} : null,
+    direction: getIntProperty(curve, 'direction', 0),
+    movestyle: getIntProperty(curve, 'movestyle', 0),
+  };
+}
+function restoreCurveShape(curve, snap){
+  if(!curve || !snap) return;
+  curve.controlPos1 = {x:snap.controlPos1.x, y:snap.controlPos1.y};
+  curve.controlPos2 = {x:snap.controlPos2.x, y:snap.controlPos2.y};
+  if(snap.cpAnchor1) curve.__cpAnchor1 = {...snap.cpAnchor1}; else delete curve.__cpAnchor1;
+  if(snap.cpAnchor2) curve.__cpAnchor2 = {...snap.cpAnchor2}; else delete curve.__cpAnchor2;
+  setIntProperty(curve, 'direction', snap.direction);
+  setIntProperty(curve, 'movestyle', snap.movestyle);
+}
+// The one place a path (both legs, if it has them) actually gets removed
+// from the map -- also drops any path-pattern tracking on it and un-arms
+// the Pattern tool if it had this exact pair armed. Every delete entry
+// point (the Nav/Path tool's own Delete button, the Select tool's batch
+// delete, the Delete/Backspace shortcut) calls this instead of each
+// reimplementing curve removal + pattern cleanup and drifting out of sync
+// with the others, which is how bug_pattern_ghost.webm happened -- the
+// Select tool's delete was never taught about pattern tracking at all.
+function deletePathBetween(layer, nameA, nameB){
+  const fwd = findCurveByEndpoints(layer, nameA, nameB);
+  const bwd = findCurveByEndpoints(layer, nameB, nameA);
+  if(!fwd && !bwd) return false;
+  layer.extra.advancedCurveList = layer.extra.advancedCurveList.filter(c=>c!==fwd && c!==bwd);
+  if(state.pathPatternArm && pathPatternKeyMatches(state.pathPatternArm, nameA, nameB)) state.pathPatternArm = null;
+  prunePathPatterns();
+  return true;
+}
+// A curve pair already claimed by some OTHER pattern -- as that pattern's
+// own source, or as one of its targets -- found while scanning every
+// pattern but the one passed as `except`. Nothing used to stop the same
+// pair being added as a target of a second pattern on top of that; the two
+// would then fight over its shape every single frame (whichever pattern's
+// resolvePathPatterns() pass runs last wins), and deleting+redrawing the
+// curve could never escape it since the stale target entry was never
+// cleared. See bugs/bug_path_ghost.json for a real project this happened
+// in (AP393<->LM461 was simultaneously an orphaned pattern's own source AND
+// a target of a totally unrelated, far-away pattern).
+function pathPatternOwnerOf(layer, nameA, nameB, except){
+  for(const p of state.pathPatterns){
+    if(p.layerId!==layer.id || p===except) continue;
+    if(pathPatternKeyMatches(p.source, nameA, nameB)) return p;
+    if(p.targets.some(t=>pathPatternKeyMatches(t, nameA, nameB))) return p;
+  }
+  return null;
+}
 // While a pattern source is armed, clicking any OTHER existing path (from
 // either the Nav Pts or Path tool's own curve-click handling) adds it as a
-// target instead of just selecting it. Shared by both tools' mousedown
-// blocks rather than duplicated, since "click a path while armed" means
-// the same thing regardless of which tool you clicked it from.
+// target instead of just selecting it -- clicking an already-added target
+// again removes it instead (same untrack-only semantics as Unlink, just for
+// one target), putting it back to whatever shape it had right before it was
+// added, not whatever shape syncing last left it at. Shared by both tools'
+// mousedown blocks rather than duplicated, since "click a path while armed"
+// means the same thing regardless of which tool you clicked it from.
 function tryAddArmedPathPatternTarget(layer, nameA, nameB){
   const arm = state.pathPatternArm;
   if(!arm || arm.layerId!==layer.id) return false;
   if(pathPatternKeyMatches(arm, nameA, nameB)) return false; // clicking the source itself doesn't add it as its own target
   ({nameA, nameB} = alignTargetOrderToSource(layer, arm.nameA, arm.nameB, nameA, nameB));
   let pat = findPathPatternBySource(layer, arm.nameA, arm.nameB);
-  if(!pat){ pat = {layerId:layer.id, source:{nameA:arm.nameA, nameB:arm.nameB}, targets:[]}; state.pathPatterns.push(pat); }
-  if(!pat.targets.some(t=>pathPatternKeyMatches(t, nameA, nameB))){
+  const existingIdx = pat ? pat.targets.findIndex(t=>pathPatternKeyMatches(t, nameA, nameB)) : -1;
+  if(existingIdx>=0){
     pushUndo(layer);
-    pat.targets.push({nameA, nameB});
+    const entry = pat.targets[existingIdx];
+    if(entry.prevShape){
+      restoreCurveShape(findCurveByEndpoints(layer, entry.nameA, entry.nameB), entry.prevShape.fwd);
+      restoreCurveShape(findCurveByEndpoints(layer, entry.nameB, entry.nameA), entry.prevShape.bwd);
+    }
+    pat.targets.splice(existingIdx, 1);
     scheduleAutosave();
+    return true;
   }
+  if(pathPatternOwnerOf(layer, nameA, nameB, pat)) return false; // already claimed by a different pattern -- refuse rather than double-track it
+  if(!pat){ pat = {layerId:layer.id, source:{nameA:arm.nameA, nameB:arm.nameB}, targets:[]}; state.pathPatterns.push(pat); }
+  pushUndo(layer);
+  const prevShape = {
+    fwd: snapshotCurveShape(findCurveByEndpoints(layer, nameA, nameB)),
+    bwd: snapshotCurveShape(findCurveByEndpoints(layer, nameB, nameA)),
+  };
+  pat.targets.push({nameA, nameB, prevShape});
+  scheduleAutosave();
   return true;
 }
 
@@ -6272,6 +6400,7 @@ function draw(){
   }
 
   drawSelectHighlights();
+  drawSelectedPathHighlight();
   drawPathPatternHighlights();
   updateIsolatePopup();
 
@@ -6460,16 +6589,22 @@ function generateNavPointName(layer, prefix){
 // layer.extra wholesale, so layer.extra.binLocationsList just works for
 // load/export with no extra plumbing -- see Features/RDS Marker/reverse-eng.md.
 function defaultRdsRule(){
-  return {prefix:'Loc', sep:'-', majorPad:1, minorPad:1, majorStart:1, minorStart:1, pickupPrefix:'pre-', descending:true};
+  return {prefix:'Loc', sep:'-', majorPad:1, minorPad:1, majorStart:1, minorStart:1, pickupPrefix:'pre-', descending:true, noMajor:false};
 }
 function getRdsRule(layer){
   if(!layer.rdsRule) layer.rdsRule = defaultRdsRule();
   // Lazily backfills fields onto rules saved before they existed.
   if(layer.rdsRule.pickupPrefix==null) layer.rdsRule.pickupPrefix = defaultRdsRule().pickupPrefix;
   if(layer.rdsRule.descending==null) layer.rdsRule.descending = defaultRdsRule().descending;
+  if(layer.rdsRule.noMajor==null) layer.rdsRule.noMajor = defaultRdsRule().noMajor;
   return layer.rdsRule;
 }
+// noMajor drops the Major segment entirely (Loc-05 instead of Loc-01-05) --
+// only the generic Major-then-Minor format (Group Select apply, Linear
+// patterns) offers this; fmtRdsNameGrid is left alone since a grid actually
+// needs both axes to stay unambiguous.
 function fmtRdsName(rule, major, minor){
+  if(rule.noMajor) return rule.prefix + rule.sep + String(minor).padStart(rule.minorPad,'0');
   return rule.prefix + rule.sep + String(major).padStart(rule.majorPad,'0') + rule.sep + String(minor).padStart(rule.minorPad,'0');
 }
 // Grid patterns are the one spot that flips the field order to
@@ -6485,6 +6620,11 @@ function fmtRdsNameGrid(rule, major, minor){
 function parseRdsName(rule, name){
   if(!name) return null;
   const esc = s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  if(rule.noMajor){
+    const re = new RegExp('^'+esc(rule.prefix)+esc(rule.sep)+'(\\d+)$');
+    const m = name.match(re);
+    return m ? {major:0, minor:parseInt(m[1],10)} : null;
+  }
   const re = new RegExp('^'+esc(rule.prefix)+esc(rule.sep)+'(\\d+)'+esc(rule.sep)+'(\\d+)$');
   const m = name.match(re);
   return m ? {major:parseInt(m[1],10), minor:parseInt(m[2],10)} : null;
@@ -6964,6 +7104,27 @@ function createOneWayPath(layer, nameA, nameB){
   layer.extra.advancedCurveList.push(curve);
   return curve;
 }
+// Adds the opposite-direction curve for an existing path, mirroring its
+// current shape (control points swapped) instead of starting over as a
+// straight line -- used by the Selected path panel's Connection toggle so
+// switching One way <-> Two way <-> One way (rev) keeps whatever curve the
+// user already drew/dragged, just reversed when the original leg is dropped.
+function createMirroredPath(layer, curve){
+  const nameA = curve.startPos.instanceName, nameB = curve.endPos.instanceName;
+  const mirrored = {
+    className:'DegenerateBezier', instanceName:nameB+'-'+nameA,
+    startPos:{instanceName:nameB, pos:{x:curve.endPos.pos.x, y:curve.endPos.pos.y}},
+    endPos:{instanceName:nameA, pos:{x:curve.startPos.pos.x, y:curve.startPos.pos.y}},
+    controlPos1:{x:curve.controlPos2.x, y:curve.controlPos2.y},
+    controlPos2:{x:curve.controlPos1.x, y:curve.controlPos1.y},
+    property:[{key:'direction', ...intProp(0)}, {key:'movestyle', ...intProp(getIntProperty(curve,'movestyle',0))}],
+    __unsplit:false,
+  };
+  if(!layer.extra) layer.extra = {};
+  if(!Array.isArray(layer.extra.advancedCurveList)) layer.extra.advancedCurveList = [];
+  layer.extra.advancedCurveList.push(mirrored);
+  return mirrored;
+}
 function deleteNavPoint(layer, name){
   if(!layer.extra) return;
   const pt = findNavPointByName(layer, name);
@@ -6994,6 +7155,10 @@ function deleteNavPoint(layer, name){
   // deletion as an orphaned entry pointing at a name that no longer exists.
   removeRdsName(layer, {instanceName:name});
   pruneInvalidRelations();
+  // Every curve this point touched just got dropped above -- any path
+  // pattern tracking one of them (as its source or a target) would
+  // otherwise be left pointing at a curve that no longer exists.
+  prunePathPatterns();
   for(const partnerName of partnerNames) deleteNavPoint(layer, partnerName);
 }
 
@@ -9912,35 +10077,28 @@ function generateStationNames(layer){
   const n = Math.max(parseInt(apName.slice(2),10), parseInt(lmName.slice(2),10));
   return {apName:'AP'+n, lmName:'LM'+n};
 }
+// One-way, LM -> AP, Direction 1 (Backward) -- the robot backs out of the
+// LM into the exact AP spot to dock/pick, it doesn't drive out of the AP
+// nose-first. See bugs/pickup/new_cov.smap (a real exported route) and
+// migrateStationPickupLeg, which brings already-saved projects in line.
 function createStationPaths(layer, apName, lmName){
   const ptA = findNavPointByName(layer, apName), ptB = findNavPointByName(layer, lmName);
   if(!ptA || !ptB) return;
   const distance = (ptA.__pairedLM && ptA.__pairedLM.distance) || Math.hypot(ptB.pos.x-ptA.pos.x, ptB.pos.y-ptA.pos.y);
-  const forward = { // AP -> LM : Direction 0 = Forward
-    className:'DegenerateBezier', instanceName:apName+'-'+lmName,
-    startPos:{instanceName:apName, pos:{x:ptA.pos.x,y:ptA.pos.y}},
-    endPos:{instanceName:lmName, pos:{x:ptB.pos.x,y:ptB.pos.y}},
-    controlPos1:{x:ptA.pos.x,y:ptA.pos.y}, controlPos2:{x:ptB.pos.x,y:ptB.pos.y},
-    property:[{key:'direction', ...intProp(0)}, {key:'movestyle', ...intProp(0)}],
-    __unsplit:true,
-    __cpAnchor1:{pointName:apName, along:round3(distance/3), perp:0},
-    __cpAnchor2:{pointName:lmName, along:round3(-distance/3), perp:0},
-  };
-  const backward = { // LM -> AP : Direction 1 = Backward
+  const curve = {
     className:'DegenerateBezier', instanceName:lmName+'-'+apName,
     startPos:{instanceName:lmName, pos:{x:ptB.pos.x,y:ptB.pos.y}},
     endPos:{instanceName:apName, pos:{x:ptA.pos.x,y:ptA.pos.y}},
     controlPos1:{x:ptB.pos.x,y:ptB.pos.y}, controlPos2:{x:ptA.pos.x,y:ptA.pos.y},
     property:[{key:'direction', ...intProp(1)}, {key:'movestyle', ...intProp(0)}],
-    __unsplit:true,
+    __unsplit:false,
     __cpAnchor1:{pointName:lmName, along:round3(-distance/3), perp:0},
     __cpAnchor2:{pointName:apName, along:round3(distance/3), perp:0},
   };
   if(!layer.extra) layer.extra = {};
   if(!Array.isArray(layer.extra.advancedCurveList)) layer.extra.advancedCurveList = [];
-  layer.extra.advancedCurveList.push(forward, backward);
-  resolveAnchoredControlPointsForCurve(layer, forward);
-  resolveAnchoredControlPointsForCurve(layer, backward);
+  layer.extra.advancedCurveList.push(curve);
+  resolveAnchoredControlPointsForCurve(layer, curve);
 }
 function createStationPair(layer, lx, ly){
   if(!layer.extra) layer.extra = {};
@@ -9998,43 +10156,67 @@ function promoteToStation(layer, pt, distanceOverride){
 // necessarily along the near LM's heading, the default shape is computed by
 // projecting a plain straight-line interpolation onto each endpoint's own
 // frame (worldPosToAnchorOffset) rather than assuming a pure axial distance.
-// Both directions are Direction 0/Forward here (not 0/1 Forward/Backward
-// like the AP<->LM leg), matching the reference file's own curves.
-// Each control point sits a fixed length purely ALONG its own endpoint's
-// heading (perp:0) — tangent to that point's facing direction, exactly like
-// the reference example: the curve leaves the near LM tangent to its own
-// heading and arrives at the far LM tangent to ITS heading, regardless of
-// the straight-line direction between them. nearHandle/farHandle are
-// independent, user-facing lengths (both positive); farHandle is stored as
-// a negative along-value since it's "behind" the far LM's own heading.
+// One-way, far LM -> near LM, Direction 1 (Backward) -- same inward,
+// reversing convention as the AP<->LM leg above (see createStationPaths):
+// the robot backs from the far LM into the near LM, not the other way
+// round. Each control point sits a fixed length purely ALONG its own
+// endpoint's heading (perp:0) — tangent to that point's facing direction:
+// the curve leaves the far LM tangent to its own heading and arrives at the
+// near LM tangent to ITS heading, regardless of the straight-line direction
+// between them. nearHandle/farHandle are independent, user-facing lengths
+// (both positive); farHandle is stored as a negative along-value since it's
+// "behind" the far LM's own heading.
 function createPickupSecondPath(layer, lmNearName, lmFarName, nearHandle, farHandle){
   const ptNear = findNavPointByName(layer, lmNearName), ptFar = findNavPointByName(layer, lmFarName);
   if(!ptNear || !ptFar) return;
-  const forward = { // near -> far : Direction 0 = Forward
-    className:'DegenerateBezier', instanceName:lmNearName+'-'+lmFarName,
-    startPos:{instanceName:lmNearName, pos:{x:ptNear.pos.x,y:ptNear.pos.y}},
-    endPos:{instanceName:lmFarName, pos:{x:ptFar.pos.x,y:ptFar.pos.y}},
-    controlPos1:{x:ptNear.pos.x,y:ptNear.pos.y}, controlPos2:{x:ptFar.pos.x,y:ptFar.pos.y},
-    property:[{key:'direction', ...intProp(0)}, {key:'movestyle', ...intProp(0)}],
-    __unsplit:true,
-    __cpAnchor1:{pointName:lmNearName, along:nearHandle, perp:0},
-    __cpAnchor2:{pointName:lmFarName, along:-farHandle, perp:0},
-  };
-  const backward = { // far -> near : Direction 0 = Forward too
+  const curve = {
     className:'DegenerateBezier', instanceName:lmFarName+'-'+lmNearName,
     startPos:{instanceName:lmFarName, pos:{x:ptFar.pos.x,y:ptFar.pos.y}},
     endPos:{instanceName:lmNearName, pos:{x:ptNear.pos.x,y:ptNear.pos.y}},
     controlPos1:{x:ptFar.pos.x,y:ptFar.pos.y}, controlPos2:{x:ptNear.pos.x,y:ptNear.pos.y},
-    property:[{key:'direction', ...intProp(0)}, {key:'movestyle', ...intProp(0)}],
-    __unsplit:true,
+    property:[{key:'direction', ...intProp(1)}, {key:'movestyle', ...intProp(0)}],
+    __unsplit:false,
     __cpAnchor1:{pointName:lmFarName, along:-farHandle, perp:0},
     __cpAnchor2:{pointName:lmNearName, along:nearHandle, perp:0},
   };
   if(!layer.extra) layer.extra = {};
   if(!Array.isArray(layer.extra.advancedCurveList)) layer.extra.advancedCurveList = [];
-  layer.extra.advancedCurveList.push(forward, backward);
-  resolveAnchoredControlPointsForCurve(layer, forward);
-  resolveAnchoredControlPointsForCurve(layer, backward);
+  layer.extra.advancedCurveList.push(curve);
+  resolveAnchoredControlPointsForCurve(layer, curve);
+}
+// Brings a Station/Pickup leg saved under the old bidirectional AP->LM
+// (forward, Direction 0) / LM->AP (backward, Direction 1) convention in
+// line with the corrected one-way-inward convention createStationPaths and
+// createPickupSecondPath now create by default (see bugs/pickup/new_cov.smap,
+// a real exported route): drops the unused forward leg and forces whatever
+// leg remains to Direction 1 (Backward), matching a freshly-created
+// Station/Pickup. aName/bName are the forward leg's own start/end -- for a
+// Station that's (AP, LM); for a Pickup's second leg it's (near LM, far LM).
+// If only the old forward leg survives (its backward partner was deleted by
+// hand), the backward leg is recreated mirroring the forward leg's shape
+// rather than dropped outright, so the Station/Pickup doesn't end up with
+// no path at all.
+function migrateStationPickupLeg(layer, aName, bName){
+  const forward = findCurveByEndpoints(layer, aName, bName);
+  const backward = findCurveByEndpoints(layer, bName, aName);
+  if(!forward && !backward) return;
+  let keep = backward;
+  if(forward && !backward) keep = createMirroredPath(layer, forward);
+  if(forward) layer.extra.advancedCurveList = layer.extra.advancedCurveList.filter(c=>c!==forward);
+  if(keep){
+    setIntProperty(keep, 'direction', 1);
+    keep.__unsplit = false;
+  }
+}
+// Runs migrateStationPickupLeg across every Station/Pickup on a layer --
+// called whenever a project loads (see loadProjectData, buildLayer) so
+// projects saved before this fix get corrected automatically.
+function migrateStationPickupLegs(layer){
+  const pts = (layer.extra && layer.extra.advancedPointList) || [];
+  for(const pt of pts){
+    if(isStationDriver(pt)) migrateStationPickupLeg(layer, pt.instanceName, pt.__pairedLM.name);
+    if(isPickupAp(pt)) migrateStationPickupLeg(layer, pt.__pairedLM.name, pt.__pickupFar.name);
+  }
 }
 // Adds the far LM to an existing Station, turning it into a Pickup. No-op if
 // it's already a Pickup, and requires apPt to already be a Station driver
@@ -12386,11 +12568,7 @@ function deleteSelectionRefs(refs){
     for(const item of items.filter(i=>i.kind==='navPoint')) deleteNavPoint(layer, item.instanceName);
     for(const item of items.filter(i=>i.kind==='path')){
       if(!layer.extra || !Array.isArray(layer.extra.advancedCurveList)) continue;
-      layer.extra.advancedCurveList = layer.extra.advancedCurveList.filter(c=>{
-        if(!c.startPos || !c.endPos) return true;
-        const a=c.startPos.instanceName, b=c.endPos.instanceName;
-        return !((a===item.nameA && b===item.nameB) || (a===item.nameB && b===item.nameA));
-      });
+      deletePathBetween(layer, item.nameA, item.nameB);
     }
     const areaItems = items.filter(i=>i.kind==='area');
     const reflAreaObjs = areaItems.filter(i=>(i.areaKind||'reflector')==='reflector').map(i=>layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[i.areaIndex]).filter(Boolean);
@@ -12402,7 +12580,7 @@ function deleteSelectionRefs(refs){
     const lineIdxs = items.filter(i=>i.kind==='line').map(i=>i.index).sort((a,b)=>b-a);
     for(const idx of lineIdxs) layer.manualLines.splice(idx,1);
   }
-  scheduleAutosave(); requestDraw(); renderDetailPanel(); renderAreaPanel(); renderNavPointPanel(); renderPathPanel(); renderAnnotationsPanel();
+  scheduleAutosave(); requestDraw(); renderDetailPanel(); renderAreaPanel(); renderNavPointPanel(); renderPathPanel(); renderAnnotationsPanel(); renderPatternPanel();
 }
 // ---- Rigid groups: tags every member of the current selection with a
 // shared __rigidGroup id (same __flag convention __locked/__group already
@@ -12658,6 +12836,42 @@ function drawPathPatternHighlights(){
   highlightCurve(state.pathPatternArm.nameA, state.pathPatternArm.nameB, '#ffb000');
   const pat = findPathPatternBySource(layer, state.pathPatternArm.nameA, state.pathPatternArm.nameB);
   if(pat){ for(const t of pat.targets) highlightCurve(t.nameA, t.nameB, '#00c2ff'); }
+}
+// The Nav Pts/Path tools' own "Selected path" panel had no on-canvas
+// highlight at all — only its small control-point handles hinted at which
+// curve was selected. White, same convention as a selected nav point's
+// stroke.
+function drawSelectedPathHighlight(){
+  if(!(state.tool==='nav' || state.tool==='path') || !state.selectedPath) return;
+  const layer = getLayer(state.selectedPath.layerId);
+  if(!layer) return;
+  const {nameA, nameB} = state.selectedPath;
+  // Low enough alpha that the curve's own direction arrowheads (drawn
+  // underneath, in the normal curve pass) still read through the overlay --
+  // at full opacity this is just a bold line sitting on top of them.
+  const strokeCurve = (curve, color)=>{
+    if(!curve || !curve.startPos || !curve.endPos) return;
+    const pts = curveScreenSamples(layer, curve, 24);
+    ctx.save();
+    ctx.beginPath();
+    pts.forEach(([sx,sy],i)=>{ if(i===0) ctx.moveTo(sx,sy); else ctx.lineTo(sx,sy); });
+    ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.globalAlpha = 0.4; ctx.stroke();
+    ctx.restore();
+  };
+  // White reads fine on the dark canvas but all but disappears on the light
+  // one -- same light/dark swap the Erase tool's own cursor outline uses.
+  strokeCurve(findCurveByEndpoints(layer, nameA, nameB) || findCurveByEndpoints(layer, nameB, nameA), state.printFriendly ? '#333333' : '#ffffff');
+  // If the selected path is tracked by a path pattern -- either as the
+  // source or as one of its targets -- also highlight the pattern's own
+  // SOURCE curve in gold (same color the armed-pattern highlight already
+  // uses for a source). Selecting a target then makes it obvious it's
+  // being driven from somewhere else, instead of a surprise the next time
+  // it resyncs back to that shape.
+  const asTarget = findPathPatternByTarget(layer, nameA, nameB);
+  const sourceKey = asTarget ? asTarget.pattern.source : (findPathPatternBySource(layer, nameA, nameB) ? {nameA, nameB} : null);
+  if(sourceKey && !pathPatternKeyMatches(sourceKey, nameA, nameB)){
+    strokeCurve(findCurveByEndpoints(layer, sourceKey.nameA, sourceKey.nameB) || findCurveByEndpoints(layer, sourceKey.nameB, sourceKey.nameA), '#ffb000');
+  }
 }
 
 function anchorWorldValue(anchor, axis){
@@ -14526,17 +14740,7 @@ document.addEventListener('keydown', (e)=>{
     if(state.tool==='select' && state.groupSelection.length){ btnGroupDelete.click(); e.preventDefault(); return; }
     if(state.tool==='select' && state.selectBasic){ btnSelectBasicDelete.click(); e.preventDefault(); return; }
     if(state.tool==='nav' && state.selectedNavPoint){ btnDeleteNavPoint.click(); e.preventDefault(); return; }
-    if((state.tool==='nav' || state.tool==='path') && state.selectedPath){
-      const sel = getSelectedPath();
-      if(sel && sel.layer.visible){
-        pushUndo(sel.layer);
-        sel.layer.extra.advancedCurveList = sel.layer.extra.advancedCurveList.filter(c=>c!==sel.forward && c!==sel.backward);
-        state.selectedPath = null;
-        renderPathPanel();
-        scheduleAutosave(); requestDraw();
-      }
-      e.preventDefault(); return;
-    }
+    if((state.tool==='nav' || state.tool==='path') && state.selectedPath){ btnDeletePath.click(); e.preventDefault(); return; }
     if(state.tool==='area' && state.selectedArea){ btnDeleteArea.click(); e.preventDefault(); return; }
     if(state.tool==='pattern' && state.selectedPattern){ document.getElementById('btnPatSelDelete').click(); e.preventDefault(); return; }
     if(state.tool==='pattern' && state.selectedGridPattern){ document.getElementById('btnGridSelDelete').click(); e.preventDefault(); return; }
@@ -15083,7 +15287,7 @@ function loadProjectData(data){
   state.pathPatterns = Array.isArray(data.pathPatterns) ? data.pathPatterns : [];
   state.pathPatternArm = null;
   if(data.robotFootprint) state.robotFootprint = data.robotFootprint;
-  for(const layer of state.layers){ normalizeCurvePairs(layer); normalizeAreaRects(layer); normalizeBinLocationsList(layer); }
+  for(const layer of state.layers){ normalizeCurvePairs(layer); normalizeAreaRects(layer); normalizeBinLocationsList(layer); migrateStationPickupLegs(layer); }
   pruneInvalidRelations();
   prunePatterns();
   pruneGridPatterns();
@@ -15518,6 +15722,11 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
     document.getElementById('rdsMinorStart').value = rule.minorStart;
     renderRdsPreview();
   }
+  function updateRdsNoMajorUI(rule){
+    document.getElementById('rdsNoMajor').checked = !!rule.noMajor;
+    document.getElementById('rdsMajorPadRow').hidden = !!rule.noMajor;
+    document.getElementById('rdsMajorStartRow').hidden = !!rule.noMajor;
+  }
   function openRdsModal(ctx){
     rdsCtx = ctx;
     const layer = getLayer(ctx.layerId); if(!layer) return;
@@ -15531,7 +15740,12 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
     document.getElementById('rdsMinorStart').value = rule.minorStart;
     document.getElementById('rdsPickupPrefix').value = rule.pickupPrefix;
     document.getElementById('rdsDescending').checked = !!rule.descending;
+    updateRdsNoMajorUI(rule);
     document.getElementById('rdsDirRow').hidden = !ctx.showDirection;
+    // Only relevant when the points being named actually include a Pickup
+    // AP (its near-LM partner is auto-named off this prefix) -- otherwise
+    // it's a field with nothing to do, so hide it rather than confuse.
+    document.getElementById('rdsPickupPrefixRow').hidden = !ctx.buildPoints('ltr').some(isPickupAp);
     rdsDirection = ctx.initialDirection || 'ltr';
     updateRdsDirButtons();
     rdsCollisionMode = 'block';
@@ -15561,6 +15775,15 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
     if(!rdsCtx) return;
     const layer = getLayer(rdsCtx.layerId); if(!layer) return;
     getRdsRule(layer).descending = e.target.checked;
+    applyRdsContinuation();
+    renderRdsPreview();
+  });
+  document.getElementById('rdsNoMajor').addEventListener('change', e=>{
+    if(!rdsCtx) return;
+    const layer = getLayer(rdsCtx.layerId); if(!layer) return;
+    const rule = getRdsRule(layer);
+    rule.noMajor = e.target.checked;
+    updateRdsNoMajorUI(rule);
     applyRdsContinuation();
     renderRdsPreview();
   });
