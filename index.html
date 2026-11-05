@@ -7235,6 +7235,22 @@ function curveScreenSamples(layer, curve, n){
   }
   return pts;
 }
+// Same sampling as curveScreenSamples but stops at world coordinates --
+// for box-select (collectCurvesInRect), which needs to test the curve's
+// actual rendered path against a world-space rect, not just its two
+// endpoints (a curve whose endpoints sit outside a box can still sweep
+// straight through the middle of it).
+function curveWorldSamples(layer, curve, n){
+  const sp = curve.startPos && curve.startPos.pos, ep = curve.endPos && curve.endPos.pos;
+  if(!sp || !ep) return [];
+  const c1 = curve.controlPos1, c2 = curve.controlPos2;
+  const p0 = layerToWorld(layer, sp.x, sp.y), p3 = layerToWorld(layer, ep.x, ep.y);
+  let p1=p0, p2=p3;
+  if(c1 && c2){ p1 = layerToWorld(layer, c1.x, c1.y); p2 = layerToWorld(layer, c2.x, c2.y); }
+  const pts = [];
+  for(let i=0;i<=n;i++) pts.push(curveBezierPoint(curve, p0,p1,p2,p3, i/n));
+  return pts;
+}
 
 function findCurveAt(layer, sx, sy, pxThreshold){
   const list = layer.extra && layer.extra.advancedCurveList;
@@ -12400,11 +12416,9 @@ function collectCurvesInRect(layer, rect){
   if(!Array.isArray(curves)) return out;
   const seen = new Set();
   for(const c of curves){
-    const sp = c.startPos && c.startPos.pos, ep = c.endPos && c.endPos.pos;
-    if(!sp || !ep) continue;
-    const [wx1,wy1] = layerToWorld(layer, sp.x, sp.y);
-    const [wx2,wy2] = layerToWorld(layer, ep.x, ep.y);
-    if(!inRect(wx1,wy1) && !inRect(wx2,wy2)) continue;
+    if(!c.startPos || !c.endPos) continue;
+    const pts = curveWorldSamples(layer, c, 16);
+    if(!pts.some(([wx,wy])=>inRect(wx,wy))) continue;
     const key = [c.startPos.instanceName, c.endPos.instanceName].sort().join('|');
     if(seen.has(key)) continue;
     seen.add(key);
