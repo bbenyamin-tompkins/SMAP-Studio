@@ -369,6 +369,13 @@
   .rds-xy-toggle input{margin:0;}
   .rds-edit-del-btn{background:transparent; border:none; color:var(--ink-dim); cursor:pointer; font-size:13px; padding:2px 6px; border-radius:4px;}
   .rds-edit-del-btn:hover{color:var(--danger);}
+  .rds-multiname-cell{min-width:160px;}
+  .rds-multiname-row{display:flex; align-items:center; gap:4px; margin-bottom:3px;}
+  .rds-multiname-row input{flex:1; min-width:0;}
+  .rds-multiname-rm-btn{flex:0 0 auto; background:transparent; border:none; color:var(--ink-dim); cursor:pointer; font-size:14px; line-height:1; padding:2px 5px; border-radius:4px;}
+  .rds-multiname-rm-btn:hover{color:var(--danger);}
+  .rds-multiname-add-btn{flex:0 0 auto; background:transparent; border:none; color:var(--ink-dim); cursor:pointer; font-size:15px; line-height:1; padding:2px 5px; border-radius:4px;}
+  .rds-multiname-add-btn:hover{color:var(--accent);}
   .rds-edit-err{color:var(--danger); font-size:11px; margin-top:6px; min-height:14px;}
   .rds-table-modal{width:560px;}
   .rds-table-head-row{display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px; margin-bottom:6px;}
@@ -1299,7 +1306,7 @@
         </div>
         <div class="rds-table-scroll">
           <table class="rds-edit-table">
-            <tr><th>Nav point</th><th>Location name</th><th id="rdsTableXYHead" hidden>X, Y</th><th></th></tr>
+            <tr><th>Nav point</th><th id="rdsTableXYHead" hidden>X, Y</th><th>Location name</th><th></th></tr>
             <tbody id="rdsTableBody"></tbody>
           </table>
         </div>
@@ -4794,6 +4801,14 @@ function drawRdsLocations(layer, pal){
   const half = 7;
   ctx.font = 'bold 11px "IBM Plex Mono", ui-monospace, monospace';
   ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  // Entries belonging to the same point stack vertically below it instead
+  // of all landing on the same pixel -- every entry's marker position comes
+  // from the POINT's own position (see below), so a point with more than
+  // one name (addRdsName/setRdsNames) would otherwise draw every name on
+  // top of the others as overlapping, unreadable text. allBinLocationEntries
+  // keeps one point's entries contiguous (they always share a wrapper --
+  // see normalizeBinLocationsList), so a running per-point count is enough.
+  const stackIdxByPoint = new Map();
   for(const entry of entries){
     if(!entry) continue;
     const pt = findNavPointByName(layer, entry.pointName);
@@ -4801,7 +4816,9 @@ function drawRdsLocations(layer, pal){
     if(!anchorPos) continue;
     const [wx,wy] = layerToWorld(layer, anchorPos.x, anchorPos.y);
     const [sx,navSy] = worldToScreen(wx,wy);
-    const sy = navSy + 22; // just below the nav point's own box, clear of its label above
+    const stackIdx = stackIdxByPoint.get(entry.pointName) || 0;
+    stackIdxByPoint.set(entry.pointName, stackIdx+1);
+    const sy = navSy + 22 + stackIdx*18; // just below the nav point's own box, clear of its label above
     ctx.fillStyle = color; ctx.globalAlpha = 0.22;
     ctx.fillRect(sx-half, sy-half, half*2, half*2);
     ctx.globalAlpha = 1;
@@ -6683,20 +6700,39 @@ function allBinLocationEntries(layer){
   }
   return out;
 }
-// A loaded file whose binLocationsList has a wrapper holding more than one
-// entry (the old, incorrect shape this app itself produced before this
-// fix) gets split back into one wrapper per entry on load, matching
-// SEER's real convention.
+// A wrapper holding entries for more than one DIFFERENT point (the old,
+// incorrect shape this app itself produced before this fix) gets split
+// back into one wrapper per point on load. A wrapper whose entries all
+// share the SAME pointName is left alone -- that's SEER's own real
+// convention for a point carrying more than one RDS name (confirmed
+// against a real export, Features/Dup-name/20261106_Navigation.smap: LM14
+// has two GeneralLocation entries, "DGroup-pre" and "Name_2", grouped in
+// one shared wrapper). An earlier version of this normalization treated
+// ANY multi-entry wrapper as broken and split those apart too, silently
+// breaking that grouping every time such a file was loaded.
 function normalizeBinLocationsList(layer){
   if(!layer.extra) return;
   const wrappers = layer.extra.binLocationsList;
   if(!Array.isArray(wrappers)) return;
-  const needsSplit = wrappers.some(w=>w && Array.isArray(w.binLocationList) && w.binLocationList.length>1);
+  const needsSplit = wrappers.some(w=>w && Array.isArray(w.binLocationList) &&
+    new Set(w.binLocationList.map(e=>e.pointName)).size>1);
   if(!needsSplit) return;
-  layer.extra.binLocationsList = allBinLocationEntries(layer).map(entry=>({binLocationList:[entry]}));
+  const byPoint = new Map();
+  for(const entry of allBinLocationEntries(layer)){
+    if(!byPoint.has(entry.pointName)) byPoint.set(entry.pointName, []);
+    byPoint.get(entry.pointName).push(entry);
+  }
+  layer.extra.binLocationsList = [...byPoint.values()].map(binLocationList=>({binLocationList}));
 }
 function findBinLocationByPointName(layer, pointName){
   return allBinLocationEntries(layer).find(e=>e.pointName===pointName) || null;
+}
+// Every RDS name entry belonging to one point -- a point can carry more
+// than one (see normalizeBinLocationsList above), unlike
+// findBinLocationByPointName's single-match lookup, which the Naming tool
+// keeps using unchanged (it only ever manages one name per point).
+function allBinLocationEntriesForPoint(layer, pointName){
+  return allBinLocationEntries(layer).filter(e=>e.pointName===pointName);
 }
 function allRdsNames(layer){
   return new Set(allBinLocationEntries(layer).map(e=>e.instanceName));
@@ -6717,19 +6753,12 @@ function setRdsName(layer, pt, name){
   if(!layer.extra) layer.extra = {};
   if(!Array.isArray(layer.extra.binLocationsList)) layer.extra.binLocationsList = [];
   let entry = findBinLocationByPointName(layer, pt.instanceName);
-  const pos = {x:round3(pt.pos.x), y:round3(pt.pos.y+0.3)};
   if(!entry){
-    entry = {
-      className:'GeneralLocation', instanceName:name, pointName:pt.instanceName, pos,
-      property:[
-        {key:'points', type:'json', stringValue:JSON.stringify(rdsFootprintSquare(pos.x,pos.y))},
-        {key:'binTask', type:'json', stringValue:''},
-      ],
-    };
+    entry = makeRdsEntry(pt, name);
     layer.extra.binLocationsList.push({binLocationList:[entry]});
   } else {
     entry.instanceName = name;
-    entry.pos = pos;
+    entry.pos = {x:round3(pt.pos.x), y:round3(pt.pos.y+0.3)};
   }
   return entry;
 }
@@ -6747,6 +6776,59 @@ function removeRdsName(layer, pt){
     return w.binLocationList.length>0;
   });
   return removed;
+}
+function makeRdsEntry(pt, name){
+  const pos = {x:round3(pt.pos.x), y:round3(pt.pos.y+0.3)};
+  return {
+    className:'GeneralLocation', instanceName:name, pointName:pt.instanceName, pos,
+    property:[
+      {key:'points', type:'json', stringValue:JSON.stringify(rdsFootprintSquare(pos.x,pos.y))},
+      {key:'binTask', type:'json', stringValue:''},
+    ],
+  };
+}
+// Adds an ADDITIONAL name for `pt` without touching whatever names it
+// already has -- unlike setRdsName, which treats a point as having exactly
+// one name and overwrites it. Groups into the point's existing wrapper
+// (SEER's real one-wrapper-per-point shape, see normalizeBinLocationsList)
+// if it has one, or starts a fresh wrapper otherwise.
+function addRdsName(layer, pt, name){
+  if(!layer.extra) layer.extra = {};
+  if(!Array.isArray(layer.extra.binLocationsList)) layer.extra.binLocationsList = [];
+  const entry = makeRdsEntry(pt, name);
+  const wrapper = layer.extra.binLocationsList.find(w=>Array.isArray(w.binLocationList) && w.binLocationList.some(e=>e.pointName===pt.instanceName));
+  if(wrapper) wrapper.binLocationList.push(entry);
+  else layer.extra.binLocationsList.push({binLocationList:[entry]});
+  return entry;
+}
+// Removes ONE specific name entry by its own instanceName, leaving any
+// other names `pt` has untouched -- unlike removeRdsName, which clears
+// every name the point has.
+function removeRdsNameEntry(layer, pt, name){
+  const wrappers = layer.extra && layer.extra.binLocationsList;
+  if(!Array.isArray(wrappers)) return false;
+  let removed = false;
+  layer.extra.binLocationsList = wrappers.filter(w=>{
+    if(!w || !Array.isArray(w.binLocationList)) return true;
+    const before = w.binLocationList.length;
+    w.binLocationList = w.binLocationList.filter(e=>!(e.pointName===pt.instanceName && e.instanceName===name));
+    if(w.binLocationList.length!==before) removed = true;
+    return w.binLocationList.length>0;
+  });
+  return removed;
+}
+// Replaces pt's ENTIRE set of names with exactly `names` (order preserved,
+// duplicates/blanks dropped) -- used by CSV import, where a row is the
+// full desired state for that point rather than one name to add or change.
+function setRdsNames(layer, pt, names){
+  removeRdsName(layer, pt);
+  const seen = new Set();
+  for(const name of names){
+    const v = (name||'').trim();
+    if(!v || seen.has(v)) continue;
+    seen.add(v);
+    addRdsName(layer, pt, v);
+  }
 }
 // pos (and the footprint square centered on it) is NOT independent data --
 // per reverse-eng.md it's always the nav point's own pos +0.3 on y, derived
@@ -6830,19 +6912,121 @@ function renderRdsEditTable(tbody, errEl, layer, pointsFn, opts){
     const nameTd = document.createElement('td');
     const current = findBinLocationByPointName(layer, pt.instanceName);
     const ownCurrent = current ? current.instanceName : '';
+    // opts.multiName (the standalone RDS table only -- never the Naming…
+    // modals, which keep managing exactly one name per point, unchanged)
+    // lets a point carry more than one RDS name at once, matching a real
+    // SEER export where this happens (Features/Dup-name/
+    // 20261106_Navigation.smap, LM14 has two). Each name gets its own
+    // input + remove button instead of one box standing in for "the" name.
+    const entriesForPt = opts.multiName ? allBinLocationEntriesForPoint(layer, pt.instanceName) : null;
     let nameInput = null;
     if(isPickupNear){
       nameTd.className = 'mono';
       nameTd.textContent = ownCurrent || '(auto)';
+    } else if(opts.multiName){
+      nameTd.className = 'rds-multiname-cell';
+      let lastRow = null;
+      for(const entry of entriesForPt){
+        const name = entry.instanceName;
+        const row = document.createElement('div');
+        row.className = 'rds-multiname-row';
+        lastRow = row;
+        const input = document.createElement('input');
+        input.className = 'mono';
+        input.value = name;
+        const isDupe = ()=>{
+          const v = input.value.trim();
+          return !!(v && v!==name && allRdsNames(layer).has(v));
+        };
+        input.addEventListener('input', ()=>{ input.classList.toggle('collision', isDupe()); });
+        input.addEventListener('change', ()=>{
+          const v = input.value.trim();
+          if(v===name) return;
+          if(!v){
+            showErr('');
+            pushUndo(layer);
+            removeRdsNameEntry(layer, pt, name);
+            if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
+            scheduleAutosave(); requestDraw();
+            if(opts.onChange) opts.onChange();
+            rerender();
+            return;
+          }
+          if(isDupe()){
+            showErr('“'+v+'” is already used by another point on this layer.');
+            input.value = name;
+            input.classList.remove('collision');
+            return;
+          }
+          showErr('');
+          pushUndo(layer);
+          const liveEntry = allBinLocationEntriesForPoint(layer, pt.instanceName).find(e=>e.instanceName===name);
+          if(liveEntry) liveEntry.instanceName = v;
+          if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
+          scheduleAutosave(); requestDraw();
+          if(opts.onChange) opts.onChange();
+          rerender();
+        });
+        row.appendChild(input);
+        const rmBtn = document.createElement('button');
+        rmBtn.className = 'rds-multiname-rm-btn';
+        rmBtn.innerHTML = '&times;';
+        rmBtn.title = 'Remove this name';
+        rmBtn.addEventListener('click', ()=>{
+          pushUndo(layer);
+          removeRdsNameEntry(layer, pt, name);
+          if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
+          scheduleAutosave(); requestDraw();
+          if(opts.onChange) opts.onChange();
+          rerender();
+        });
+        row.appendChild(rmBtn);
+        nameTd.appendChild(row);
+      }
+      const addBtn = document.createElement('button');
+      addBtn.className = 'rds-multiname-add-btn';
+      addBtn.innerHTML = '&#43;';
+      addBtn.title = 'Add another name';
+      addBtn.addEventListener('click', ()=>{
+        const taken = allRdsNames(layer);
+        let n = 1, candidate = 'Name_1';
+        while(taken.has(candidate)){ n++; candidate = 'Name_'+n; }
+        pushUndo(layer);
+        addRdsName(layer, pt, candidate);
+        if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
+        scheduleAutosave(); requestDraw();
+        if(opts.onChange) opts.onChange();
+        rerender();
+      });
+      // Joins the last name's own row (same line as its input/×) instead of
+      // sitting on a separate line below -- when there are no names yet,
+      // it's the only thing on that one row.
+      if(lastRow) lastRow.appendChild(addBtn);
+      else {
+        const row = document.createElement('div');
+        row.className = 'rds-multiname-row';
+        row.appendChild(addBtn);
+        nameTd.appendChild(row);
+      }
     } else {
       nameInput = document.createElement('input');
       nameInput.value = ownCurrent;
       nameInput.placeholder = '(none)';
       nameTd.appendChild(nameInput);
     }
+    // The standalone table (opts.multiName) puts X,Y right after Nav point
+    // and Location name last, matching the CSV's own column order -- so
+    // appending a "Location Name <N+1>" column by hand in Excel is purely
+    // adding to the end of each row. The Naming… modals (no opts.multiName)
+    // keep their original Name-then-X,Y order, unchanged.
+    if(opts.showXY && opts.multiName){
+      const xyTd = document.createElement('td'); xyTd.className = 'xy-cell mono';
+      xyTd.textContent = pt.pos.x.toFixed(3)+', '+pt.pos.y.toFixed(3);
+      tr.appendChild(xyTd);
+    }
     tr.appendChild(nameTd);
 
-    if(opts.showXY){
+    if(opts.showXY && !opts.multiName){
       const xyTd = document.createElement('td'); xyTd.className = 'xy-cell mono';
       xyTd.textContent = pt.pos.x.toFixed(3)+', '+pt.pos.y.toFixed(3);
       tr.appendChild(xyTd);
@@ -6852,8 +7036,8 @@ function renderRdsEditTable(tbody, errEl, layer, pointsFn, opts){
     const delBtn = document.createElement('button');
     delBtn.className = 'rds-edit-del-btn';
     delBtn.innerHTML = '&#128465;';
-    delBtn.title = 'Clear this location';
-    delBtn.hidden = !current || isPickupNear;
+    delBtn.title = opts.multiName ? 'Clear all names for this point' : 'Clear this location';
+    delBtn.hidden = isPickupNear || (opts.multiName ? !entriesForPt.length : !current);
     delTd.appendChild(delBtn);
     tr.appendChild(delTd);
 
@@ -16111,7 +16295,7 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
     document.getElementById('rdsTableLayerName').textContent = layer.name || layer.fileName || 'Layer';
     const refreshStat = ()=>{
       const pts = (layer.extra && layer.extra.advancedPointList) || [];
-      document.getElementById('rdsTableStat').textContent = pts.length+' point(s), '+allBinLocationEntries(layer).length+' named';
+      document.getElementById('rdsTableStat').textContent = pts.length+' point(s), '+allBinLocationEntries(layer).length+' name(s)';
     };
     refreshStat();
     renderRdsEditTable(
@@ -16119,7 +16303,7 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
       document.getElementById('rdsTableErr'),
       layer,
       ()=> (layer.extra && layer.extra.advancedPointList) || [],
-      {allowRename:true, onChange: refreshStat, showXY:rdsShowXY}
+      {allowRename:true, onChange: refreshStat, showXY:rdsShowXY, multiName:true}
     );
   }
   document.getElementById('rdsTableShowXY').addEventListener('change', e=>{ setRdsShowXY(e.target.checked); renderRdsTableModal(); });
@@ -16170,11 +16354,30 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
     out.push(cur);
     return out;
   }
+  // Export widens to one "Location Name N" column per name the busiest
+  // point on the layer has (collapsing to the original single "Location
+  // Name" column when nothing has more than one, so an unremarkable layer's
+  // CSV is byte-identical to before this feature existed). Import treats
+  // every column after Nav Point/X/Y as a name column regardless of its own
+  // header text -- add as many columns as wanted by hand in Excel, labeled
+  // however's convenient, and they're all picked up -- and replaces each
+  // point's full set of names with whatever that row lists, rather than
+  // trying to diff individual names against what's already there.
   document.getElementById('btnRdsTableExport').addEventListener('click', ()=>{
     const layer = getLayer(rdsTableLayerId); if(!layer) return;
     const pts = (layer.extra && layer.extra.advancedPointList) || [];
-    const rows = [['Nav Point','Location Name','X','Y']];
-    for(const pt of pts) rows.push([pt.instanceName, (findBinLocationByPointName(layer, pt.instanceName)||{}).instanceName || '', pt.pos.x, pt.pos.y]);
+    const namesByPt = pts.map(pt=>allBinLocationEntriesForPoint(layer, pt.instanceName).map(e=>e.instanceName));
+    const maxNames = Math.max(1, ...namesByPt.map(n=>n.length));
+    const nameHeaders = maxNames===1 ? ['Location Name'] : Array.from({length:maxNames}, (_,i)=>'Location Name '+(i+1));
+    // Location Name column(s) last -- so adding another name in Excel is
+    // just appending a column to the end of the sheet, not inserting one
+    // in the middle ahead of X/Y.
+    const rows = [['Nav Point', 'X', 'Y', ...nameHeaders]];
+    pts.forEach((pt,i)=>{
+      const names = namesByPt[i];
+      const nameCells = Array.from({length:maxNames}, (_,j)=>names[j]||'');
+      rows.push([pt.instanceName, pt.pos.x, pt.pos.y, ...nameCells]);
+    });
     const csv = rows.map(r=>r.map(csvEscape).join(',')).join('\r\n');
     downloadBlob(new Blob([csv], {type:'text/csv'}), (layer.name||'layer').replace(/[^\w.-]+/g,'_')+'-rds-locations.csv');
   });
@@ -16194,14 +16397,35 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
       errEl.textContent = '';
       if(!lines.length){ errEl.textContent = 'Empty CSV.'; return; }
       let rows = lines.map(csvParseLine);
-      if(rows[0][0] && rows[0][0].trim().toLowerCase()==='nav point') rows = rows.slice(1);
+      // Column layout comes from the header when there is one: X and Y are
+      // found by label (wherever they land), and EVERY OTHER column is a
+      // name column regardless of its own header text -- "Location Name 2",
+      // "Name", "Other_name", blank, anything -- so a spreadsheet can grow
+      // sideways with whatever labels are convenient and still import.
+      // Falls back to the current export's own Nav Point/X/Y/Location Name
+      // layout for a header-less CSV.
+      let nameColIdxs = [3], xColIdx = 1, yColIdx = 2;
+      const headerRow = rows[0];
+      if(headerRow[0] && headerRow[0].trim().toLowerCase()==='nav point'){
+        rows = rows.slice(1);
+        xColIdx = -1; yColIdx = -1;
+        headerRow.forEach((h,i)=>{
+          if(i===0) return;
+          const hl = (h||'').trim().toLowerCase();
+          if(hl==='x' && xColIdx<0) xColIdx = i;
+          else if(hl==='y' && yColIdx<0) yColIdx = i;
+        });
+        nameColIdxs = [];
+        headerRow.forEach((h,i)=>{
+          if(i===0 || i===xColIdx || i===yColIdx) return;
+          nameColIdxs.push(i);
+        });
+        if(!nameColIdxs.length) nameColIdxs = [1];
+      }
 
       const pts = (layer.extra && layer.extra.advancedPointList) || [];
-      const finalNames = new Map();
-      for(const pt of pts){
-        const entry = findBinLocationByPointName(layer, pt.instanceName);
-        finalNames.set(pt.instanceName, entry ? entry.instanceName : null);
-      }
+      const finalNames = new Map(); // ptName -> string[]
+      for(const pt of pts) finalNames.set(pt.instanceName, allBinLocationEntriesForPoint(layer, pt.instanceName).map(e=>e.instanceName));
       const finalPos = new Map(); // ptName -> {x,y}, only for rows that gave valid numbers
       const notFound = [];
       const badPos = [];
@@ -16209,35 +16433,47 @@ function renderStationPickupDiagram(svgEl, distance, distanceFree, showPickup, a
         const ptName = (row[0]||'').trim();
         if(!ptName) continue;
         if(!finalNames.has(ptName)){ notFound.push(ptName); continue; }
-        finalNames.set(ptName, (row[1]||'').trim() || null);
-        const xRaw = row[2], yRaw = row[3];
-        if(xRaw!=null && xRaw!=='' && yRaw!=null && yRaw!==''){
-          const nx = parseFloat(xRaw), ny = parseFloat(yRaw);
-          if(isFinite(nx) && isFinite(ny)) finalPos.set(ptName, {x:round3(nx), y:round3(ny)});
-          else badPos.push(ptName);
+        const names = [];
+        const seenInRow = new Set();
+        for(const idx of nameColIdxs){
+          const v = (row[idx]||'').trim();
+          if(v && !seenInRow.has(v)){ seenInRow.add(v); names.push(v); }
+        }
+        finalNames.set(ptName, names);
+        if(xColIdx>=0 && yColIdx>=0){
+          const xRaw = row[xColIdx], yRaw = row[yColIdx];
+          if(xRaw!=null && xRaw!=='' && yRaw!=null && yRaw!==''){
+            const nx = parseFloat(xRaw), ny = parseFloat(yRaw);
+            if(isFinite(nx) && isFinite(ny)) finalPos.set(ptName, {x:round3(nx), y:round3(ny)});
+            else badPos.push(ptName);
+          }
         }
       }
       // Validated as one atomic batch, same "Block" philosophy as naming-
       // rule apply -- the whole import is refused on any collision rather
-      // than silently applying a partial, confusing result.
+      // than silently applying a partial, confusing result. A name reused
+      // across two DIFFERENT points still collides; the same point having
+      // several different names of its own is fine.
       const seen = new Map();
-      for(const [ptName, name] of finalNames){
-        if(!name) continue;
-        if(seen.has(name)){
-          errEl.textContent = 'Import aborted: “'+name+'” would be used by both '+seen.get(name)+' and '+ptName+'.';
-          return;
+      for(const [ptName, names] of finalNames){
+        for(const name of names){
+          if(seen.has(name) && seen.get(name)!==ptName){
+            errEl.textContent = 'Import aborted: “'+name+'” would be used by both '+seen.get(name)+' and '+ptName+'.';
+            return;
+          }
+          seen.set(name, ptName);
         }
-        seen.set(name, ptName);
       }
       pushUndo(layer);
       let changed = 0;
       for(const pt of pts){
         let rowChanged = false;
         const next = finalNames.get(pt.instanceName);
-        const current = findBinLocationByPointName(layer, pt.instanceName);
-        const currentName = current ? current.instanceName : null;
-        if(next!==currentName){
-          if(next) setRdsName(layer, pt, next); else removeRdsName(layer, pt);
+        const current = allBinLocationEntriesForPoint(layer, pt.instanceName).map(e=>e.instanceName);
+        const sameSet = next.length===current.length && next.every((n,i)=>n===current[i]);
+        if(!sameSet){
+          setRdsNames(layer, pt, next);
+          if(isPickupAp(pt)) syncPickupNearLmName(layer, pt);
           rowChanged = true;
         }
         const pos = finalPos.get(pt.instanceName);
