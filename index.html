@@ -8133,10 +8133,33 @@ function getRelationParticipantWorldPoint(ref){
   return null;
 }
 
-function setRelationParticipantWorldPoint(ref, wx, wy){
+// Layer-local variants of the two helpers above -- same lookups, no
+// layerToWorld/worldToLayer conversion. Used by resolveGroupedAxis whenever
+// a relation's whole group lives in one layer: a .smap nav point, control
+// handle, or reflector only ever has a layer-local position once exported,
+// and layer.transform.rot is purely an editor-side visual aid for lining
+// scans up on screen, so two points in the SAME layer should be compared
+// and driven in that layer's own coordinates, not a rotated world frame.
+function getRelationParticipantLocalPoint(ref){
+  if(ref.kind==='navPoint'){
+    const found = getPointByRef(ref);
+    return found ? [found.pt.pos.x, found.pt.pos.y] : null;
+  }
+  if(ref.kind==='reflector'){
+    const found = getReflectorByRef(ref);
+    return found ? [found.r.x, found.r.y] : null;
+  }
+  if(ref.kind==='controlPoint'){
+    const found = getCurveByRef(ref);
+    const cp = found && found.curve[ref.which];
+    return cp ? [cp.x, cp.y] : null;
+  }
+  return null;
+}
+
+function writeRelationParticipantLocalPoint(ref, lx, ly){
   const layer = getLayer(ref.layerId);
   if(!layer) return;
-  const [lx,ly] = worldToLayer(layer, wx, wy);
   if(ref.kind==='navPoint'){
     const pt = findNavPointByName(layer, ref.instanceName);
     if(!pt) return;
@@ -8161,6 +8184,16 @@ function setRelationParticipantWorldPoint(ref, wx, wy){
       }
     }
   }
+}
+function setRelationParticipantLocalPoint(ref, lx, ly){
+  writeRelationParticipantLocalPoint(ref, lx, ly);
+}
+
+function setRelationParticipantWorldPoint(ref, wx, wy){
+  const layer = getLayer(ref.layerId);
+  if(!layer) return;
+  const [lx,ly] = worldToLayer(layer, wx, wy);
+  writeRelationParticipantLocalPoint(ref, lx, ly);
 }
 
 function relationParticipantEquals(a, b){
@@ -9701,9 +9734,22 @@ function resolveGroupedAxis(axis, relType){
   for(const refs of groups.values()){
     if(!refs.length) continue;
     const anchors = groupAnchorValues(axis, refs);
+    // A Distance/Dimension anchor's value is always resolved in world space
+    // (it can legitimately point at a different layer), so a group that
+    // carries one stays on the world-coordinate path below for consistency.
+    // Otherwise, a group whose members are all in the SAME layer has no
+    // rotation to account for and resolves in that layer's own local
+    // coordinates (see getRelationParticipantLocalPoint above) — a group
+    // spanning two different layers (stitching one layer's point to
+    // another's) still needs world coordinates, the only frame where
+    // "align these two layers" means anything.
+    const sameLayer = refs.every(r=>r.layerId===refs[0].layerId);
+    const useLocal = sameLayer && anchors.length===0;
+    const getPoint = useLocal ? getRelationParticipantLocalPoint : getRelationParticipantWorldPoint;
+    const setPoint = useLocal ? setRelationParticipantLocalPoint : setRelationParticipantWorldPoint;
     let targetValue;
     if(anchors.length===0){
-      const p = getRelationParticipantWorldPoint(refs[0]);
+      const p = getPoint(refs[0]);
       if(!p) continue;
       targetValue = axis==='x' ? p[0] : p[1];
     } else {
@@ -9713,12 +9759,12 @@ function resolveGroupedAxis(axis, relType){
       targetValue = anchors[0].value;
     }
     for(const ref of refs){
-      const cur = getRelationParticipantWorldPoint(ref);
+      const cur = getPoint(ref);
       if(!cur) continue;
       const curVal = axis==='x' ? cur[0] : cur[1];
       if(Math.abs(curVal-targetValue)>1e-9){
-        const newWorld = axis==='x' ? [targetValue, cur[1]] : [cur[0], targetValue];
-        setRelationParticipantWorldPoint(ref, newWorld[0], newWorld[1]);
+        const newPoint = axis==='x' ? [targetValue, cur[1]] : [cur[0], targetValue];
+        setPoint(ref, newPoint[0], newPoint[1]);
       }
     }
   }
