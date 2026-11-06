@@ -11802,28 +11802,36 @@ function resolveAnchorWorldValue(constraint, depth){
   if(constraint.anchorKind==='navPoint'){
     const found = getPointByRef({layerId:constraint.anchorLayerId, instanceName:constraint.anchorName});
     if(!found) return null;
+    const [rawWx, rawWy] = layerToWorld(found.layer, found.pt.pos.x, found.pt.pos.y);
+    let anchorValue = constraint.axis==='x' ? rawWx : rawWy;
     const ptConstraint = found.pt.__ptConstraints && found.pt.__ptConstraints[constraint.axis];
-    let anchorValue;
-    if(ptConstraint){
-      anchorValue = resolveAnchorWorldValue(ptConstraint, depth+1);
-      if(anchorValue==null) return null;
-    } else {
-      const [wx,wy] = layerToWorld(found.layer, found.pt.pos.x, found.pt.pos.y);
-      anchorValue = constraint.axis==='x' ? wx : wy;
+    // Recursing into the anchor's own constraint (instead of just using its
+    // raw stored position) keeps a CHAIN of constraints consistent within
+    // one frame regardless of array order -- but only when that constraint
+    // is actually what determines the anchor's position. A __fixed anchor
+    // always wins over its own constraint by the end of the frame
+    // (resolveFixedPositions runs after this), and a recursive resolution
+    // that fails (a dangling anchorName/anchorReflectorIndex, or any other
+    // break further up the chain) shouldn't poison everything downstream of
+    // it -- see bugs/pickup/dim_bug.webm, where a reflector's own
+    // constraint pointed at a nav point ("AP1") that no longer exists,
+    // silently breaking every OTHER point anchored to that reflector even
+    // though the reflector itself sits at a perfectly real, fixed position.
+    if(ptConstraint && !found.pt.__fixed){
+      const recursed = resolveAnchorWorldValue(ptConstraint, depth+1);
+      if(recursed!=null) anchorValue = recursed;
     }
     return anchorValue + constraint.offset;
   }
   if(constraint.anchorKind==='reflector'){
     const found = getReflectorByRef({layerId:constraint.anchorLayerId, index:constraint.anchorReflectorIndex});
     if(!found) return null;
+    const [rawWx, rawWy] = layerToWorld(found.layer, found.r.x, found.r.y);
+    let anchorValue = constraint.axis==='x' ? rawWx : rawWy;
     const rConstraint = found.r.__ptConstraints && found.r.__ptConstraints[constraint.axis];
-    let anchorValue;
-    if(rConstraint){
-      anchorValue = resolveAnchorWorldValue(rConstraint, depth+1);
-      if(anchorValue==null) return null;
-    } else {
-      const [wx,wy] = layerToWorld(found.layer, found.r.x, found.r.y);
-      anchorValue = constraint.axis==='x' ? wx : wy;
+    if(rConstraint && !found.r.__fixed){
+      const recursed = resolveAnchorWorldValue(rConstraint, depth+1);
+      if(recursed!=null) anchorValue = recursed;
     }
     return anchorValue + constraint.offset;
   }
@@ -11912,6 +11920,52 @@ function resolveAreaEdgeConstraints(layer, area){
   }
   if(changed) area.posGroup = posGroupFromRect(rect.cx, rect.cy, rect.w, rect.h, rect.rot);
 }
+// Every OTHER ref that should move rigidly along with `pt` when a Dimension
+// constraint repositions it: its Rigid Group (expandRigidGroupRefs) plus,
+// for a Station/Pickup member, the rest of that unit (AP + near LM + far
+// LM). Without this, resolvePairOffsets/resolvePickupOffsets -- which run
+// right after resolveAllConstraints in draw() -- would just snap a
+// Station/Pickup follower straight back to its fixed distance/offset from
+// its driver, making a Dimension pin on it silently do nothing every frame
+// (see bugs/11.6.json, AP3278's near LM).
+// Excludes pt's own constraint anchor(s) -- a Pickup's near LM and far LM
+// are each other's geometric partner (near derives far via along/perp), so
+// if the near LM were ALSO pinned to the far LM and the far LM got dragged
+// along for the ride too, the two would never stop chasing each other: the
+// far LM's own re-derivation (resolvePickupOffsets, right after this) keeps
+// re-establishing the exact gap its along/perp numbers encode, which only
+// ever matches the constraint's target by coincidence. Leaving the anchor
+// in place and letting it re-derive from the newly-moved point afterward is
+// what actually converges.
+function constraintMoveWithRefs(layer, pt){
+  const anchorNames = new Set();
+  if(pt.__ptConstraints){
+    for(const axis of ['x','y']){
+      const c = pt.__ptConstraints[axis];
+      if(c && c.anchorKind==='navPoint') anchorNames.add(c.anchorName);
+    }
+  }
+  const selfRef = {kind:'navPoint', layerId:layer.id, instanceName:pt.instanceName};
+  const refs = expandRigidGroupRefs([selfRef]).filter(r=>!selectionRefEquals(r, selfRef) && !(r.kind==='navPoint' && anchorNames.has(r.instanceName)));
+  let ap = null;
+  if(isStationDriver(pt)) ap = pt;
+  else if(isStationFollower(pt)) ap = getStationPartner(layer, pt);
+  else if(isPickupFollower(pt)){
+    const lmNear = findNavPointByName(layer, pt.__pickupNear);
+    ap = lmNear ? getStationPartner(layer, lmNear) : null;
+  }
+  if(ap){
+    const unitNames = [ap.instanceName];
+    if(ap.__pairedLM) unitNames.push(ap.__pairedLM.name);
+    if(ap.__pickupFar) unitNames.push(ap.__pickupFar.name);
+    for(const name of unitNames){
+      if(name===pt.instanceName || anchorNames.has(name)) continue;
+      const ref = {kind:'navPoint', layerId:layer.id, instanceName:name};
+      if(!refs.some(r=>selectionRefEquals(r,ref))) refs.push(ref);
+    }
+  }
+  return refs;
+}
 function resolveAllConstraints(){
   for(const layer of state.layers){
     const list = layer.extra && layer.extra.advancedAreaList;
@@ -11939,11 +11993,22 @@ function resolveAllConstraints(){
           pt.pos = {x:round3(nlx), y:round3(nly)};
           moved = true;
         }
-        if(moved) syncCurvesForPoint(layer, pt.instanceName, oldLX, oldLY);
+        if(moved){
+          syncCurvesForPoint(layer, pt.instanceName, oldLX, oldLY);
+          const partnerRefs = constraintMoveWithRefs(layer, pt);
+          if(partnerRefs.length){
+            const [owx,owy] = layerToWorld(layer, oldLX, oldLY);
+            const [nwx,nwy] = layerToWorld(layer, pt.pos.x, pt.pos.y);
+            moveSelectionByWorldDelta(layer, partnerRefs, owx, owy, nwx, nwy);
+          }
+        }
       }
     }
-    for(const r of layer.reflectors){
+    for(let ri=0; ri<layer.reflectors.length; ri++){
+      const r = layer.reflectors[ri];
       if(!r.__ptConstraints) continue;
+      const oldX = r.x, oldY = r.y;
+      let rMoved = false;
       for(const axis of ['x','y']){
         const c = r.__ptConstraints[axis];
         if(!c) continue;
@@ -11953,6 +12018,16 @@ function resolveAllConstraints(){
         const newWorld = axis==='x' ? [target, wy] : [wx, target];
         const [nlx,nly] = worldToLayer(layer, newWorld[0], newWorld[1]);
         r.x = round3(nlx); r.y = round3(nly);
+        rMoved = true;
+      }
+      if(rMoved && r.__rigidGroup){
+        const selfRef = {kind:'reflector', layerId:layer.id, index:ri};
+        const partnerRefs = expandRigidGroupRefs([selfRef]).filter(ref=>!selectionRefEquals(ref, selfRef));
+        if(partnerRefs.length){
+          const [owx,owy] = layerToWorld(layer, oldX, oldY);
+          const [nwx,nwy] = layerToWorld(layer, r.x, r.y);
+          moveSelectionByWorldDelta(layer, partnerRefs, owx, owy, nwx, nwy);
+        }
       }
     }
     const curves = layer.extra && layer.extra.advancedCurveList;
