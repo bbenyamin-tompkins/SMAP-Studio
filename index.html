@@ -4475,6 +4475,7 @@ const NAV_COLOR_ACTION = '#d97706';
 const NAV_COLOR_ACTION_PRINT = '#b45309';
 const RDS_LOCATION_COLOR = '#ffb347';
 const RDS_LOCATION_COLOR_PRINT = '#b4780f';
+const GRID_SEED_COLOR = '#ffcc00';
 const NAV_POINT_TYPES = ['LocationMark', 'ChargePoint', 'ActionPoint'];
 const NAV_POINT_TYPE_LABELS = { LocationMark:'Location Mark', ChargePoint:'Charge Point', ActionPoint:'Action Point' };
 
@@ -4633,6 +4634,12 @@ function drawNavPoints(layer, pal){
     }
   }
 
+  // Grid-pattern seed names for this layer, precomputed once so the
+  // per-point loop below can check membership in O(1) instead of calling
+  // findGridPatternByPointName (an O(cells) scan) per point -- that would be
+  // O(points * grids * cells) over a whole layer, far too slow for a large
+  // grid pattern.
+  const gridSeedNames = new Set(state.gridPatterns.filter(g=>g.layerId===layer.id).map(g=>g.seedName));
   if(Array.isArray(extra.advancedPointList)){
     for(const item of extra.advancedPointList){
       if(!item || !item.pos) continue;
@@ -4644,6 +4651,24 @@ function drawNavPoints(layer, pal){
       const fp = state.robotFootprint;
       const boxW = useFootprint ? fp.width*state.view.scale : ((isHover||isSelected) ? 27 : 23);
       const boxH = useFootprint ? fp.height*state.view.scale : ((isHover||isSelected) ? 20 : 17);
+
+      // Grid pattern root: a bold gold ring + star badge, always on, so the
+      // point driving a whole grid's layout is identifiable at a glance --
+      // drawn unrotated (unlike the box below) so it stays a clean circle
+      // regardless of the point's own heading.
+      if(gridSeedNames.has(item.instanceName)){
+        const ringR = Math.max(boxW,boxH)/2 + 6;
+        ctx.save();
+        ctx.strokeStyle = GRID_SEED_COLOR; ctx.lineWidth = 2.5; ctx.setLineDash([4,3]);
+        ctx.beginPath(); ctx.arc(sx,sy,ringR,0,Math.PI*2); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = 'bold 12px "IBM Plex Mono", ui-monospace, monospace';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#000000'; ctx.fillText('★', sx+ringR*0.74+1, sy-ringR*0.74+1);
+        ctx.fillStyle = GRID_SEED_COLOR; ctx.fillText('★', sx+ringR*0.74, sy-ringR*0.74);
+        ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
+        ctx.restore();
+      }
 
       const hasDir = typeof item.dir === 'number' && !item.ignoreDir;
       const worldDir = hasDir ? (item.dir + layer.transform.rot) : 0;
@@ -4887,6 +4912,8 @@ function drawManualLines(layer, pal){
 const DIM_COLOR = '#ffb347';
 const DIM_COLOR_PRINT = '#a15c00';
 const DIM_LIVE_COLOR = '#3fd0ff';
+const DIST_PIN_COLOR = '#3fd0ff';
+const DIST_REF_COLOR = '#ff6a4a';
 
 function drawFloatingLabel(cx, cy, text, color){
   ctx.font = '12px "IBM Plex Mono", ui-monospace, monospace';
@@ -5285,8 +5312,12 @@ function drawDistToolHighlights(){
   if(state.tool!=='dist') return;
   if(state.distTarget){
     const target = state.distTarget;
-    drawDistToolHighlight(target, '#3fd0ff', target.kind);
-    if(state.distPickHover) drawDistAnchorHighlight(state.distPickHover, '#ffffff');
+    // 1st click (pin, stays put) vs 2nd click (reference, gets the new
+    // offset) in two distinct colors so the order is visible -- it only
+    // matters when neither already has a constraint; see the targetEncumbered
+    // swap in the click handler, which overrides order when it does.
+    drawDistToolHighlight(target, DIST_PIN_COLOR, target.kind);
+    if(state.distPickHover) drawDistAnchorHighlight(state.distPickHover, DIST_REF_COLOR);
   } else if(state.distHoverTarget){
     const hover = state.distHoverTarget;
     drawDistToolHighlight(hover, '#ffffff', hover.kind);
@@ -9393,7 +9424,14 @@ function resolveAllGridPatterns(){
         resolveGroupOtherMembers(layer, grid.groupOtherSeedNames, seedWorld, [wx,wy], cell.otherNames);
       }
       const [lx,ly] = worldToLayer(layer, wx, wy);
-      const nlx = round3(lx), nly = round3(ly);
+      // Grid formation drives a cell's position by default, and only ever
+      // deviates from it through the grid's own column/row-step override --
+      // EXCEPT a cell the user has pinned directly with the Dimension tool:
+      // that pin wins on its own axis, for that one cell only, same as any
+      // other Dimension-pinned point. Every other cell stays pure grid math.
+      const xPinned = pt.__ptConstraints && pt.__ptConstraints.x;
+      const yPinned = pt.__ptConstraints && pt.__ptConstraints.y;
+      const nlx = xPinned ? pt.pos.x : round3(lx), nly = yPinned ? pt.pos.y : round3(ly);
       if(nlx!==pt.pos.x || nly!==pt.pos.y){
         const oldLX = pt.pos.x, oldLY = pt.pos.y;
         pt.pos = {x:nlx, y:nly};
@@ -9855,21 +9893,62 @@ function isRefFixed(ref){
 // already pinned by an earlier Dimension-tool constraint? Used so that when
 // dimensioning two things where only one is already authoritative, the new
 // pin always lands on the free one, regardless of which was clicked first.
-function isRefEncumbered(ref){
+// True for a navPoint that's a non-seed member of a linear Pattern or Grid
+// Pattern -- its position is normally DERIVED (from the seed + the
+// pattern/grid's own math), same spirit as __fixed/__ptConstraints/Relations
+// below: something else already has a say over where it sits. The seed
+// itself is excluded -- nothing derives ITS position, so it's exactly as
+// "free" as any plain point. Used only by the Dimension tool's click-order
+// swap (below) to prefer landing a brand-new pin on a genuinely free point
+// over a pattern/grid cell, not by the resolve loop itself -- a cell that
+// already HAS its own Dimension pin still wins on its own axis every frame
+// (see resolveAllGridPatterns/resolveAllPatterns), this only affects which
+// point a *new* pin lands on when you had a choice.
+function isPatternDerivedPoint(ref){
+  if(ref.kind!=='navPoint') return false;
+  const layer = getLayer(ref.layerId);
+  if(!layer) return false;
+  const lin = findPatternByPointName(layer, ref.instanceName);
+  if(lin && lin.role!=='seed') return true;
+  const grid = findGridPatternByPointName(layer, ref.instanceName);
+  if(grid && grid.role!=='seed') return true;
+  return false;
+}
+// A relation's type names the axis it pins equal across its group:
+// 'horizontal' locks y, 'vertical' locks x, 'coincident' locks both.
+function relationAffectsAxis(rel, axis){
+  return rel.type==='coincident' || (axis==='y' ? rel.type==='horizontal' : rel.type==='vertical');
+}
+// axis is optional -- when given, only THAT axis's own encumbrance counts
+// (a point already Dimension-pinned on y is still free on x), matching how
+// __ptConstraints and relations are already per-axis. __fixed and
+// isPatternDerivedPoint block both axes regardless, since a Lock or a
+// pattern/grid's own math sets the whole point together, not one axis at a
+// time. Omitting axis checks "encumbered on any axis", the original
+// whole-point meaning this function had before the Dimension tool's
+// click-order swap needed to tell axes apart.
+function isRefEncumbered(ref, axis){
   if(ref.kind==='navPoint'){
     const f = getPointByRef(ref); if(!f) return false;
-    return !!f.pt.__fixed || hasAnyPtConstraint(f.pt) || relationsForParticipant(ref).length>0;
+    if(f.pt.__fixed || isPatternDerivedPoint(ref)) return true;
+    const constraintHit = axis ? !!(f.pt.__ptConstraints && f.pt.__ptConstraints[axis]) : hasAnyPtConstraint(f.pt);
+    const relHit = axis ? relationsForParticipant(ref).some(r=>relationAffectsAxis(r, axis)) : relationsForParticipant(ref).length>0;
+    return constraintHit || relHit;
   }
   if(ref.kind==='reflector'){
     const f = getReflectorByRef(ref); if(!f) return false;
-    return !!f.r.__fixed || hasAnyPtConstraint(f.r) || relationsForParticipant(ref).length>0;
+    if(f.r.__fixed) return true;
+    const constraintHit = axis ? !!(f.r.__ptConstraints && f.r.__ptConstraints[axis]) : hasAnyPtConstraint(f.r);
+    const relHit = axis ? relationsForParticipant(ref).some(r=>relationAffectsAxis(r, axis)) : relationsForParticipant(ref).length>0;
+    return constraintHit || relHit;
   }
   if(ref.kind==='controlPoint'){
     const f = getCurveByRef(ref); if(!f) return false;
     const fixedCP = !!(f.curve.__fixedCP && f.curve.__fixedCP[ref.which]);
     const bucket = f.curve.__cpConstraints && f.curve.__cpConstraints[ref.which];
-    const dimPinned = !!(bucket && Object.keys(bucket).length);
-    return fixedCP || dimPinned || relationsForParticipant(ref).length>0;
+    const dimPinned = axis ? !!(bucket && bucket[axis]) : !!(bucket && Object.keys(bucket).length);
+    const relHit = axis ? relationsForParticipant(ref).some(r=>relationAffectsAxis(r, axis)) : relationsForParticipant(ref).length>0;
+    return fixedCP || dimPinned || relHit;
   }
   if(ref.kind==='edge'){
     const f = getAreaByRef({layerId:ref.layerId, areaIndex:ref.areaIndex, areaKind:ref.areaKind});
@@ -14101,13 +14180,14 @@ canvasEl.addEventListener('pointerdown', (e)=>{
     let anchor = findPickableAnchorAt(sx, sy, 14, excludeRef, target.smart ? null : target.axis);
     if(anchor && target.smart) target.axis = computeSmartAxisFromPair(target, anchor);
     if(anchor && target.axis){
-      // If the thing clicked FIRST is already fixed/related/dimensioned and the thing
-      // clicked SECOND is free, swap roles so the new pin always lands on the free one —
+      // If the thing clicked FIRST is already fixed/related/dimensioned (on
+      // THIS axis) or pattern/grid-derived, and the thing clicked SECOND is
+      // free, swap roles so the new pin always lands on the free one —
       // pinning an already-authoritative point to something else either silently does
       // nothing (if it's Fixed) or fights its existing pin, regardless of click order.
-      const targetEncumbered = isRefEncumbered(targetToRef(target));
+      const targetEncumbered = isRefEncumbered(targetToRef(target), target.axis);
       const anchorAsRef = targetShapeFromAnchor(anchor, null);
-      const anchorEncumbered = !!anchorAsRef && isRefEncumbered(anchorAsRef);
+      const anchorEncumbered = !!anchorAsRef && isRefEncumbered(anchorAsRef, target.axis);
       if(targetEncumbered && !anchorEncumbered){
         const swappedTarget = targetShapeFromAnchor(anchor, target.axis);
         const swappedAnchor = anchorShapeFromTarget(target);
