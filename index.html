@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SMAP Stitch Editor</title>
+<title>SMAP Studio</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -6617,8 +6617,14 @@ function syncCurvesForPoint(layer, name, oldLocalX, oldLocalY){
 function generateNavPointName(layer, prefix){
   prefix = prefix || 'LM';
   const list = (layer.extra && layer.extra.advancedPointList) || [];
+  // RoboShop's own naming-collision check strips a name's 2-letter type
+  // prefix and compares only the numeric suffix, so LM1/AP1/CP1 all collide
+  // there even though they look distinct here. The counter has to be
+  // global across every type, not per-prefix, or this editor hands out
+  // names RoboShop itself would treat as duplicates. RoboShop's own number
+  // field is a 32-bit int, so there's no practical risk of running out.
+  const re = new RegExp('^(?:'+Object.values(NAV_POINT_TYPE_PREFIX).join('|')+')(\\d+)$');
   let max = 0;
-  const re = new RegExp('^'+prefix+'(\\d+)$');
   for(const p of list){
     const m = re.exec(p.instanceName||'');
     if(m) max = Math.max(max, parseInt(m[1],10));
@@ -10397,10 +10403,14 @@ function resolveAnchoredControlPoints(){
   }
 }
 function generateStationNames(layer){
+  // Used to hand both ends of a new Station the SAME number (AP7/LM7) for
+  // readability -- now that naming has to stay globally unique across
+  // types (see generateNavPointName above), that would itself be a
+  // collision, so the AP and its near-LM get two distinct, consecutive
+  // numbers instead.
   const apName = generateNavPointName(layer, 'AP');
-  const lmName = generateNavPointName(layer, 'LM');
-  const n = Math.max(parseInt(apName.slice(2),10), parseInt(lmName.slice(2),10));
-  return {apName:'AP'+n, lmName:'LM'+n};
+  const n = parseInt(apName.slice(2),10);
+  return {apName:'AP'+n, lmName:'LM'+(n+1)};
 }
 // One-way, LM -> AP, Direction 1 (Backward) -- the robot backs out of the
 // LM into the exact AP spot to dock/pick, it doesn't drive out of the AP
