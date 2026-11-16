@@ -831,6 +831,7 @@
             <button type="button" class="shape-btn active" id="newPointTypeLM" title="Location Mark">Mark</button>
             <button type="button" class="shape-btn" id="newPointTypeCP" title="Charge Point">Charge</button>
             <button type="button" class="shape-btn" id="newPointTypeAP" title="Action Point">Action</button>
+            <button type="button" class="shape-btn" id="newPointTypePP" title="Park Point">Park</button>
             <button type="button" class="shape-btn" id="newPointTypeStation" title="Station: an Action Point with a Location Mark fixed ahead of it, linked by one-way paths">Station</button>
             <button type="button" class="shape-btn" id="newPointTypePickup" title="Pickup: a Station with a second, farther Location Mark attached to the first one">Pickup</button>
           </div>
@@ -884,6 +885,7 @@
           <option value="LocationMark">Location Mark</option>
           <option value="ChargePoint">Charge Point</option>
           <option value="ActionPoint">Action Point</option>
+          <option value="ParkPoint">Park Point</option>
           <option value="Station">Station</option>
           <option value="Pickup">Pickup</option>
         </select>
@@ -3956,7 +3958,7 @@ document.getElementById('newPathDirFwd').addEventListener('click', ()=>setNewPat
 document.getElementById('newPathDirBwd').addEventListener('click', ()=>setNewPathDirection('backward'));
 document.getElementById('newPathMovestyle').addEventListener('change', e=>{ state.newPathMovestyle = parseInt(e.target.value,10)||0; });
 
-const NAV_POINT_TYPE_PREFIX = { LocationMark:'LM', ChargePoint:'CP', ActionPoint:'AP' };
+const NAV_POINT_TYPE_PREFIX = { LocationMark:'LM', ChargePoint:'CP', ActionPoint:'AP', ParkPoint:'PP' };
 // RoboShop silently fails to load any route whose point names don't start
 // with one of its recognized prefixes followed by a number (confirmed
 // first-hand: a synthetic test file named "A"/"B" loaded the points but not
@@ -3975,6 +3977,7 @@ function setNewPointType(type){
   document.getElementById('newPointTypeLM').classList.toggle('active', type==='LocationMark');
   document.getElementById('newPointTypeCP').classList.toggle('active', type==='ChargePoint');
   document.getElementById('newPointTypeAP').classList.toggle('active', type==='ActionPoint');
+  document.getElementById('newPointTypePP').classList.toggle('active', type==='ParkPoint');
   document.getElementById('newPointTypeStation').classList.toggle('active', type==='Station');
   document.getElementById('newPointTypePickup').classList.toggle('active', type==='Pickup');
   document.getElementById('newPathSection').hidden = (type!=='Station' && type!=='Pickup');
@@ -3983,6 +3986,7 @@ function setNewPointType(type){
 document.getElementById('newPointTypeLM').addEventListener('click', ()=>setNewPointType('LocationMark'));
 document.getElementById('newPointTypeCP').addEventListener('click', ()=>setNewPointType('ChargePoint'));
 document.getElementById('newPointTypeAP').addEventListener('click', ()=>setNewPointType('ActionPoint'));
+document.getElementById('newPointTypePP').addEventListener('click', ()=>setNewPointType('ParkPoint'));
 document.getElementById('newPointTypeStation').addEventListener('click', ()=>setNewPointType('Station'));
 document.getElementById('newPointTypePickup').addEventListener('click', ()=>setNewPointType('Pickup'));
 renderStationPickupPanel();
@@ -4473,15 +4477,18 @@ const NAV_COLOR_CHARGE = '#16a34a';
 const NAV_COLOR_CHARGE_PRINT = '#0d7a34';
 const NAV_COLOR_ACTION = '#d97706';
 const NAV_COLOR_ACTION_PRINT = '#b45309';
+const NAV_COLOR_PARK = '#2f6fed';
+const NAV_COLOR_PARK_PRINT = '#1d4fb0';
 const RDS_LOCATION_COLOR = '#ffb347';
 const RDS_LOCATION_COLOR_PRINT = '#b4780f';
 const GRID_SEED_COLOR = '#ffcc00';
-const NAV_POINT_TYPES = ['LocationMark', 'ChargePoint', 'ActionPoint'];
-const NAV_POINT_TYPE_LABELS = { LocationMark:'Location Mark', ChargePoint:'Charge Point', ActionPoint:'Action Point' };
+const NAV_POINT_TYPES = ['LocationMark', 'ChargePoint', 'ActionPoint', 'ParkPoint'];
+const NAV_POINT_TYPE_LABELS = { LocationMark:'Location Mark', ChargePoint:'Charge Point', ActionPoint:'Action Point', ParkPoint:'Park Point' };
 
 function navColorForClassName(className){
   if(className==='ChargePoint') return state.printFriendly ? NAV_COLOR_CHARGE_PRINT : NAV_COLOR_CHARGE;
   if(className==='ActionPoint') return state.printFriendly ? NAV_COLOR_ACTION_PRINT : NAV_COLOR_ACTION;
+  if(className==='ParkPoint') return state.printFriendly ? NAV_COLOR_PARK_PRINT : NAV_COLOR_PARK;
   return state.printFriendly ? NAV_COLOR_PRINT : NAV_COLOR;
 }
 // Softer, type-distinct fill colors for the to-scale footprint rectangle —
@@ -4491,9 +4498,11 @@ function navColorForClassName(className){
 const FOOTPRINT_FILL_LM = '#9aa3ad';
 const FOOTPRINT_FILL_AP = '#5fb97e';
 const FOOTPRINT_FILL_CP = '#5b9bd5';
+const FOOTPRINT_FILL_PARK = '#6366f1';
 function footprintFillForClassName(className){
   if(className==='ChargePoint') return FOOTPRINT_FILL_CP;
   if(className==='ActionPoint') return FOOTPRINT_FILL_AP;
+  if(className==='ParkPoint') return FOOTPRINT_FILL_PARK;
   return FOOTPRINT_FILL_LM;
 }
 
@@ -4699,7 +4708,7 @@ function drawNavPoints(layer, pal){
       // type glyph: distinguishes Charge/Action points (and Action-Point Stations) from a plain Location Mark.
       // In footprint mode it's drawn bigger, at the rectangle's geometric center rather than the (possibly
       // off-center) reference point, so it doesn't compete with the reference-point cross below.
-      if(item.className==='ChargePoint' || item.className==='ActionPoint'){
+      if(item.className==='ChargePoint' || item.className==='ActionPoint' || item.className==='ParkPoint'){
         ctx.save();
         if(useFootprint){
           const glyphCx = (fp.height/2 - fp.fromBottom)*state.view.scale;
@@ -4713,6 +4722,11 @@ function drawNavPoints(layer, pal){
           ctx.beginPath();
           ctx.moveTo(-2,-6); ctx.lineTo(2,-6); ctx.lineTo(-1,0); ctx.lineTo(2,0); ctx.lineTo(-2,6); ctx.lineTo(0,1); ctx.lineTo(-3,1);
           ctx.closePath(); ctx.fill();
+        } else if(item.className==='ParkPoint'){
+          ctx.font = 'bold 11px "IBM Plex Mono", ui-monospace, monospace';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('P', 0, 0.5);
+          ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
         } else if(item.__pairedLM){
           // pallet glyph (side view: top deck + three blocks) for a Station's Action Point
           ctx.fillRect(-6,-6,12,2);
