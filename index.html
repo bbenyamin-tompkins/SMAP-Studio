@@ -2671,10 +2671,24 @@ navPtType.addEventListener('change', ()=>{
   const sel = getSelectedNavPoint();
   if(!sel || !sel.layer.visible) return;
   const {layer, pt} = sel;
-  pushUndo(layer);
   const newType = navPtType.value;
-  applyPointTypeChange(layer, pt, newType);
-  propagateTypeToPatternMembers(layer, pt, newType);
+  const prefix = NAV_POINT_TYPE_PREFIX[newType==='Station' || newType==='Pickup' ? 'ActionPoint' : newType];
+  if(prefix){
+    const points = layer.extra.advancedPointList;
+    const affected = [pt, ...patternSeedMemberNames(layer, pt).map(name=>findNavPointByName(layer, name)).filter(Boolean)];
+    for(const point of affected){
+      if((!isValidNavPointName(point.instanceName) || !point.instanceName.startsWith(prefix)) && points.filter(p=>p.instanceName===point.instanceName).length!==1){
+        alert('Cannot change type: the point name "'+point.instanceName+'" is duplicated on this layer.');
+        renderNavPointPanel();
+        return;
+      }
+    }
+  }
+  pushUndo(layer, true);
+  const renames = [];
+  applyPointTypeChange(layer, pt, newType, renames);
+  propagateTypeToPatternMembers(layer, pt, newType, renames);
+  if(renames.length) state.undoStack[state.undoStack.length-1].typeRenames = renames;
   prunePatterns();
   pruneGridPatterns();
   prunePathPatterns();
@@ -4414,6 +4428,9 @@ function undo(){
       if(other){ other.extra = saved.extra; other.reflectors = saved.reflectors; other.annotations = saved.annotations; }
     }
     state.patDraft = entry.patDraft;
+  }
+  if(entry.typeRenames){
+    for(const {oldName, newName} of entry.typeRenames) renamePointSelectionRefs(layer.id, newName, oldName);
   }
   // Image layers have no points to derive a bbox from — theirs is sized
   // from naturalW/H * metersPerPixel instead (see applyImageScale) and
@@ -10937,12 +10954,46 @@ function setPickupHandleMode(layer, apPt, which, useDimension){
     }
   }
 }
+function renamePointSelectionRefs(layerId, oldName, newName){
+  if(state.selectedNavPoint && state.selectedNavPoint.layerId===layerId && state.selectedNavPoint.instanceName===oldName) state.selectedNavPoint.instanceName = newName;
+  if(state.selectedPath && state.selectedPath.layerId===layerId){
+    if(state.selectedPath.nameA===oldName) state.selectedPath.nameA = newName;
+    if(state.selectedPath.nameB===oldName) state.selectedPath.nameB = newName;
+  }
+  for(const ref of [state.selectBasic, ...state.groupSelection]){
+    if(!ref || ref.layerId!==layerId) continue;
+    if(ref.kind==='navPoint' && ref.instanceName===oldName) ref.instanceName = newName;
+    if(ref.kind==='path' || ref.kind==='controlPoint'){
+      if(ref.nameA===oldName) ref.nameA = newName;
+      if(ref.nameB===oldName) ref.nameB = newName;
+    }
+  }
+}
 // Single entry point for changing a point's "type" from the UI, where type
-// is one of the three real classNames or the synthetic 'Station'/'Pickup'
-// values. Handles promoting into / unpairing out of a Station or Pickup as
-// needed; Pickup is a strict superset of Station (promote adds the far LM
-// on top, demoting from Pickup to Station strips just the far LM).
-function applyPointTypeChange(layer, pt, newType){
+// is one of the real classNames or the synthetic 'Station'/'Pickup' values.
+// Pickup is a strict superset of Station; demotion unpairs the extra points.
+function applyPointTypeChange(layer, pt, newType, renames){
+  const prefix = NAV_POINT_TYPE_PREFIX[newType==='Station' || newType==='Pickup' ? 'ActionPoint' : newType];
+  if(prefix){
+    const oldName = pt.instanceName;
+    const match = NAV_POINT_NAME_RE.test(oldName) && oldName.match(/\d+$/);
+    if(!match || !oldName.startsWith(prefix)){
+      const points = layer.extra.advancedPointList;
+      const suffix = match && match[0];
+      const usedNumber = suffix && points.some(p=>{
+        if(p===pt || !isValidNavPointName(p.instanceName)) return false;
+        const otherSuffix = p.instanceName.match(/\d+$/)[0];
+        return BigInt(otherSuffix)===BigInt(suffix);
+      });
+      const newName = suffix && !usedNumber ? prefix+suffix : generateNavPointName(layer, prefix);
+      if(!renameNavPoint(layer, oldName, newName)){
+        alert('Could not rename point "'+oldName+'" while changing its type.');
+        return;
+      }
+      renamePointSelectionRefs(layer.id, oldName, newName);
+      if(renames) renames.push({oldName, newName});
+    }
+  }
   const wasStation = isStationDriver(pt) || isStationFollower(pt);
   const wasPickup = isPickupAp(pt);
   if(newType==='Pickup'){
@@ -10978,10 +11029,10 @@ function patternSeedMemberNames(layer, seedPt){
 // A pattern/grid seed's type is treated as part of its cloned seed data, but
 // changing it only affected instances created afterward. This brings every
 // existing (non-skipped) instance/cell in step with the seed's new type too.
-function propagateTypeToPatternMembers(layer, seedPt, newType){
+function propagateTypeToPatternMembers(layer, seedPt, newType, renames){
   for(const name of patternSeedMemberNames(layer, seedPt)){
     const memberPt = findNavPointByName(layer, name);
-    if(memberPt) applyPointTypeChange(layer, memberPt, newType);
+    if(memberPt) applyPointTypeChange(layer, memberPt, newType, renames);
   }
 }
 // Same idea for a Station seed's LM distance: editing it on the seed is
