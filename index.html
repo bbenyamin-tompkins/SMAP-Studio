@@ -1855,13 +1855,6 @@ function moveLayer(id, dir){
   renderLayersList(); scheduleAutosave(); requestDraw();
 }
 
-// Flattens a layer into the one visually below it (lower stacking index),
-// reusing buildSmapFromLayers — the same world-space-flatten + name-collision
-// logic the .smap export path already relies on — so the merged result is
-// just a fresh layer built from that combined data, sitting at an identity
-// transform exactly like any freshly-imported .smap (see buildLayer). The
-// "below" layer is treated as primary: its name/color survive, and on any
-// point-name collision it's the merging-in layer's point that gets renamed.
 function mergeLayerDown(id){
   const i = state.layers.findIndex(l=>l.id===id);
   if(i<=0) return;
@@ -1870,13 +1863,108 @@ function mergeLayerDown(id){
     alert('Background image layers are reference-only and can\'t be merged.');
     return;
   }
+  if(layer.rdsRule && below.rdsRule && JSON.stringify(layer.rdsRule)!==JSON.stringify(below.rdsRule)){
+    alert('These layers have different RDS naming rules. Make the rules match before merging.');
+    return;
+  }
+  for(const key of Object.keys(layer.extra||{})){
+    const a = below.extra && below.extra[key], b = layer.extra[key];
+    if(a!==undefined && (!Array.isArray(a) || !Array.isArray(b)) && JSON.stringify(a)!==JSON.stringify(b)){
+      alert('The layers have conflicting map metadata for "'+key+'"; merge was cancelled.');
+      return;
+    }
+  }
+  const lowerPoints = (below.extra && below.extra.advancedPointList) || [];
+  const upperPoints = (layer.extra && layer.extra.advancedPointList) || [];
+  for(const list of [lowerPoints,upperPoints]){
+    if(new Set(list.map(p=>p.instanceName)).size!==list.length){
+      alert('A layer contains duplicate point names. Resolve them before merging.');
+      return;
+    }
+  }
+  const usedNames = new Set([...lowerPoints,...upperPoints].map(p=>p.instanceName));
+  const lowerNames = new Set(lowerPoints.map(p=>p.instanceName));
+  const renames = [];
+  for(const pt of upperPoints){
+    if(!lowerNames.has(pt.instanceName)) continue;
+    const next = uniqueMergedName(pt.instanceName, usedNames);
+    if(!isValidNavPointName(next)){
+      alert('The conflicting point "'+pt.instanceName+'" cannot be renamed automatically. Rename it before merging.');
+      return;
+    }
+    usedNames.add(next);
+    renames.push([pt.instanceName,next]);
+  }
   if(!confirm('Merge "'+layer.name+'" into "'+below.name+'"? Their map data is combined into one layer.')) return;
-  const merged = buildLayer(buildSmapFromLayers([below, layer], below.name), below.name);
-  merged.color = below.color;
-  merged.visible = below.visible || layer.visible;
-  pushLayerListUndo();
-  state.layers.splice(i-1, 2, merged);
-  if(state.activeLayerId===layer.id || state.activeLayerId===below.id) state.activeLayerId = merged.id;
+  pushLayerListUndo(true);
+  for(const [oldName,newName] of renames) renameNavPoint(layer,oldName,newName);
+  bakeLayerTransform(below);
+  bakeLayerTransform(layer);
+
+  const objects = l=>[
+    ...((l.extra && l.extra.advancedPointList)||[]), ...l.reflectors, ...l.manualLines,
+    ...((l.extra && l.extra.advancedAreaList)||[]), ...(l.annotations||[])
+  ];
+  const lowerObjects = objects(below), upperObjects = objects(layer);
+  for(const field of ['__rigidGroup','__group']){
+    const used = new Set(lowerObjects.map(o=>o[field]).filter(Boolean));
+    const replacements = new Map();
+    for(const obj of upperObjects){
+      const old = obj[field];
+      if(!old) continue;
+      if(!replacements.has(old)){
+        const next = used.has(old) ? uniqueMergedName(old,used) : old;
+        replacements.set(old,next);
+        used.add(next);
+      }
+      obj[field] = replacements.get(old);
+    }
+  }
+  const reflectorOffset = below.reflectors.length;
+  const areaOffset = ((below.extra && below.extra.advancedAreaList)||[]).length;
+  const annotationOffset = (below.annotations||[]).length;
+  forEachConstraint(constraint=>{
+    if(constraint.anchorLayerId!==layer.id) return;
+    constraint.anchorLayerId = below.id;
+    if(constraint.anchorKind==='reflector') constraint.anchorReflectorIndex += reflectorOffset;
+    if(constraint.anchorKind==='edge') constraint.anchorAreaIndex += constraint.anchorAreaKind==='annotation' ? annotationOffset : areaOffset;
+  }, true);
+  for(const rel of state.relations) for(const ref of rel.participants){
+    if(ref.layerId!==layer.id) continue;
+    ref.layerId = below.id;
+    if(ref.kind==='reflector') ref.index += reflectorOffset;
+    if(ref.kind==='edge') ref.areaIndex += ref.areaKind==='annotation' ? annotationOffset : areaOffset;
+  }
+  for(const pat of [...state.patterns,...state.gridPatterns,...state.pathPatterns]){
+    if(pat.layerId===layer.id) pat.layerId = below.id;
+  }
+  const mergePositions = (first,second)=>{
+    const out=[], seen=new Set();
+    for(const arr of [first,second]) for(let n=0;n<arr.length;n+=2){
+      const key=arr[n]+','+arr[n+1];
+      if(!seen.has(key)){ seen.add(key); out.push(arr[n],arr[n+1]); }
+    }
+    return out;
+  };
+  below.points = mergePositions(below.points,layer.points);
+  below.rssi = mergePositions(below.rssi,layer.rssi);
+  below.reflectors = below.reflectors.concat(layer.reflectors);
+  below.manualLines = below.manualLines.concat(layer.manualLines);
+  below.annotations = (below.annotations||[]).concat(layer.annotations||[]);
+  if(!below.extra) below.extra = {};
+  for(const [key,value] of Object.entries(layer.extra||{})){
+    if(Array.isArray(value)) below.extra[key] = (below.extra[key]||[]).concat(value);
+    else if(below.extra[key]===undefined) below.extra[key] = value;
+  }
+  if(!below.rdsRule && layer.rdsRule) below.rdsRule = layer.rdsRule;
+  below.visible = below.visible || layer.visible;
+  below.localBBox = bboxOfPoints(below.points.length ? below.points : (below.reflectors.length ? below.reflectors.flatMap(r=>[r.x,r.y]) : [0,0]));
+  state.layers.splice(i,1);
+  if(state.activeLayerId===layer.id) state.activeLayerId = below.id;
+  state.selectedNavPoint = null; state.selectedPath = null; state.selectedArea = null;
+  state.selectedAreaEdge = null; state.selectedDimension = null; state.relSelection = [];
+  state.selectedAnnotation = null; state.groupSelection = []; state.selectBasic = null; state.isolatedPath = null;
+  state.pathPatternArm = null; state.patDraft = null;
   renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); scheduleAutosave(); requestDraw();
 }
 
@@ -2094,11 +2182,13 @@ function bakeLayerTransform(layer){
   for(const r of layer.reflectors){
     const [nx,ny] = bake(r.x, r.y);
     r.x = nx; r.y = ny;
+    if(r.__fixed) r.__fixed = bakeXY(r.__fixed);
   }
   if(layer.extra){
     if(Array.isArray(layer.extra.advancedPointList)){
       for(const pt of layer.extra.advancedPointList){
         pt.pos = bakeXY(pt.pos);
+        if(pt.__fixed) pt.__fixed = bakeXY(pt.__fixed);
         if(typeof pt.dir==='number') pt.dir = Math.atan2(Math.sin(pt.dir+rot), Math.cos(pt.dir+rot));
       }
     }
@@ -2113,6 +2203,9 @@ function bakeLayerTransform(layer){
         if(c.controlPos2) c.controlPos2 = bakeXY(c.controlPos2);
         if(c.startPos && c.startPos.pos) c.startPos.pos = bakeXY(c.startPos.pos);
         if(c.endPos && c.endPos.pos) c.endPos.pos = bakeXY(c.endPos.pos);
+        if(c.__fixedCP){
+          for(const which of Object.keys(c.__fixedCP)) c.__fixedCP[which] = bakeXY(c.__fixedCP[which]);
+        }
       }
     }
     if(Array.isArray(layer.extra.advancedLineList)){
@@ -2120,6 +2213,17 @@ function bakeLayerTransform(layer){
         if(item.line && item.line.startPos) item.line.startPos = bakeXY(item.line.startPos);
         if(item.line && item.line.endPos) item.line.endPos = bakeXY(item.line.endPos);
       }
+    }
+    const bakeExtra = node=>{
+      if(Array.isArray(node)){ node.forEach(bakeExtra); return; }
+      if(!node || typeof node!=='object') return;
+      if(typeof node.x==='number' && typeof node.y==='number'){
+        [node.x,node.y] = bake(node.x,node.y);
+      }
+      for(const [key,value] of Object.entries(node)) if(!key.startsWith('__')) bakeExtra(value);
+    };
+    for(const [key,value] of Object.entries(layer.extra)){
+      if(!['advancedPointList','advancedAreaList','advancedCurveList','advancedLineList','binLocationsList'].includes(key) && !key.startsWith('__')) bakeExtra(value);
     }
   }
   for(const ln of layer.manualLines){
@@ -2131,6 +2235,17 @@ function bakeLayerTransform(layer){
     else if(anno.type==='arrow'){ anno.from = bakeXY(anno.from); anno.to = bakeXY(anno.to); }
     else if(anno.type==='area' && Array.isArray(anno.posGroup)){ anno.posGroup = anno.posGroup.map(bakeXY); }
   }
+  forEachConstraint(constraint=>{
+    if(constraint.anchorKind==='scanPoint' && constraint.anchorLayerId===layer.id){
+      [constraint.anchorLocalX, constraint.anchorLocalY] = bake(constraint.anchorLocalX, constraint.anchorLocalY);
+    }
+  }, true);
+  for(const holder of [...state.patterns, state.patDraft]){
+    if(!holder || holder.layerId!==layer.id || !holder.wall || !holder.wall.origin) continue;
+    holder.wall.origin = bakeXY(holder.wall.origin);
+    if(Array.isArray(holder.wall.picks)) holder.wall.picks = holder.wall.picks.map(bakeXY);
+    holder.wall.angle += rot;
+  }
   layer.transform = {tx:0, ty:0, rot:0};
   layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : (layer.reflectors.length ? layer.reflectors.flatMap(r=>[r.x,r.y]) : [0,0]));
   return true;
@@ -2139,7 +2254,7 @@ btnBakeTransform.addEventListener('click', ()=>{
   const layer = getEditableActiveLayer(); if(!layer) return;
   const {tx, ty, rot} = layer.transform;
   if(tx===0 && ty===0 && rot===0) return;
-  pushUndo(layer);
+  pushUndo(layer, true);
   bakeLayerTransform(layer);
   resolveAllConstraints(); resolveAllRelations(); resolvePickupOffsets(); resolveAnchoredControlPoints();
   renderDetailPanel(); scheduleAutosave(); requestDraw();
@@ -2239,35 +2354,7 @@ function renameNavPoint(layer, oldName, newName){
       if(c.anchorNameB===oldName) c.anchorNameB = newName;
     }
   };
-  for(const otherLayer of state.layers){
-    const areas = otherLayer.extra && otherLayer.extra.advancedAreaList;
-    if(Array.isArray(areas)){
-      for(const area of areas){
-        if(!area.__edgeConstraints) continue;
-        for(const ek of Object.keys(area.__edgeConstraints)) fixAnchorName(area.__edgeConstraints[ek]);
-      }
-    }
-    const otherPts = otherLayer.extra && otherLayer.extra.advancedPointList;
-    if(Array.isArray(otherPts)){
-      for(const otherPt of otherPts){
-        if(!otherPt.__ptConstraints) continue;
-        for(const axis of Object.keys(otherPt.__ptConstraints)) fixAnchorName(otherPt.__ptConstraints[axis]);
-      }
-    }
-    for(const r of otherLayer.reflectors){
-      if(!r.__ptConstraints) continue;
-      for(const axis of Object.keys(r.__ptConstraints)) fixAnchorName(r.__ptConstraints[axis]);
-    }
-    const otherCurves = otherLayer.extra && otherLayer.extra.advancedCurveList;
-    if(Array.isArray(otherCurves)){
-      for(const c of otherCurves){
-        if(!c.__cpConstraints) continue;
-        for(const which of Object.keys(c.__cpConstraints)){
-          for(const axis of Object.keys(c.__cpConstraints[which])) fixAnchorName(c.__cpConstraints[which][axis]);
-        }
-      }
-    }
-  }
+  forEachConstraint(fixAnchorName, true);
   for(const rel of state.relations){
     for(const p of rel.participants){
       if(p.layerId!==layer.id) continue;
@@ -2281,12 +2368,40 @@ function renameNavPoint(layer, oldName, newName){
   for(const pat of state.patterns){
     if(pat.layerId!==layer.id) continue;
     if(pat.seedName===oldName) pat.seedName = newName;
-    for(const inst of pat.instances){ if(inst.name===oldName) inst.name = newName; }
+    if(pat.groupOtherSeedNames) pat.groupOtherSeedNames = pat.groupOtherSeedNames.map(n=>n===oldName ? newName : n);
+    for(const pair of (pat.groupCurvePairs||[])){
+      if(pair.a===oldName) pair.a = newName;
+      if(pair.b===oldName) pair.b = newName;
+    }
+    for(const inst of pat.instances){
+      if(inst.name===oldName) inst.name = newName;
+      if(inst.otherNames) inst.otherNames = inst.otherNames.map(n=>n===oldName ? newName : n);
+    }
   }
   for(const grid of state.gridPatterns){
     if(grid.layerId!==layer.id) continue;
     if(grid.seedName===oldName) grid.seedName = newName;
-    for(const key of Object.keys(grid.cells)){ if(grid.cells[key].name===oldName) grid.cells[key].name = newName; }
+    if(grid.groupOtherSeedNames) grid.groupOtherSeedNames = grid.groupOtherSeedNames.map(n=>n===oldName ? newName : n);
+    for(const pair of (grid.groupCurvePairs||[])){
+      if(pair.a===oldName) pair.a = newName;
+      if(pair.b===oldName) pair.b = newName;
+    }
+    for(const cell of Object.values(grid.cells)){
+      if(cell.name===oldName) cell.name = newName;
+      if(cell.otherNames) cell.otherNames = cell.otherNames.map(n=>n===oldName ? newName : n);
+    }
+  }
+  const renamePathRef = ref=>{
+    if(ref.nameA===oldName) ref.nameA = newName;
+    if(ref.nameB===oldName) ref.nameB = newName;
+  };
+  for(const pat of state.pathPatterns){
+    if(pat.layerId!==layer.id) continue;
+    renamePathRef(pat.source);
+    for(const target of pat.targets) renamePathRef(target);
+  }
+  if(state.pathPatternArm && state.pathPatternArm.layerId===layer.id){
+    renamePathRef(state.pathPatternArm);
   }
   // An RDS GeneralLocation links back to its nav point by pointName only
   // (see allBinLocationEntries) -- without this, renaming a point here
@@ -2605,7 +2720,7 @@ navPtName.addEventListener('change', ()=>{
     renderNavPointPanel();
     return;
   }
-  pushUndo(layer);
+  pushUndo(layer, true);
   if(renameNavPoint(layer, oldName, newName)){
     state.selectedNavPoint.instanceName = newName;
     if(state.selectedPath && state.selectedPath.layerId===layer.id){
@@ -2866,7 +2981,7 @@ btnSkipNavPoint.addEventListener('click', ()=>{
   const {layer, pt} = sel;
   const skippable = findSkippableInstance(layer, pt.instanceName);
   if(!skippable) return;
-  pushUndo(layer);
+  pushUndo(layer, true);
   if(skippable.kind==='linear') togglePatternInstanceSkip(skippable.pat, skippable.index);
   else toggleGridCellSkip(skippable.grid, skippable.row, skippable.col);
   scheduleAutosave();
@@ -3262,12 +3377,41 @@ function restoreCurveShape(curve, snap){
 // with the others, which is how bug_pattern_ghost.webm happened -- the
 // Select tool's delete was never taught about pattern tracking at all.
 function deletePathBetween(layer, nameA, nameB){
-  const fwd = findCurveByEndpoints(layer, nameA, nameB);
-  const bwd = findCurveByEndpoints(layer, nameB, nameA);
-  if(!fwd && !bwd) return false;
-  layer.extra.advancedCurveList = layer.extra.advancedCurveList.filter(c=>c!==fwd && c!==bwd);
-  if(state.pathPatternArm && pathPatternKeyMatches(state.pathPatternArm, nameA, nameB)) state.pathPatternArm = null;
-  prunePathPatterns();
+  return deletePathsBetween(layer, [{nameA, nameB}]);
+}
+function deletePathsBetween(layer, pairs, deferPrune=false){
+  const curves = layer.extra && layer.extra.advancedCurveList;
+  if(!Array.isArray(curves) || !pairs.length) return false;
+  const byStart = new Map();
+  for(const curve of curves){
+    if(!curve.startPos || !curve.endPos) continue;
+    const a = curve.startPos.instanceName, b = curve.endPos.instanceName;
+    if(!byStart.has(a)) byStart.set(a, new Map());
+    const ends = byStart.get(a);
+    if(!ends.has(b)) ends.set(b, {curves:[], next:0});
+    ends.get(b).curves.push(curve);
+  }
+  const removed = new Set();
+  const take = (a,b)=>{
+    const bucket = byStart.get(a) && byStart.get(a).get(b);
+    if(!bucket) return null;
+    while(bucket.next<bucket.curves.length){
+      const curve = bucket.curves[bucket.next++];
+      if(!removed.has(curve)) return curve;
+    }
+    return null;
+  };
+  for(const {nameA,nameB} of pairs){
+    const fwd = take(nameA,nameB);
+    const bwd = nameA===nameB ? fwd : take(nameB,nameA);
+    if(!fwd && !bwd) continue;
+    if(fwd) removed.add(fwd);
+    if(bwd) removed.add(bwd);
+    if(state.pathPatternArm && pathPatternKeyMatches(state.pathPatternArm, nameA, nameB)) state.pathPatternArm = null;
+  }
+  if(!removed.size) return false;
+  layer.extra.advancedCurveList = curves.filter(c=>!removed.has(c));
+  if(!deferPrune) prunePathPatterns();
   return true;
 }
 // A curve pair already claimed by some OTHER pattern -- as that pattern's
@@ -3597,16 +3741,14 @@ function removeAnnotationAreasWithIndexFix(layer, predicate){
   return removedIndices;
 }
 
-function forEachConstraint(fn){
+function forEachConstraint(fn, includeAdditional=false){
   for(const layer of state.layers){
-    const areas = layer.extra && layer.extra.advancedAreaList;
-    if(Array.isArray(areas)){
-      for(const area of areas){
+    const areas = (layer.extra && layer.extra.advancedAreaList) || [];
+    for(const area of [...areas, ...(includeAdditional ? (layer.annotations||[]) : [])]){
         if(!area.__edgeConstraints) continue;
         for(const ek of Object.keys(area.__edgeConstraints)){
           fn(area.__edgeConstraints[ek], ()=>{ delete area.__edgeConstraints[ek]; if(Object.keys(area.__edgeConstraints).length===0) delete area.__edgeConstraints; });
         }
-      }
     }
     const pts = layer.extra && layer.extra.advancedPointList;
     if(Array.isArray(pts)){
@@ -3621,6 +3763,20 @@ function forEachConstraint(fn){
       if(!r.__ptConstraints) continue;
       for(const axis of Object.keys(r.__ptConstraints)){
         fn(r.__ptConstraints[axis], ()=>{ delete r.__ptConstraints[axis]; if(Object.keys(r.__ptConstraints).length===0) delete r.__ptConstraints; });
+      }
+    }
+    const curves = layer.extra && layer.extra.advancedCurveList;
+    if(includeAdditional && Array.isArray(curves)) for(const curve of curves){
+      if(!curve.__cpConstraints) continue;
+      for(const which of Object.keys(curve.__cpConstraints)){
+        const bucket = curve.__cpConstraints[which];
+        for(const axis of Object.keys(bucket)){
+          fn(bucket[axis], ()=>{
+            delete bucket[axis];
+            if(!Object.keys(bucket).length) delete curve.__cpConstraints[which];
+            if(!Object.keys(curve.__cpConstraints).length) delete curve.__cpConstraints;
+          });
+        }
       }
     }
   }
@@ -3801,7 +3957,7 @@ selectBasicName.addEventListener('change', ()=>{
       renderSelectPanel();
       return;
     }
-    pushUndo(layer);
+    pushUndo(layer, true);
     if(renameNavPoint(layer, t.instanceName, v)){ t.instanceName = v; scheduleAutosave(); requestDraw(); }
   } else if(t.kind==='area'){
     const area = layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[t.areaIndex];
@@ -4168,14 +4324,14 @@ document.getElementById('btnCenterOrigin').addEventListener('click', ()=>{
 
 // ---------------- undo ----------------
 
-function pushUndo(layer){
+function pushUndo(layer, captureOtherLayers=false){
   state.undoStack.push({
     type: 'layerField',
     layerId: layer.id,
     name: layer.name,
     points: layer.points.slice(),
     rssi: layer.rssi.slice(),
-    reflectors: layer.reflectors.map(r=>({...r})),
+    reflectors: JSON.parse(JSON.stringify(layer.reflectors)),
     manualLines: layer.manualLines.map(l=>({...l})),
     annotations: JSON.parse(JSON.stringify(layer.annotations||[])),
     extra: JSON.parse(JSON.stringify(layer.extra||{})),
@@ -4190,25 +4346,32 @@ function pushUndo(layer){
     relations: JSON.parse(JSON.stringify(state.relations)),
     patterns: JSON.parse(JSON.stringify(state.patterns)),
     gridPatterns: JSON.parse(JSON.stringify(state.gridPatterns)),
+    pathPatterns: JSON.parse(JSON.stringify(state.pathPatterns)),
+    pathPatternArm: state.pathPatternArm ? {...state.pathPatternArm} : null,
+    rdsRule: layer.rdsRule ? JSON.parse(JSON.stringify(layer.rdsRule)) : undefined,
+    otherLayers: captureOtherLayers ? state.layers.filter(l=>l!==layer).map(l=>({
+      id:l.id,
+      extra:JSON.parse(JSON.stringify(l.extra||{})),
+      reflectors:JSON.parse(JSON.stringify(l.reflectors||[])),
+      annotations:JSON.parse(JSON.stringify(l.annotations||[])),
+    })) : null,
+    patDraft: captureOtherLayers && state.patDraft ? JSON.parse(JSON.stringify(state.patDraft)) : null,
   });
   if(state.undoStack.length>20) state.undoStack.shift();
   updateUndoButton();
 }
-// Covers layer-LIST structural changes (add/delete/reorder/merge) that
-// pushUndo (above) can't: that one snapshots a single existing layer's own
-// fields to restore in place, which can't put a deleted layer back or take
-// a merged/added one back out. Shares the same global state.undoStack so
-// a structural change and a field edit undo in the correct relative order
-// regardless of which kind the user just did. Snapshotting the array by
-// reference is safe here: none of add/delete/reorder/merge mutate an
-// existing layer object's own fields, only which objects are IN the array
-// and in what order (merge builds an entirely new layer object instead of
-// mutating either source, so the two originals this restores are untouched).
-function pushLayerListUndo(){
+// Layer-list changes normally retain the existing layer objects. Merge and
+// split also mutate layers and cross-layer references, so they request copies.
+function pushLayerListUndo(copyLayers=false){
   state.undoStack.push({
     type: 'layerList',
-    layers: state.layers.slice(),
+    layers: copyLayers ? state.layers.map(l=>l.kind==='image' ? l : JSON.parse(JSON.stringify(l))) : state.layers.slice(),
     activeLayerId: state.activeLayerId,
+    relations: JSON.parse(JSON.stringify(state.relations)),
+    patterns: JSON.parse(JSON.stringify(state.patterns)),
+    gridPatterns: JSON.parse(JSON.stringify(state.gridPatterns)),
+    pathPatterns: JSON.parse(JSON.stringify(state.pathPatterns)),
+    pathPatternArm: state.pathPatternArm ? {...state.pathPatternArm} : null,
   });
   if(state.undoStack.length>20) state.undoStack.shift();
   updateUndoButton();
@@ -4219,6 +4382,11 @@ function undo(){
   if(entry.type==='layerList'){
     state.layers = entry.layers;
     state.activeLayerId = entry.activeLayerId;
+    state.relations = entry.relations;
+    state.patterns = entry.patterns;
+    state.gridPatterns = entry.gridPatterns;
+    state.pathPatterns = entry.pathPatterns;
+    state.pathPatternArm = entry.pathPatternArm;
     renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderRelPanel(); renderPatternPanel(); scheduleAutosave(); requestDraw(); updateUndoButton();
     return;
   }
@@ -4237,6 +4405,16 @@ function undo(){
   if(entry.relations) state.relations = entry.relations;
   if(entry.patterns) state.patterns = entry.patterns;
   if(entry.gridPatterns) state.gridPatterns = entry.gridPatterns;
+  if(entry.pathPatterns) state.pathPatterns = entry.pathPatterns;
+  state.pathPatternArm = entry.pathPatternArm;
+  layer.rdsRule = entry.rdsRule;
+  if(entry.otherLayers){
+    for(const saved of entry.otherLayers){
+      const other = getLayer(saved.id);
+      if(other){ other.extra = saved.extra; other.reflectors = saved.reflectors; other.annotations = saved.annotations; }
+    }
+    state.patDraft = entry.patDraft;
+  }
   // Image layers have no points to derive a bbox from — theirs is sized
   // from naturalW/H * metersPerPixel instead (see applyImageScale) and
   // would otherwise get clobbered down to a zero-size box here, since an
@@ -4288,11 +4466,16 @@ function fitView(){
 function worldToScreen(wx,wy){ return [wx*state.view.scale+state.view.tx, -wy*state.view.scale+state.view.ty]; }
 function screenToWorld(sx,sy){ return [(sx-state.view.tx)/state.view.scale, -(sy-state.view.ty)/state.view.scale]; }
 
-let drawScheduled=false;
-function requestDraw(){
+let drawScheduled=false, modelDirty=true, drawLookupCache=null;
+function requestDraw(viewOnly=false){
+  if(!viewOnly) modelDirty = true;
   if(drawScheduled) return;
   drawScheduled = true;
-  requestAnimationFrame(()=>{ drawScheduled=false; draw(); });
+  requestAnimationFrame(()=>{
+    drawScheduled = false;
+    drawLookupCache = new WeakMap();
+    try { draw(); } finally { drawLookupCache = null; }
+  });
 }
 
 function niceScaleMeters(pxTarget){
@@ -6119,16 +6302,25 @@ function drawGridPatterns(){
 }
 
 function draw(){
-  resolveAllConstraints();
-  resolveAllRelations();
-  resolveAllPatterns();
-  resolveAllGridPatterns();
-  resolveRdsLocationPositions();
-  resolveFixedPositions();
-  resolvePairOffsets();
-  resolvePickupOffsets();
-  resolvePathPatterns();
-  resolveAnchoredControlPoints();
+  if(modelDirty){
+    modelDirty = false;
+    let solved = false;
+    try {
+      resolveAllConstraints();
+      resolveAllRelations();
+      resolveAllPatterns();
+      resolveAllGridPatterns();
+      resolveRdsLocationPositions();
+      resolveFixedPositions();
+      resolvePairOffsets();
+      resolvePickupOffsets();
+      resolvePathPatterns();
+      resolveAnchoredControlPoints();
+      solved = true;
+    } finally {
+      if(!solved) modelDirty = true;
+    }
+  }
   const pal = currentPalette();
   ctx.fillStyle = pal.bg;
   ctx.fillRect(0,0,cssW,cssH);
@@ -6592,7 +6784,18 @@ function findNavPointAt(layer, sx, sy, pxThreshold){
 }
 function findNavPointByName(layer, name){
   const list = layer.extra && layer.extra.advancedPointList;
-  return Array.isArray(list) ? list.find(p=>p.instanceName===name) : null;
+  if(!Array.isArray(list)) return null;
+  if(!drawLookupCache) return list.find(p=>p.instanceName===name);
+  let cache = drawLookupCache.get(layer);
+  if(!cache){ cache = {}; drawLookupCache.set(layer, cache); }
+  if(!cache.points || cache.points.list!==list || cache.points.length!==list.length){
+    const names = new Map();
+    list.forEach((point,i)=>{ if(!names.has(point.instanceName)) names.set(point.instanceName, i); });
+    cache.points = {list, length:list.length, names};
+  }
+  const index = cache.points.names.get(name);
+  const point = index===undefined ? null : list[index];
+  return point && point.instanceName===name ? point : list.find(p=>p.instanceName===name);
 }
 function controlPointHasAnyRelation(layer, nameA, nameB, which){
   return state.relations.some(rel=>rel.participants.some(p=>
@@ -6816,13 +7019,16 @@ function setRdsName(layer, pt, name){
 // Removes pt's RDS location entirely, and the now-empty wrapper it alone
 // occupied, if any.
 function removeRdsName(layer, pt){
+  return removeRdsNames(layer, new Set([pt.instanceName]));
+}
+function removeRdsNames(layer, names){
   const wrappers = layer.extra && layer.extra.binLocationsList;
   if(!Array.isArray(wrappers)) return false;
   let removed = false;
   layer.extra.binLocationsList = wrappers.filter(w=>{
     if(!w || !Array.isArray(w.binLocationList)) return true;
     const before = w.binLocationList.length;
-    w.binLocationList = w.binLocationList.filter(e=>e.pointName!==pt.instanceName);
+    w.binLocationList = w.binLocationList.filter(e=>!names.has(e.pointName));
     if(w.binLocationList.length!==before) removed = true;
     return w.binLocationList.length>0;
   });
@@ -6937,7 +7143,7 @@ function renderRdsEditTable(tbody, errEl, layer, pointsFn, opts){
           ptInput.value = pt.instanceName;
           return;
         }
-        pushUndo(layer);
+        pushUndo(layer, true);
         if(!renameNavPoint(layer, pt.instanceName, newName)){
           state.undoStack.pop(); updateUndoButton();
           showErr('Could not rename to “'+newName+'”.');
@@ -7361,40 +7567,47 @@ function createMirroredPath(layer, curve){
   return mirrored;
 }
 function deleteNavPoint(layer, name){
-  if(!layer.extra) return;
-  const pt = findNavPointByName(layer, name);
-  // Deleting any piece of a Station or Pickup takes the rest of it with it —
-  // every deletion path (pattern/grid shrink, skip, rect-select erase, the
-  // Del key, the single delete button, pruning) funnels through here, so
-  // this is the one place that needs to know about pairing instead of each
-  // call site. Recursing one link at a time (rather than resolving the whole
-  // chain up front) is what lets a 3-point Pickup fully cascade regardless
-  // of which of its three points you started from.
-  const partnerNames = [];
-  if(pt){
-    if(isStationDriver(pt)) partnerNames.push(pt.__pairedLM.name);
-    if(isStationFollower(pt)) partnerNames.push(pt.__pairedAP);
-    if(isPickupAp(pt)) partnerNames.push(pt.__pickupFar.name);
-    if(isPickupFollower(pt)) partnerNames.push(pt.__pickupNear);
+  deleteNavPoints(layer, [name]);
+}
+function navPointsByName(layer){
+  const points = layer.extra.advancedPointList;
+  const byName = new Map();
+  if(Array.isArray(points)){
+    for(const pt of points) if(!byName.has(pt.instanceName)) byName.set(pt.instanceName, pt);
   }
-  if(Array.isArray(layer.extra.advancedPointList)){
-    layer.extra.advancedPointList = layer.extra.advancedPointList.filter(p=>p.instanceName!==name);
+  return byName;
+}
+function collectNavPointCascade(byName, names, removedNames){
+  const pending = [...names];
+  for(let i=0;i<pending.length;i++){
+    const name = pending[i];
+    if(removedNames.has(name)) continue;
+    removedNames.add(name);
+    const pt = byName.get(name);
+    if(!pt) continue;
+    if(isStationDriver(pt)) pending.push(pt.__pairedLM.name);
+    if(isStationFollower(pt)) pending.push(pt.__pairedAP);
+    if(isPickupAp(pt)) pending.push(pt.__pickupFar.name);
+    if(isPickupFollower(pt)) pending.push(pt.__pickupNear);
+  }
+}
+function deleteNavPoints(layer, names, deferPrune=false){
+  if(!layer.extra) return;
+  const pending = [...names];
+  if(!pending.length) return;
+  const points = layer.extra.advancedPointList;
+  const removedNames = new Set();
+  collectNavPointCascade(navPointsByName(layer), pending, removedNames);
+  if(Array.isArray(points)){
+    layer.extra.advancedPointList = points.filter(p=>!removedNames.has(p.instanceName));
   }
   if(Array.isArray(layer.extra.advancedCurveList)){
     layer.extra.advancedCurveList = layer.extra.advancedCurveList.filter(c=>
-      !(c.startPos && c.startPos.instanceName===name) && !(c.endPos && c.endPos.instanceName===name)
+      !(c.startPos && removedNames.has(c.startPos.instanceName)) && !(c.endPos && removedNames.has(c.endPos.instanceName))
     );
   }
-  // An RDS location is linked to its nav point by pointName only (see
-  // allBinLocationEntries) -- without this it survives the point's
-  // deletion as an orphaned entry pointing at a name that no longer exists.
-  removeRdsName(layer, {instanceName:name});
-  pruneInvalidRelations();
-  // Every curve this point touched just got dropped above -- any path
-  // pattern tracking one of them (as its source or a target) would
-  // otherwise be left pointing at a curve that no longer exists.
-  prunePathPatterns();
-  for(const partnerName of partnerNames) deleteNavPoint(layer, partnerName);
+  removeRdsNames(layer, removedNames);
+  if(!deferPrune){ pruneInvalidRelations(); prunePathPatterns(); }
 }
 
 function worldDeltaToLocal(layer, dx, dy){
@@ -7406,6 +7619,24 @@ function worldDeltaToLocal(layer, dx, dy){
 function findCurveByEndpoints(layer, startName, endName){
   const list = layer.extra && layer.extra.advancedCurveList;
   if(!Array.isArray(list)) return null;
+  if(drawLookupCache){
+    let cache = drawLookupCache.get(layer);
+    if(!cache){ cache = {}; drawLookupCache.set(layer, cache); }
+    if(!cache.curves || cache.curves.list!==list || cache.curves.length!==list.length){
+      const starts = new Map();
+      list.forEach((curve,i)=>{
+        if(!curve.startPos || !curve.endPos) return;
+        const a = curve.startPos.instanceName, b = curve.endPos.instanceName;
+        if(!starts.has(a)) starts.set(a, new Map());
+        if(!starts.get(a).has(b)) starts.get(a).set(b,i);
+      });
+      cache.curves = {list, length:list.length, starts};
+    }
+    const ends = cache.curves.starts.get(startName);
+    const index = ends && ends.get(endName);
+    const curve = index===undefined || index===null ? null : list[index];
+    if(curve && curve.startPos && curve.endPos && curve.startPos.instanceName===startName && curve.endPos.instanceName===endName) return curve;
+  }
   return list.find(c => c.startPos && c.endPos && c.startPos.instanceName===startName && c.endPos.instanceName===endName) || null;
 }
 
@@ -8903,7 +9134,8 @@ function resolveAllPatterns(){
       const [wx,wy] = positions[i];
       if(seedWorld && !inst.skipped) resolveGroupOtherMembers(layer, pat.groupOtherSeedNames, seedWorld, [wx,wy], inst.otherNames);
       const [lx,ly] = worldToLayer(layer, wx, wy);
-      const nlx = round3(lx), nly = round3(ly);
+      const nlx = pt.__ptConstraints && pt.__ptConstraints.x ? pt.pos.x : round3(lx);
+      const nly = pt.__ptConstraints && pt.__ptConstraints.y ? pt.pos.y : round3(ly);
       if(nlx!==pt.pos.x || nly!==pt.pos.y){
         const oldLX = pt.pos.x, oldLY = pt.pos.y;
         pt.pos = {x:nlx, y:nly};
@@ -9053,10 +9285,12 @@ function setPatternCount(pat, newCount, layer){
   layer = layer || getLayer(pat.layerId);
   if(!layer) return;
   newCount = Math.max(0, newCount);
+  const removedInstances = [];
   while(pat.instances.length > newCount){
     const removed = pat.instances.pop();
-    if(!removed.skipped) deleteGroupInstancePoints(layer, removed);
+    if(!removed.skipped) removedInstances.push(removed);
   }
+  deleteGroupInstances(layer, removedInstances);
   while(pat.instances.length < newCount){
     appendPatternInstance(pat, layer);
   }
@@ -9155,9 +9389,7 @@ function setPatternConnectLegDirs(pat, fwdDir, bwdDir, layer){
 }
 function deletePattern(pat){
   const layer = getLayer(pat.layerId);
-  if(layer){
-    for(const inst of pat.instances.slice()){ if(!inst.skipped) deleteGroupInstancePoints(layer, inst); }
-  }
+  if(layer) deleteGroupInstances(layer, pat.instances.filter(inst=>!inst.skipped));
   state.patterns = state.patterns.filter(p=>p!==pat);
 }
 function findPatternByPointName(layer, name){
@@ -9230,9 +9462,7 @@ function prunePatterns(){
     const layer = getLayer(pat.layerId);
     if(!layer || !findNavPointByName(layer, pat.seedName)){
       if(layer){
-        for(const inst of pat.instances){
-          if(!inst.skipped && findNavPointByName(layer, inst.name)) deleteGroupInstancePoints(layer, inst);
-        }
+        deleteGroupInstances(layer, pat.instances.filter(inst=>!inst.skipped), true);
       }
       state.patterns = state.patterns.filter(p=>p!==pat);
       continue;
@@ -9240,7 +9470,7 @@ function prunePatterns(){
     let anyNewlySkipped = false;
     for(const inst of pat.instances){
       if(!inst.skipped && !findNavPointByName(layer, inst.name)){
-        if(inst.otherNames) for(const n of inst.otherNames) if(n) deleteNavPoint(layer, n);
+        if(inst.otherNames) deleteNavPoints(layer, inst.otherNames.filter(Boolean));
         inst.skipped = true; anyNewlySkipped = true;
       }
     }
@@ -9577,14 +9807,16 @@ function setGridPatternSize(grid, newCountX, newCountY, layer){
   layer = layer || getLayer(grid.layerId);
   if(!layer) return;
   newCountX = Math.max(1, newCountX); newCountY = Math.max(1, newCountY);
+  const removedCells = [];
   for(const key of Object.keys(grid.cells)){
     const [row,col] = key.split(',').map(Number);
     if(row>=newCountY || col>=newCountX){
       const cell = grid.cells[key];
-      if(!cell.skipped) deleteGroupInstancePoints(layer, cell);
+      if(!cell.skipped) removedCells.push(cell);
       delete grid.cells[key];
     }
   }
+  deleteGroupInstances(layer, removedCells);
   for(let row=0; row<newCountY; row++){
     for(let col=0; col<newCountX; col++){
       if(row===0 && col===0) continue;
@@ -9640,12 +9872,7 @@ function toggleGridCellSkip(grid, row, col){
 }
 function deleteGridPattern(grid){
   const layer = getLayer(grid.layerId);
-  if(layer){
-    for(const key of Object.keys(grid.cells)){
-      const cell = grid.cells[key];
-      if(!cell.skipped) deleteGroupInstancePoints(layer, cell);
-    }
-  }
+  if(layer) deleteGroupInstances(layer, Object.values(grid.cells).filter(cell=>!cell.skipped));
   state.gridPatterns = state.gridPatterns.filter(g=>g!==grid);
 }
 function findGridPatternByPointName(layer, name){
@@ -9667,10 +9894,7 @@ function pruneGridPatterns(){
     const layer = getLayer(grid.layerId);
     if(!layer || !findNavPointByName(layer, grid.seedName)){
       if(layer){
-        for(const key of Object.keys(grid.cells)){
-          const cell = grid.cells[key];
-          if(!cell.skipped && findNavPointByName(layer, cell.name)) deleteGroupInstancePoints(layer, cell);
-        }
+        deleteGroupInstances(layer, Object.values(grid.cells).filter(cell=>!cell.skipped), true);
       }
       state.gridPatterns = state.gridPatterns.filter(g=>g!==grid);
       continue;
@@ -9678,7 +9902,7 @@ function pruneGridPatterns(){
     for(const key of Object.keys(grid.cells)){
       const cell = grid.cells[key];
       if(!cell.skipped && !findNavPointByName(layer, cell.name)){
-        if(cell.otherNames) for(const n of cell.otherNames) if(n) deleteNavPoint(layer, n);
+        if(cell.otherNames) deleteNavPoints(layer, cell.otherNames.filter(Boolean));
         cell.skipped = true;
       }
     }
@@ -10235,7 +10459,8 @@ function resolveGroupOtherMembers(layer, groupOtherSeedNames, connectorSeedWorld
     if(!pt) continue;
     const [swx,swy] = layerToWorld(layer, seedPt.pos.x, seedPt.pos.y);
     const [lx,ly] = worldToLayer(layer, swx+ddx, swy+ddy);
-    const nlx = round3(lx), nly = round3(ly);
+    const nlx = pt.__ptConstraints && pt.__ptConstraints.x ? pt.pos.x : round3(lx);
+    const nly = pt.__ptConstraints && pt.__ptConstraints.y ? pt.pos.y : round3(ly);
     if(nlx!==pt.pos.x || nly!==pt.pos.y){
       const oldLX = pt.pos.x, oldLY = pt.pos.y;
       pt.pos = {x:nlx, y:nly};
@@ -10247,8 +10472,16 @@ function resolveGroupOtherMembers(layer, groupOtherSeedNames, connectorSeedWorld
 // "other" group members -- used wherever a plain `deleteNavPoint(inst.name)`
 // used to be the whole story (shrink, skip, delete-pattern).
 function deleteGroupInstancePoints(layer, inst){
-  deleteNavPoint(layer, inst.name);
-  if(inst.otherNames) for(const n of inst.otherNames) if(n) deleteNavPoint(layer, n);
+  deleteGroupInstances(layer, [inst]);
+}
+function deleteGroupInstances(layer, instances, requireExisting=false){
+  if(!layer.extra || !instances.length) return;
+  const byName = navPointsByName(layer), removed = new Set();
+  for(const inst of instances){
+    if(requireExisting && (!byName.has(inst.name) || removed.has(inst.name))) continue;
+    collectNavPointCascade(byName, [inst.name, ...(inst.otherNames||[]).filter(Boolean)], removed);
+  }
+  deleteNavPoints(layer, removed);
 }
 // The Station's near LM, specifically when its AP is a Pickup (not a plain
 // Station) -- this is the point RDS naming auto-derives as
@@ -11491,7 +11724,7 @@ document.getElementById('btnPatSelResetOverrides').addEventListener('click', ()=
 });
 document.getElementById('btnPatSelUnskipAll').addEventListener('click', ()=>{
   const pat = state.patterns.find(p=>p.id===state.selectedPattern); if(!pat) return;
-  const layer = getLayer(pat.layerId); if(layer) pushUndo(layer);
+  const layer = getLayer(pat.layerId); if(layer) pushUndo(layer, true);
   for(let i=0;i<pat.instances.length;i++){ if(pat.instances[i].skipped) togglePatternInstanceSkip(pat, i); }
   renderPatternPanel(); scheduleAutosave(); requestDraw();
 });
@@ -11548,7 +11781,7 @@ document.getElementById('btnGridSelResetOverrides').addEventListener('click', ()
 });
 document.getElementById('btnGridSelUnskipAll').addEventListener('click', ()=>{
   const grid = state.gridPatterns.find(g=>g.id===state.selectedGridPattern); if(!grid) return;
-  const layer = getLayer(grid.layerId); if(layer) pushUndo(layer);
+  const layer = getLayer(grid.layerId); if(layer) pushUndo(layer, true);
   for(const key of Object.keys(grid.cells)){
     if(grid.cells[key].skipped){ const [row,col]=key.split(',').map(Number); toggleGridCellSkip(grid, row, col); }
   }
@@ -11889,7 +12122,7 @@ patMenuEl.addEventListener('click', (e)=>{
     const action = item.dataset.patAction;
     const layer = getLayer(target.pat ? target.pat.layerId : target.grid.layerId);
     if(action==='toggleSkip'){
-      if(layer) pushUndo(layer);
+      if(layer) pushUndo(layer, true);
       if(target.kind==='linearInstance') togglePatternInstanceSkip(target.pat, target.index);
       else if(target.kind==='gridCell') toggleGridCellSkip(target.grid, target.row, target.col);
       scheduleAutosave(); renderPatternPanel(); renderPathPanel(); renderNavPointPanel();
@@ -12987,11 +13220,11 @@ function deleteSelectionRefs(refs){
     const layer = getLayer(layerId);
     if(!layer) continue;
     pushUndo(layer);
-    for(const item of items.filter(i=>i.kind==='navPoint')) deleteNavPoint(layer, item.instanceName);
-    for(const item of items.filter(i=>i.kind==='path')){
-      if(!layer.extra || !Array.isArray(layer.extra.advancedCurveList)) continue;
-      deletePathBetween(layer, item.nameA, item.nameB);
-    }
+    const navNames = items.filter(i=>i.kind==='navPoint').map(i=>i.instanceName);
+    deleteNavPoints(layer, navNames, true);
+    const pathsDeleted = deletePathsBetween(layer, items.filter(i=>i.kind==='path'), true);
+    if(navNames.length && layer.extra) pruneInvalidRelations();
+    if((navNames.length && layer.extra) || pathsDeleted) prunePathPatterns();
     const areaItems = items.filter(i=>i.kind==='area');
     const reflAreaObjs = areaItems.filter(i=>(i.areaKind||'reflector')==='reflector').map(i=>layer.extra && layer.extra.advancedAreaList && layer.extra.advancedAreaList[i.areaIndex]).filter(Boolean);
     if(reflAreaObjs.length) removeAreasWithIndexFix(layer, a=>reflAreaObjs.includes(a));
@@ -13424,7 +13657,7 @@ function applyRectSelectDelete(layer, rect){
   if(maxX-minX < 0.02 || maxY-minY < 0.02) return; // ignore an accidental click/near-zero drag
   const inRect = (wx,wy) => wx>=minX && wx<=maxX && wy>=minY && wy<=maxY;
 
-  pushUndo(layer);
+  pushUndo(layer, true);
   let removed = 0;
 
   if(state.selectTargets.scan && layer.points.length){
@@ -13472,16 +13705,16 @@ function applyRectSelectDelete(layer, rect){
   if(state.selectTargets.navPoints && layer.extra){
     const deletedNames = new Set();
     if(Array.isArray(layer.extra.advancedPointList)){
-      const kept = [];
       for(const item of layer.extra.advancedPointList){
         const pos = item && item.pos;
         if(pos){
           const [wx,wy] = layerToWorld(layer, pos.x, pos.y);
-          if(inRect(wx,wy)){ deletedNames.add(item.instanceName); removed++; continue; }
+          if(inRect(wx,wy)) deletedNames.add(item.instanceName);
         }
-        kept.push(item);
       }
-      layer.extra.advancedPointList = kept;
+      const before = layer.extra.advancedPointList.length;
+      deleteNavPoints(layer, deletedNames, true);
+      removed += before - layer.extra.advancedPointList.length;
     }
     if(Array.isArray(layer.extra.advancedCurveList)){
       const before = layer.extra.advancedCurveList.length;
@@ -13499,7 +13732,7 @@ function applyRectSelectDelete(layer, rect){
   }
 
   if(removed===0){ state.undoStack.pop(); updateUndoButton(); } // nothing actually changed, drop the no-op undo entry
-  else { prunePatterns(); pruneGridPatterns(); prunePathPatterns(); }
+  else { pruneInvalidRelations(); prunePatterns(); pruneGridPatterns(); prunePathPatterns(); }
   layer.localBBox = bboxOfPoints(layer.points.length ? layer.points : [0,0]);
   renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderPatternPanel(); scheduleAutosave(); requestDraw();
 }
@@ -13617,9 +13850,60 @@ function planSplitToLayer(sourceLayer, shape){
 function applySplitToLayer(sourceLayer, shape){
   const plan = planSplitToLayer(sourceLayer, shape);
   if(plan.count===0) return;
+  const names = plan.navPointNames || new Set();
+  const points = (sourceLayer.extra && sourceLayer.extra.advancedPointList) || [];
+  const existingNames = new Set(points.map(p=>p.instanceName));
+  const splitAcross = members=>{
+    const present = members.filter(n=>existingNames.has(n));
+    return present.some(n=>names.has(n)) && present.some(n=>!names.has(n));
+  };
+  for(const pt of points){
+    const partners = [pt.instanceName, pt.__pairedAP, pt.__pairedLM && pt.__pairedLM.name,
+      pt.__pickupNear, pt.__pickupFar && pt.__pickupFar.name].filter(Boolean);
+    if(splitAcross(partners)){
+      alert('The split would separate a Station or Pickup. Include all of its points or leave them together.');
+      return;
+    }
+  }
+  const patterns = [...state.patterns, ...state.gridPatterns].filter(p=>p.layerId===sourceLayer.id);
+  const patternNames = p=>[p.seedName, ...(p.groupOtherSeedNames||[]),
+    ...((p.instances || Object.values(p.cells||{})).filter(i=>!i.skipped).flatMap(i=>[i.name, ...(i.otherNames||[])]))].filter(Boolean);
+  for(const pat of patterns){
+    if(splitAcross(patternNames(pat))){
+      alert('The split would separate a pattern. Include all of its points or leave them together.');
+      return;
+    }
+  }
+  const pathPatterns = state.pathPatterns.filter(p=>p.layerId===sourceLayer.id);
+  for(const pat of pathPatterns){
+    if(splitAcross([pat.source, ...pat.targets].flatMap(ref=>[ref.nameA,ref.nameB]))){
+      alert('The split would separate a path pattern. Include all of its paths or leave them together.');
+      return;
+    }
+  }
+  const movedReflectors = new Set(plan.reflectors), movedLines = new Set(plan.manualLines);
+  const groups = new Map();
+  const addGroup = (obj, moved)=>{
+    if(!obj || !obj.__rigidGroup) return;
+    const group = groups.get(obj.__rigidGroup) || {moved:false, kept:false};
+    group[moved ? 'moved' : 'kept'] = true;
+    groups.set(obj.__rigidGroup, group);
+  };
+  for(const pt of points) addGroup(pt, names.has(pt.instanceName));
+  for(const r of sourceLayer.reflectors) addGroup(r, movedReflectors.has(r));
+  for(const line of sourceLayer.manualLines) addGroup(line, movedLines.has(line));
+  for(const area of (sourceLayer.extra.advancedAreaList||[])) addGroup(area, false);
+  for(const anno of (sourceLayer.annotations||[])) addGroup(anno, false);
+  if([...groups.values()].some(g=>g.moved && g.kept)){
+    alert('The split would separate a rigid group. Include all of its members or leave them together.');
+    return;
+  }
+  pushLayerListUndo(true);
   const dest = createSplitDestLayer(sourceLayer);
+  state.layers.push(dest);
+  const movedScanPositions = new Set(plan.scanIdx.map(i=>sourceLayer.points[i]+','+sourceLayer.points[i+1]));
 
-  pushUndo(sourceLayer);
+  if(sourceLayer.rdsRule) dest.rdsRule = JSON.parse(JSON.stringify(sourceLayer.rdsRule));
   const toDestLocal = (lx,ly) => {
     const [wx,wy] = layerToWorld(sourceLayer, lx, ly);
     const [dx,dy] = worldToLayer(dest, wx, wy);
@@ -13646,12 +13930,28 @@ function applySplitToLayer(sourceLayer, shape){
   }
   if(plan.reflectors.length){
     const moveSet = new Set(plan.reflectors);
-    sourceLayer.reflectors = sourceLayer.reflectors.filter(r=>{
+    const oldReflectors = sourceLayer.reflectors;
+    const indexMap = new Map();
+    let keptIndex = 0, destIndex = 0;
+    oldReflectors.forEach((r,i)=>indexMap.set(i, moveSet.has(r) ? {layerId:dest.id, index:destIndex++} : {layerId:sourceLayer.id, index:keptIndex++}));
+    sourceLayer.reflectors = oldReflectors.filter(r=>{
       if(!moveSet.has(r)) return true;
       const [dx,dy] = toDestLocal(r.x, r.y);
-      dest.reflectors.push({...r, x:dx, y:dy});
+      const moved = {...r, x:dx, y:dy};
+      if(r.__fixed){ const [x,y]=toDestLocal(r.__fixed.x,r.__fixed.y); moved.__fixed={x,y}; }
+      dest.reflectors.push(moved);
       return false;
     });
+    forEachConstraint(constraint=>{
+      if(constraint.anchorKind!=='reflector' || constraint.anchorLayerId!==sourceLayer.id) return;
+      const ref = indexMap.get(constraint.anchorReflectorIndex);
+      if(ref){ constraint.anchorLayerId=ref.layerId; constraint.anchorReflectorIndex=ref.index; }
+    }, true);
+    for(const rel of state.relations) for(const ref of rel.participants){
+      if(ref.kind!=='reflector' || ref.layerId!==sourceLayer.id) continue;
+      const target = indexMap.get(ref.index);
+      if(target){ ref.layerId=target.layerId; ref.index=target.index; }
+    }
   }
   if(plan.manualLines.length){
     const moveSet = new Set(plan.manualLines);
@@ -13671,17 +13971,19 @@ function applySplitToLayer(sourceLayer, shape){
       const line = item.line;
       const [dx1,dy1] = toDestLocal(line.startPos.x, line.startPos.y);
       const [dx2,dy2] = toDestLocal(line.endPos.x, line.endPos.y);
-      dest.extra.advancedLineList.push({...item, line:{startPos:{x:dx1,y:dy1}, endPos:{x:dx2,y:dy2}}});
+      dest.extra.advancedLineList.push({...item, line:{...line, startPos:{...line.startPos,x:dx1,y:dy1}, endPos:{...line.endPos,x:dx2,y:dy2}}});
       return false;
     });
   }
   if(plan.navPointNames && plan.navPointNames.size){
-    const names = plan.navPointNames;
     const keptPoints = [];
     for(const pt of sourceLayer.extra.advancedPointList){
       if(pt && names.has(pt.instanceName)){
         const [dx,dy] = toDestLocal(pt.pos.x, pt.pos.y);
-        dest.extra.advancedPointList.push({...pt, pos:{x:dx,y:dy}});
+        const moved = {...pt, pos:{x:dx,y:dy}};
+        if(pt.__fixed){ const [x,y]=toDestLocal(pt.__fixed.x,pt.__fixed.y); moved.__fixed={x,y}; }
+        if(typeof pt.dir==='number') moved.dir = Math.atan2(Math.sin(pt.dir+sourceLayer.transform.rot), Math.cos(pt.dir+sourceLayer.transform.rot));
+        dest.extra.advancedPointList.push(moved);
       } else keptPoints.push(pt);
     }
     sourceLayer.extra.advancedPointList = keptPoints;
@@ -13695,18 +13997,72 @@ function applySplitToLayer(sourceLayer, shape){
         const movedC = {...c, startPos:{...c.startPos, pos:{x:sdx,y:sdy}}, endPos:{...c.endPos, pos:{x:edx,y:edy}}};
         if(c.controlPos1){ const [cx,cy]=toDestLocal(c.controlPos1.x,c.controlPos1.y); movedC.controlPos1={x:cx,y:cy}; }
         if(c.controlPos2){ const [cx,cy]=toDestLocal(c.controlPos2.x,c.controlPos2.y); movedC.controlPos2={x:cx,y:cy}; }
+        if(c.__fixedCP){
+          movedC.__fixedCP = {};
+          for(const [which, fixed] of Object.entries(c.__fixedCP)){
+            const [x,y] = toDestLocal(fixed.x,fixed.y);
+            movedC.__fixedCP[which] = {x,y};
+          }
+        }
         dest.extra.advancedCurveList.push(movedC);
       } else keptCurves.push(c);
     }
     sourceLayer.extra.advancedCurveList = keptCurves;
+    const wrappers = sourceLayer.extra.binLocationsList;
+    if(Array.isArray(wrappers)){
+      dest.extra.binLocationsList = [];
+      sourceLayer.extra.binLocationsList = wrappers.flatMap(wrapper=>{
+        if(!wrapper || !Array.isArray(wrapper.binLocationList)) return [wrapper];
+        const moved = wrapper.binLocationList.filter(entry=>names.has(entry.pointName));
+        const kept = wrapper.binLocationList.filter(entry=>!names.has(entry.pointName));
+        if(moved.length) dest.extra.binLocationsList.push({...wrapper,binLocationList:moved});
+        return kept.length ? [{...wrapper,binLocationList:kept}] : [];
+      });
+    }
+    for(const pat of patterns){
+      if(!patternNames(pat).some(name=>names.has(name))) continue;
+      pat.layerId = dest.id;
+      if(pat.wall && pat.wall.origin){
+        const convert = p=>{ const [x,y]=toDestLocal(p.x,p.y); return {x,y}; };
+        pat.wall.origin = convert(pat.wall.origin);
+        if(Array.isArray(pat.wall.picks)) pat.wall.picks = pat.wall.picks.map(convert);
+        pat.wall.angle += sourceLayer.transform.rot;
+      }
+    }
+    for(const pat of pathPatterns){
+      if(names.has(pat.source.nameA) && names.has(pat.source.nameB)) pat.layerId = dest.id;
+    }
+    forEachConstraint(constraint=>{
+      if(constraint.anchorLayerId!==sourceLayer.id) return;
+      if(constraint.anchorKind==='navPoint' && names.has(constraint.anchorName)) constraint.anchorLayerId = dest.id;
+      if(constraint.anchorKind==='controlPoint' && names.has(constraint.anchorNameA) && names.has(constraint.anchorNameB)) constraint.anchorLayerId = dest.id;
+    }, true);
+    for(const rel of state.relations) for(const ref of rel.participants){
+      if(ref.layerId!==sourceLayer.id) continue;
+      if(ref.kind==='navPoint' && names.has(ref.instanceName)) ref.layerId = dest.id;
+      if(ref.kind==='controlPoint' && names.has(ref.nameA) && names.has(ref.nameB)) ref.layerId = dest.id;
+    }
   }
 
-  sourceLayer.localBBox = bboxOfPoints(sourceLayer.points.length ? sourceLayer.points : [0,0]);
-  dest.localBBox = bboxOfPoints(dest.points.length ? dest.points : (dest.extra.advancedPointList.length ? dest.extra.advancedPointList.flatMap(p=>[p.pos.x,p.pos.y]) : [0,0]));
+  forEachConstraint(constraint=>{
+    if(constraint.anchorKind==='scanPoint' && constraint.anchorLayerId===sourceLayer.id &&
+       movedScanPositions.has(constraint.anchorLocalX+','+constraint.anchorLocalY)){
+      [constraint.anchorLocalX,constraint.anchorLocalY] = toDestLocal(constraint.anchorLocalX,constraint.anchorLocalY);
+      constraint.anchorLayerId = dest.id;
+    }
+  }, true);
+  state.activeLayerId = dest.id;
+  const splitBBox = layer=>{
+    if(layer.points.length) return bboxOfPoints(layer.points);
+    const positions = layer.reflectors.flatMap(r=>[r.x,r.y]);
+    for(const pt of (layer.extra.advancedPointList||[])) if(pt.pos) positions.push(pt.pos.x,pt.pos.y);
+    return bboxOfPoints(positions.length ? positions : [0,0]);
+  };
+  sourceLayer.localBBox = splitBBox(sourceLayer);
+  dest.localBBox = splitBBox(dest);
   dest.pivot = {x:(dest.localBBox.minX+dest.localBBox.maxX)/2, y:(dest.localBBox.minY+dest.localBBox.maxY)/2};
   prunePatterns(); pruneGridPatterns(); prunePathPatterns();
-  addLayer(dest);
-  renderDetailPanel(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderPatternPanel(); scheduleAutosave(); requestDraw();
+  renderLayersList(); renderDetailPanel(); updateToolStatus(); renderNavPointPanel(); renderPathPanel(); renderAreaPanel(); renderPatternPanel(); scheduleAutosave(); requestDraw();
 }
 
 function clearSplitQuad(){
@@ -14405,7 +14761,7 @@ canvasEl.addEventListener('pointermove', (e)=>{
   const [wx,wy] = screenToWorld(sx,sy);
   document.getElementById('hud').innerHTML = 'x: <b>'+wx.toFixed(3)+'</b> m &nbsp; y: <b>'+wy.toFixed(3)+'</b> m';
   state.mouse = {x:sx, y:sy};
-  if(state.tool==='erase') requestDraw();
+  if(state.tool==='erase') requestDraw(true);
 
   if(state.dimDrag){
     updateDimensionDrag(sx, sy);
@@ -14416,7 +14772,7 @@ canvasEl.addEventListener('pointermove', (e)=>{
   if(state.tool==='reflector'){
     const hoverLayer = getEditableActiveLayer();
     const idx = hoverLayer ? findReflectorAt(hoverLayer, sx, sy, 14) : -1;
-    if(idx !== state.hoverReflector){ state.hoverReflector = idx; requestDraw(); }
+    if(idx !== state.hoverReflector){ state.hoverReflector = idx; requestDraw(true); }
   } else if(state.hoverReflector !== null){
     state.hoverReflector = null;
   }
@@ -14427,7 +14783,7 @@ canvasEl.addEventListener('pointermove', (e)=>{
     const bodyIdx = (hoverLayer && !handle) ? findLineBodyAt(hoverLayer, sx, sy, 8) : -1;
     const handleChanged = JSON.stringify(handle) !== JSON.stringify(state.hoverLineHandle);
     if(handleChanged || bodyIdx !== state.hoverLineBody){
-      state.hoverLineHandle = handle; state.hoverLineBody = bodyIdx; requestDraw();
+      state.hoverLineHandle = handle; state.hoverLineBody = bodyIdx; requestDraw(true);
     }
   } else if(!(state.tool==='draw' && state.lineMode==='edit') && (state.hoverLineHandle || state.hoverLineBody>=0)){
     state.hoverLineHandle = null; state.hoverLineBody = -1;
@@ -14437,7 +14793,7 @@ canvasEl.addEventListener('pointermove', (e)=>{
     const hoverLayer = getEditableActiveLayer();
     const hit = hoverLayer ? findNavPointAt(hoverLayer, sx, sy, 14) : null;
     const name = hit ? hit.instanceName : null;
-    if(name !== state.hoverNavPoint){ state.hoverNavPoint = name; requestDraw(); }
+    if(name !== state.hoverNavPoint){ state.hoverNavPoint = name; requestDraw(true); }
   } else if(state.tool!=='nav' && state.tool!=='path' && state.hoverNavPoint){
     state.hoverNavPoint = null;
   }
@@ -14452,10 +14808,10 @@ canvasEl.addEventListener('pointermove', (e)=>{
     const hover = findPickableAnchorAt(sx, sy, 14, excludeRef, target.smart ? null : target.axis);
     if(target.smart) target.axis = hover ? computeSmartAxisFromPair(target, hover) : null;
     state.distPickHover = hover;
-    requestDraw();
+    requestDraw(true);
   } else if(state.tool==='dist' && !state.distTarget){
     const hit = findConstrainableTargetAt(sx, sy, 14);
-    if(JSON.stringify(hit)!==JSON.stringify(state.distHoverTarget)){ state.distHoverTarget = hit; requestDraw(); }
+    if(JSON.stringify(hit)!==JSON.stringify(state.distHoverTarget)){ state.distHoverTarget = hit; requestDraw(true); }
   } else if(state.tool!=='dist' && (state.distHoverTarget || state.distPickHover)){
     state.distHoverTarget = null; state.distPickHover = null;
   }
@@ -14478,7 +14834,7 @@ canvasEl.addEventListener('pointermove', (e)=>{
     const edgeHit = (edgeHitRaw && edgeHitRaw.areaKind==='reflector') ? edgeHitRaw : null;
     const edgeHitTagged = edgeHit && hoverLayer ? {layerId:hoverLayer.id, areaIndex:edgeHit.areaIndex, areaKind:'reflector', edgeKey:edgeHit.edgeKey} : null;
     if(JSON.stringify(vHit)!==JSON.stringify(state.hoverAreaVertex) || rotHit!==state.hoverAreaRotate || JSON.stringify(edgeHitTagged)!==JSON.stringify(state.hoverAreaEdge)){
-      state.hoverAreaVertex = vHit; state.hoverAreaRotate = rotHit; state.hoverAreaEdge = edgeHitTagged; requestDraw();
+      state.hoverAreaVertex = vHit; state.hoverAreaRotate = rotHit; state.hoverAreaEdge = edgeHitTagged; requestDraw(true);
     }
   } else if(state.tool==='annotate' && !dragging){
     const hoverLayer = getEditableActiveLayer();
@@ -14486,7 +14842,7 @@ canvasEl.addEventListener('pointermove', (e)=>{
     const annoEdgeHit = (annoEdgeHitRaw && annoEdgeHitRaw.areaKind==='annotation') ? annoEdgeHitRaw : null;
     const edgeHitTagged = annoEdgeHit && hoverLayer ? {layerId:hoverLayer.id, areaIndex:annoEdgeHit.areaIndex, areaKind:'annotation', edgeKey:annoEdgeHit.edgeKey} : null;
     if(JSON.stringify(edgeHitTagged)!==JSON.stringify(state.hoverAreaEdge)){
-      state.hoverAreaEdge = edgeHitTagged; requestDraw();
+      state.hoverAreaEdge = edgeHitTagged; requestDraw(true);
     }
   } else if(state.tool!=='area' && state.tool!=='annotate' && (state.hoverAreaVertex || state.hoverAreaRotate>=0 || state.hoverAreaEdge)){
     state.hoverAreaVertex = null; state.hoverAreaRotate = -1; state.hoverAreaEdge = null;
@@ -14499,7 +14855,7 @@ canvasEl.addEventListener('pointermove', (e)=>{
     const [pwx,pwy] = screenToWorld(mx,my);
     state.view.scale = clamp(pinchStartScale*(dist/pinchStartDist), MIN_SCALE, MAX_SCALE);
     state.view.tx = mx-pwx*state.view.scale; state.view.ty = my+pwy*state.view.scale;
-    requestDraw(); return;
+    requestDraw(true); return;
   }
 
   if(!dragging) return;
@@ -14530,7 +14886,7 @@ canvasEl.addEventListener('pointermove', (e)=>{
     requestDraw();
   } else if(state.tool==='pan'){
     const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
-    state.view.tx+=dx; state.view.ty+=dy; requestDraw();
+    state.view.tx+=dx; state.view.ty+=dy; requestDraw(true);
   } else if(state.tool==='move' && layer){
     const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
     layer.transform.tx += dx/state.view.scale;
@@ -15005,7 +15361,7 @@ canvasEl.addEventListener('mousedown', (e)=>{ if(e.button===1) e.preventDefault(
 canvasEl.addEventListener('auxclick', (e)=>{ if(e.button===1) e.preventDefault(); });
 canvasEl.addEventListener('pointerup', endPointer);
 canvasEl.addEventListener('pointercancel', endPointer);
-canvasEl.addEventListener('pointerleave', ()=>{ state.mouse = null; if(state.tool==='erase') requestDraw(); });
+canvasEl.addEventListener('pointerleave', ()=>{ state.mouse = null; if(state.tool==='erase') requestDraw(true); });
 
 canvasEl.addEventListener('wheel', (e)=>{
   e.preventDefault();
@@ -15015,7 +15371,7 @@ canvasEl.addEventListener('wheel', (e)=>{
   const factor = Math.pow(1.0016, -e.deltaY);
   state.view.scale = clamp(state.view.scale*factor, MIN_SCALE, MAX_SCALE);
   state.view.tx = mx-wx*state.view.scale; state.view.ty = my+wy*state.view.scale;
-  requestDraw();
+  requestDraw(true);
 }, {passive:false});
 
 canvasEl.addEventListener('dblclick', (e)=>{
@@ -15205,7 +15561,7 @@ function panTick(ts){
   if(panKeysActive.has('panDown')) state.view.ty -= d;
   if(panKeysActive.has('panLeft')) state.view.tx += d;
   if(panKeysActive.has('panRight')) state.view.tx -= d;
-  requestDraw();
+  requestDraw(true);
   if(panKeysActive.size){ panRafHandle = requestAnimationFrame(panTick); }
   else{ panRafHandle = null; panLastTs = null; }
 }
